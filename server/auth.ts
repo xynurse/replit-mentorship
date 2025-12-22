@@ -2,6 +2,7 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
+import rateLimit from "express-rate-limit";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
@@ -16,6 +17,22 @@ declare global {
 const scryptAsync = promisify(scrypt);
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 15;
+
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: "Too many attempts, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const passwordResetRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { message: "Too many password reset attempts, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
@@ -135,7 +152,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/register", async (req, res, next) => {
+  app.post("/api/register", authRateLimiter, async (req, res, next) => {
     try {
       const validation = registerSchema.safeParse(req.body);
       if (!validation.success) {
@@ -183,7 +200,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
+  app.post("/api/login", authRateLimiter, (req, res, next) => {
     passport.authenticate("local", (err: Error | null, user: SelectUser | false, info: { message: string } | undefined) => {
       if (err) return next(err);
       if (!user) {
@@ -220,7 +237,7 @@ export function setupAuth(app: Express) {
     res.json(safeUser);
   });
 
-  app.post("/api/forgot-password", async (req, res, next) => {
+  app.post("/api/forgot-password", passwordResetRateLimiter, async (req, res, next) => {
     try {
       const { email } = req.body;
       if (!email) {
@@ -247,7 +264,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/reset-password", async (req, res, next) => {
+  app.post("/api/reset-password", passwordResetRateLimiter, async (req, res, next) => {
     try {
       const { token, password } = req.body;
       

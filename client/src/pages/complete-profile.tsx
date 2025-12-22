@@ -1,8 +1,8 @@
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "wouter";
 import { Loader2, Heart, Globe, Briefcase, FileText, CheckCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { completeProfileSchema, CompleteProfileInput } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -260,49 +260,7 @@ export default function CompleteProfilePage() {
                     />
                   </div>
 
-                  <FormField
-                    control={form.control}
-                    name="languagesSpoken"
-                    render={({ field }) => {
-                      const selectedLanguages = field.value || [];
-                      return (
-                        <FormItem>
-                          <FormLabel>Languages spoken</FormLabel>
-                          <FormDescription>
-                            Select all languages you're comfortable communicating in
-                          </FormDescription>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                            {LANGUAGES.map((language) => {
-                              const isChecked = selectedLanguages.includes(language);
-                              return (
-                                <div key={language} className="flex items-center gap-2">
-                                  <Checkbox
-                                    id={`lang-${language}`}
-                                    checked={isChecked}
-                                    onCheckedChange={(checked) => {
-                                      if (checked === true) {
-                                        field.onChange([...selectedLanguages, language]);
-                                      } else {
-                                        field.onChange(selectedLanguages.filter((l) => l !== language));
-                                      }
-                                    }}
-                                    data-testid={`checkbox-lang-${language.toLowerCase()}`}
-                                  />
-                                  <label
-                                    htmlFor={`lang-${language}`}
-                                    className="text-sm cursor-pointer"
-                                  >
-                                    {language}
-                                  </label>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
-                  />
+                  <LanguagesField form={form} />
                 </div>
               )}
 
@@ -473,5 +431,59 @@ export default function CompleteProfilePage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function LanguagesField({ form }: { form: ReturnType<typeof useForm<CompleteProfileInput>> }) {
+  const selectedLanguages = useWatch({
+    control: form.control,
+    name: "languagesSpoken",
+    defaultValue: ["English"],
+  });
+
+  const handleChange = useCallback((language: string, checked: boolean) => {
+    const current = form.getValues("languagesSpoken") || [];
+    if (checked) {
+      form.setValue("languagesSpoken", [...current, language], { shouldValidate: true });
+    } else {
+      form.setValue("languagesSpoken", current.filter((l) => l !== language), { shouldValidate: true });
+    }
+  }, [form]);
+
+  return (
+    <FormField
+      control={form.control}
+      name="languagesSpoken"
+      render={() => (
+        <FormItem>
+          <FormLabel>Languages spoken</FormLabel>
+          <FormDescription>
+            Select all languages you're comfortable communicating in
+          </FormDescription>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+            {LANGUAGES.map((language) => {
+              const isChecked = selectedLanguages?.includes(language) || false;
+              return (
+                <div key={language} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`lang-${language}`}
+                    checked={isChecked}
+                    onCheckedChange={(checked) => handleChange(language, checked === true)}
+                    data-testid={`checkbox-lang-${language.toLowerCase()}`}
+                  />
+                  <label
+                    htmlFor={`lang-${language}`}
+                    className="text-sm cursor-pointer"
+                  >
+                    {language}
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   );
 }
