@@ -1,0 +1,117 @@
+Build the foundation for a comprehensive mentorship management platform called "SONSIEL Mentorship Hub" using Next.js 14+ with TypeScript, Tailwind CSS, and PostgreSQL with Prisma ORM.
+
+PROJECT STRUCTURE:
+Create a well-organized monorepo structure:
+/src
+  /app (Next.js App Router)
+    /api
+    /(auth)
+    /(dashboard)
+    /(public)
+  /components
+    /ui (shadcn/ui components)
+    /shared
+    /forms
+    /layouts
+  /lib
+    /db (Prisma client, utilities)
+    /auth (authentication utilities)
+    /utils (helper functions)
+    /validations (Zod schemas)
+    /constants
+  /hooks
+  /types
+  /services
+/prisma
+  schema.prisma
+  /migrations
+  seed.ts
+
+AUTHENTICATION SYSTEM:
+Implement NextAuth.js with the following:
+
+1. User Roles (enum):
+   - SUPER_ADMIN (platform owner/developer)
+   - ADMIN (program coordinators)
+   - MENTOR
+   - MENTEE
+
+2. User Model:
+   - id (UUID)
+   - email (unique)
+   - passwordHash (bcrypt)
+   - firstName, lastName
+   - role (enum)
+   - profileImage
+   - phone
+   - timezone
+   - preferredLanguage (for Portuguese/Spanish speakers - critical for SONSIEL)
+   - languagesSpoken (array)
+   - bio
+   - linkedInUrl
+   - organizationName
+   - jobTitle
+   - yearsOfExperience
+   - isActive
+   - isVerified
+   - lastLoginAt
+   - createdAt, updatedAt
+   - deletedAt (soft delete)
+
+3. Authentication Features:
+   - Email/password registration with email verification
+   - Secure login with rate limiting
+   - Password reset flow with token expiration
+   - "Remember me" functionality
+   - Session management
+   - Force logout capability for admins
+   - Account lockout after failed attempts
+
+4. Role-Based Access Control (RBAC):
+   - Create middleware for route protection
+   - Implement permission checks at API level
+   - Create React context for current user state
+   - Build HOC for component-level permissions
+   
+   Permissions matrix:
+   - SUPER_ADMIN: Full platform access, can manage admins
+   - ADMIN: Manage cohorts, users, matches, view all analytics
+   - MENTOR: View assigned mentees, messaging, documents, tasks
+   - MENTEE: View assigned mentor, messaging, documents, personal tasks
+
+5. Registration Flow:
+   - Public registration page with role selection (Mentor/Mentee only)
+   - Admins are created by Super Admin only
+   - Email verification required before account activation
+   - Profile completion wizard after first login
+
+6. Security:
+   - CSRF protection
+   - Secure HTTP-only cookies
+   - Input sanitization
+   - SQL injection prevention via Prisma
+   - XSS protection
+
+AUTH PAGES TO BUILD:
+- /login
+- /register (with role selection)
+- /verify-email/[token]
+- /forgot-password
+- /reset-password/[token]
+- /complete-profile (post-registration wizard)
+
+Create a responsive, clean UI using shadcn/ui components. The design should be professional and accessible, using a color scheme appropriate for healthcare/nursing professionals (suggest: blues, teals, clean whites).
+
+Include comprehensive error handling and user feedback (toast notifications, form validation messages).
+
+Set up environment variables properly:
+- DATABASE_URL
+- NEXTAUTH_SECRET
+- NEXTAUTH_URL
+- EMAIL_SERVER credentials
+- APP_URL
+
+Create a seed script that generates:
+- 1 Super Admin account
+- 2 Admin accounts
+- Test mentor and mentee accounts
