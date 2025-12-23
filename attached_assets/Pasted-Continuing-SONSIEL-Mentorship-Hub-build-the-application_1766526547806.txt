@@ -1,0 +1,149 @@
+Continuing SONSIEL Mentorship Hub, build the application system and sophisticated matching algorithm.
+
+APPLICATION SYSTEM:
+
+1. Application Form Builder (Admin Feature):
+   
+   Create a flexible form system that allows admins to customize application questions per cohort:
+   
+   ApplicationQuestion model:
+   - id, cohortId
+   - questionText
+   - questionType (TEXT, TEXTAREA, SELECT, MULTISELECT, RATING, CHECKBOX, DATE, FILE)
+   - options (JSON array for select/multiselect)
+   - isRequired
+   - forRole (MENTOR, MENTEE, BOTH)
+   - section (GROUP questions into sections)
+   - helpText
+   - validationRules (JSON)
+   - sortOrder
+
+2. Default SONSIEL Application Questions (seed these):
+   
+   FOR BOTH:
+   - Professional background/bio
+   - Years of nursing experience
+   - Current organization and role
+   - Languages spoken (critical for Portuguese/Spanish matching)
+   - Preferred meeting times (timezone-aware)
+   - Communication preferences
+   - Which track interests you most? (Scientist/Innovator/Entrepreneur/Intrapreneur/Leader)
+   - Briefly describe your goals for this mentorship
+   
+   FOR MENTORS:
+   - Areas of expertise (rate 1-5 for each of 11 competency areas from survey)
+   - Years of experience in each area
+   - Previous mentoring experience
+   - How many mentees can you support? (1-3)
+   - What mentoring style best describes you?
+   
+   FOR MENTEES:
+   - Current career stage (Pre-licensure, Early-career, Mid-career, etc.)
+   - Areas seeking development (rate interest 1-5 for each competency)
+   - Specific challenges you're facing
+   - What do you hope to gain from mentorship?
+   - Preferred mentor characteristics
+
+3. Public Application Flow:
+   
+   /apply/[cohortId] - Public application page
+   - Cohort information display
+   - Role selection (Mentor/Mentee)
+   - Multi-step form wizard
+   - Progress indicator
+   - Save draft functionality
+   - File upload for resume/CV
+   - Terms and conditions acceptance
+   - Confirmation page with next steps
+
+MATCHING ALGORITHM:
+
+Create a sophisticated matching system at /admin/cohorts/[id]/matching:
+
+1. Compatibility Scoring Engine:
+   
+   Create a scoring algorithm that considers (with configurable weights):
+   
+   a) Language Match (Weight: 25% - HIGH priority per SONSIEL requirements)
+      - Primary language match: +100 points
+      - Secondary language overlap: +50 points
+      - No language match: 0 points (flag as incompatible if language is marked required)
+   
+   b) Track Alignment (Weight: 20%)
+      - Same primary track: +100 points
+      - Related track interest: +50 points
+   
+   c) Expertise/Interest Match (Weight: 25%)
+      - For each of the 11 competency areas:
+        * Mentor expertise (1-5) × Mentee interest (1-5) = score
+        * Sum and normalize
+   
+   d) Availability Overlap (Weight: 15%)
+      - Timezone compatibility
+      - Meeting time preferences overlap
+   
+   e) Experience Level Match (Weight: 10%)
+      - Appropriate mentor seniority for mentee stage
+   
+   f) Communication Style (Weight: 5%)
+      - Style preference compatibility
+
+2. Matching Interface:
+
+   /admin/cohorts/[id]/matching
+   
+   - View all unmatched mentors and mentees
+   - Compatibility matrix visualization (heatmap)
+   - One-click "Auto-Match" with algorithm
+   - Manual match override capability
+   - Drag-and-drop matching interface
+   
+   For each potential match, show:
+   - Overall compatibility score (0-100)
+   - Score breakdown by category
+   - Flags (language mismatch, capacity issues, etc.)
+   - "Match Reason" auto-generated explanation
+
+3. Match Constraints:
+   - Respect mentor capacity (1-3 mentees)
+   - Ensure equitable distribution (don't overload mentors)
+   - Language requirements are respected
+   - Track assignment matches both parties' selection
+
+4. Matching Workflow:
+   
+   a) Admin opens matching page
+   b) System shows suggested matches with scores
+   c) Admin can:
+      - Accept suggested match
+      - Modify match manually
+      - Flag for review
+      - Add notes
+   d) Once matches are finalized:
+      - Admin clicks "Finalize Matches"
+      - System validates all constraints
+      - Matches are created with PROPOSED status
+   e) Admin can then notify all parties
+   f) Matches become ACTIVE when both parties acknowledge
+
+5. Match Analytics:
+   - Distribution by track
+   - Language pairing stats
+   - Average compatibility score
+   - Mentor load distribution
+   - Unmatched participants with reasons
+
+Create reusable React components:
+- CompatibilityScoreCard
+- MatchingMatrix (interactive heatmap)
+- DragDropMatcher
+- MatchReasonDisplay
+- UnmatchedParticipantsList
+
+Store the algorithm configuration in the database so it can be tuned:
+MatchingConfiguration model:
+- cohortId
+- languageWeight, trackWeight, expertiseWeight, etc.
+- minimumScore (threshold for valid match)
+- requireLanguageMatch (boolean)
+- maxMenteesPerMentor

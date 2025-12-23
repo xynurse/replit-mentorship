@@ -16,6 +16,8 @@ export const documentCategoryEnum = pgEnum("document_category", ["TEMPLATE", "AG
 export const documentVisibilityEnum = pgEnum("document_visibility", ["PUBLIC", "COHORT", "TRACK", "MATCH", "PRIVATE"]);
 export const documentAccessTypeEnum = pgEnum("document_access_type", ["VIEW", "DOWNLOAD", "EDIT"]);
 export const cohortRoleEnum = pgEnum("cohort_role", ["MENTOR", "MENTEE"]);
+export const questionTypeEnum = pgEnum("question_type", ["TEXT", "TEXTAREA", "SELECT", "MULTISELECT", "RATING", "CHECKBOX", "DATE", "FILE"]);
+export const questionForRoleEnum = pgEnum("question_for_role", ["MENTOR", "MENTEE", "BOTH"]);
 
 export const userRoleEnum = pgEnum("user_role", ["SUPER_ADMIN", "ADMIN", "MENTOR", "MENTEE"]);
 
@@ -279,6 +281,48 @@ export const documentAccess = pgTable("document_access", {
   expiresAt: timestamp("expires_at"),
 });
 
+export const applicationQuestions = pgTable("application_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cohortId: varchar("cohort_id").references(() => cohorts.id),
+  questionText: text("question_text").notNull(),
+  questionType: questionTypeEnum("question_type").notNull().default("TEXT"),
+  options: jsonb("options"),
+  isRequired: boolean("is_required").default(true),
+  forRole: questionForRoleEnum("for_role").default("BOTH"),
+  section: text("section"),
+  helpText: text("help_text"),
+  validationRules: jsonb("validation_rules"),
+  sortOrder: integer("sort_order").default(0),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const applicationResponses = pgTable("application_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  membershipId: varchar("membership_id").notNull().references(() => cohortMemberships.id),
+  questionId: varchar("question_id").notNull().references(() => applicationQuestions.id),
+  response: jsonb("response"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const matchingConfigurations = pgTable("matching_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cohortId: varchar("cohort_id").notNull().references(() => cohorts.id).unique(),
+  languageWeight: integer("language_weight").default(25),
+  trackWeight: integer("track_weight").default(20),
+  expertiseWeight: integer("expertise_weight").default(25),
+  availabilityWeight: integer("availability_weight").default(15),
+  experienceWeight: integer("experience_weight").default(10),
+  communicationWeight: integer("communication_weight").default(5),
+  minimumScore: integer("minimum_score").default(50),
+  requireLanguageMatch: boolean("require_language_match").default(true),
+  maxMenteesPerMentor: integer("max_mentees_per_mentor").default(3),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertTrackSchema = createInsertSchema(tracks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCohortSchema = createInsertSchema(cohorts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCohortTrackSchema = createInsertSchema(cohortTracks).omit({ id: true, createdAt: true });
@@ -289,6 +333,9 @@ export const insertGoalSchema = createInsertSchema(goals).omit({ id: true, creat
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDocumentAccessSchema = createInsertSchema(documentAccess).omit({ id: true, grantedAt: true });
+export const insertApplicationQuestionSchema = createInsertSchema(applicationQuestions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertApplicationResponseSchema = createInsertSchema(applicationResponses).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMatchingConfigurationSchema = createInsertSchema(matchingConfigurations).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type Track = typeof tracks.$inferSelect;
 export type InsertTrack = z.infer<typeof insertTrackSchema>;
@@ -324,3 +371,12 @@ export type DocumentCategory = "TEMPLATE" | "AGREEMENT" | "RESOURCE" | "SUBMISSI
 export type DocumentVisibility = "PUBLIC" | "COHORT" | "TRACK" | "MATCH" | "PRIVATE";
 export type DocumentAccessType = "VIEW" | "DOWNLOAD" | "EDIT";
 export type CohortRole = "MENTOR" | "MENTEE";
+export type QuestionType = "TEXT" | "TEXTAREA" | "SELECT" | "MULTISELECT" | "RATING" | "CHECKBOX" | "DATE" | "FILE";
+export type QuestionForRole = "MENTOR" | "MENTEE" | "BOTH";
+
+export type ApplicationQuestion = typeof applicationQuestions.$inferSelect;
+export type InsertApplicationQuestion = z.infer<typeof insertApplicationQuestionSchema>;
+export type ApplicationResponse = typeof applicationResponses.$inferSelect;
+export type InsertApplicationResponse = z.infer<typeof insertApplicationResponseSchema>;
+export type MatchingConfiguration = typeof matchingConfigurations.$inferSelect;
+export type InsertMatchingConfiguration = z.infer<typeof insertMatchingConfigurationSchema>;
