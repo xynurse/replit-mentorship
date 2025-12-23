@@ -1,9 +1,12 @@
 import { 
   users, tracks, cohorts, cohortTracks, cohortMemberships, mentorshipMatches, meetingLogs, goals, tasks, documents, documentAccess,
+  applicationQuestions, applicationResponses, matchingConfigurations,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
-  type Goal, type InsertGoal, type Task, type InsertTask, type Document, type InsertDocument
+  type Goal, type InsertGoal, type Task, type InsertTask, type Document, type InsertDocument,
+  type ApplicationQuestion, type InsertApplicationQuestion, type ApplicationResponse, type InsertApplicationResponse,
+  type MatchingConfiguration, type InsertMatchingConfiguration
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -42,6 +45,35 @@ export interface IStorage {
   getOverdueTasks(): Promise<Task[]>;
   getMeetingsThisWeek(): Promise<MeetingLog[]>;
   getAdminDashboardStats(): Promise<{ totalMentors: number; totalMentees: number; activeMatches: number; pendingApplications: number; upcomingMeetings: number; overdueTasks: number }>;
+  
+  // Application Questions
+  getApplicationQuestions(cohortId?: string, forRole?: string): Promise<ApplicationQuestion[]>;
+  getDefaultQuestions(): Promise<ApplicationQuestion[]>;
+  createApplicationQuestion(question: InsertApplicationQuestion): Promise<ApplicationQuestion>;
+  updateApplicationQuestion(id: string, data: Partial<ApplicationQuestion>): Promise<ApplicationQuestion | undefined>;
+  deleteApplicationQuestion(id: string): Promise<void>;
+  
+  // Application Responses
+  getApplicationResponses(membershipId: string): Promise<ApplicationResponse[]>;
+  createApplicationResponse(response: InsertApplicationResponse): Promise<ApplicationResponse>;
+  updateApplicationResponse(id: string, data: Partial<ApplicationResponse>): Promise<ApplicationResponse | undefined>;
+  
+  // Matching Configurations
+  getMatchingConfiguration(cohortId: string): Promise<MatchingConfiguration | undefined>;
+  createMatchingConfiguration(config: InsertMatchingConfiguration): Promise<MatchingConfiguration>;
+  updateMatchingConfiguration(cohortId: string, data: Partial<MatchingConfiguration>): Promise<MatchingConfiguration | undefined>;
+  
+  // Memberships - additional methods
+  createMembership(membership: InsertCohortMembership): Promise<CohortMembership>;
+  getMembership(id: string): Promise<CohortMembership | undefined>;
+  getMembershipByUserAndCohort(userId: string, cohortId: string): Promise<CohortMembership | undefined>;
+  getCohortMembershipsWithUsers(cohortId: string): Promise<(CohortMembership & { user: User })[]>;
+  getUnmatchedMemberships(cohortId: string, role: string): Promise<(CohortMembership & { user: User })[]>;
+  
+  // Matches
+  createMatch(match: InsertMentorshipMatch): Promise<MentorshipMatch>;
+  updateMatch(id: string, data: Partial<MentorshipMatch>): Promise<MentorshipMatch | undefined>;
+  
   sessionStore: session.Store;
 }
 
@@ -294,6 +326,164 @@ export class DatabaseStorage implements IStorage {
       upcomingMeetings: upcomingMeetings.length,
       overdueTasks: overdueTasks.length,
     };
+  }
+
+  // Application Questions
+  async getApplicationQuestions(cohortId?: string, forRole?: string): Promise<ApplicationQuestion[]> {
+    let query = db.select().from(applicationQuestions);
+    
+    if (cohortId) {
+      query = query.where(or(
+        eq(applicationQuestions.cohortId, cohortId),
+        eq(applicationQuestions.isDefault, true)
+      )) as typeof query;
+    }
+    
+    const results = await query.orderBy(asc(applicationQuestions.sortOrder));
+    
+    if (forRole && forRole !== 'BOTH') {
+      return results.filter(q => q.forRole === forRole || q.forRole === 'BOTH');
+    }
+    
+    return results;
+  }
+
+  async getDefaultQuestions(): Promise<ApplicationQuestion[]> {
+    return db.select().from(applicationQuestions)
+      .where(eq(applicationQuestions.isDefault, true))
+      .orderBy(asc(applicationQuestions.sortOrder));
+  }
+
+  async createApplicationQuestion(question: InsertApplicationQuestion): Promise<ApplicationQuestion> {
+    const [result] = await db.insert(applicationQuestions).values(question).returning();
+    return result;
+  }
+
+  async updateApplicationQuestion(id: string, data: Partial<ApplicationQuestion>): Promise<ApplicationQuestion | undefined> {
+    const cleanData: Record<string, unknown> = { updatedAt: new Date() };
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleanData[key] = value;
+      }
+    }
+    const [result] = await db.update(applicationQuestions).set(cleanData).where(eq(applicationQuestions.id, id)).returning();
+    return result || undefined;
+  }
+
+  async deleteApplicationQuestion(id: string): Promise<void> {
+    await db.delete(applicationQuestions).where(eq(applicationQuestions.id, id));
+  }
+
+  // Application Responses
+  async getApplicationResponses(membershipId: string): Promise<ApplicationResponse[]> {
+    return db.select().from(applicationResponses).where(eq(applicationResponses.membershipId, membershipId));
+  }
+
+  async createApplicationResponse(response: InsertApplicationResponse): Promise<ApplicationResponse> {
+    const [result] = await db.insert(applicationResponses).values(response).returning();
+    return result;
+  }
+
+  async updateApplicationResponse(id: string, data: Partial<ApplicationResponse>): Promise<ApplicationResponse | undefined> {
+    const cleanData: Record<string, unknown> = { updatedAt: new Date() };
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleanData[key] = value;
+      }
+    }
+    const [result] = await db.update(applicationResponses).set(cleanData).where(eq(applicationResponses.id, id)).returning();
+    return result || undefined;
+  }
+
+  // Matching Configurations
+  async getMatchingConfiguration(cohortId: string): Promise<MatchingConfiguration | undefined> {
+    const [result] = await db.select().from(matchingConfigurations).where(eq(matchingConfigurations.cohortId, cohortId));
+    return result || undefined;
+  }
+
+  async createMatchingConfiguration(config: InsertMatchingConfiguration): Promise<MatchingConfiguration> {
+    const [result] = await db.insert(matchingConfigurations).values(config).returning();
+    return result;
+  }
+
+  async updateMatchingConfiguration(cohortId: string, data: Partial<MatchingConfiguration>): Promise<MatchingConfiguration | undefined> {
+    const cleanData: Record<string, unknown> = { updatedAt: new Date() };
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleanData[key] = value;
+      }
+    }
+    const [result] = await db.update(matchingConfigurations).set(cleanData).where(eq(matchingConfigurations.cohortId, cohortId)).returning();
+    return result || undefined;
+  }
+
+  // Memberships - additional methods
+  async createMembership(membership: InsertCohortMembership): Promise<CohortMembership> {
+    const [result] = await db.insert(cohortMemberships).values(membership).returning();
+    return result;
+  }
+
+  async getMembership(id: string): Promise<CohortMembership | undefined> {
+    const [result] = await db.select().from(cohortMemberships).where(eq(cohortMemberships.id, id));
+    return result || undefined;
+  }
+
+  async getMembershipByUserAndCohort(userId: string, cohortId: string): Promise<CohortMembership | undefined> {
+    const [result] = await db.select().from(cohortMemberships).where(
+      and(
+        eq(cohortMemberships.userId, userId),
+        eq(cohortMemberships.cohortId, cohortId)
+      )
+    );
+    return result || undefined;
+  }
+
+  async getCohortMembershipsWithUsers(cohortId: string): Promise<(CohortMembership & { user: User })[]> {
+    const results = await db.select({
+      membership: cohortMemberships,
+      user: users
+    })
+    .from(cohortMemberships)
+    .innerJoin(users, eq(cohortMemberships.userId, users.id))
+    .where(eq(cohortMemberships.cohortId, cohortId));
+    
+    return results.map(r => ({ ...r.membership, user: r.user }));
+  }
+
+  async getUnmatchedMemberships(cohortId: string, role: string): Promise<(CohortMembership & { user: User })[]> {
+    const results = await db.select({
+      membership: cohortMemberships,
+      user: users
+    })
+    .from(cohortMemberships)
+    .innerJoin(users, eq(cohortMemberships.userId, users.id))
+    .where(
+      and(
+        eq(cohortMemberships.cohortId, cohortId),
+        eq(cohortMemberships.role, role as any),
+        eq(cohortMemberships.applicationStatus, 'APPROVED'),
+        eq(cohortMemberships.matchStatus, 'UNMATCHED')
+      )
+    );
+    
+    return results.map(r => ({ ...r.membership, user: r.user }));
+  }
+
+  // Matches
+  async createMatch(match: InsertMentorshipMatch): Promise<MentorshipMatch> {
+    const [result] = await db.insert(mentorshipMatches).values(match).returning();
+    return result;
+  }
+
+  async updateMatch(id: string, data: Partial<MentorshipMatch>): Promise<MentorshipMatch | undefined> {
+    const cleanData: Record<string, unknown> = { updatedAt: new Date() };
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleanData[key] = value;
+      }
+    }
+    const [result] = await db.update(mentorshipMatches).set(cleanData).where(eq(mentorshipMatches.id, id)).returning();
+    return result || undefined;
   }
 }
 
