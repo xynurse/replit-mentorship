@@ -1,7 +1,21 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, boolean, timestamp, pgEnum, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, boolean, timestamp, pgEnum, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+export const cohortStatusEnum = pgEnum("cohort_status", ["DRAFT", "RECRUITING", "MATCHING", "ACTIVE", "COMPLETED", "ARCHIVED"]);
+export const applicationStatusEnum = pgEnum("application_status", ["PENDING", "APPROVED", "REJECTED", "WAITLISTED"]);
+export const matchStatusEnum = pgEnum("match_status", ["UNMATCHED", "MATCHED", "REMATCHED"]);
+export const mentorshipMatchStatusEnum = pgEnum("mentorship_match_status", ["PROPOSED", "ACTIVE", "PAUSED", "COMPLETED", "TERMINATED"]);
+export const meetingTypeEnum = pgEnum("meeting_type", ["VIRTUAL", "IN_PERSON", "PHONE"]);
+export const goalCategoryEnum = pgEnum("goal_category", ["SHORT_TERM", "LONG_TERM", "MILESTONE"]);
+export const goalStatusEnum = pgEnum("goal_status", ["NOT_STARTED", "IN_PROGRESS", "COMPLETED", "ABANDONED"]);
+export const taskPriorityEnum = pgEnum("task_priority", ["LOW", "MEDIUM", "HIGH", "URGENT"]);
+export const taskStatusEnum = pgEnum("task_status", ["TODO", "IN_PROGRESS", "BLOCKED", "COMPLETED", "CANCELLED"]);
+export const documentCategoryEnum = pgEnum("document_category", ["TEMPLATE", "AGREEMENT", "RESOURCE", "SUBMISSION", "OTHER"]);
+export const documentVisibilityEnum = pgEnum("document_visibility", ["PUBLIC", "COHORT", "TRACK", "MATCH", "PRIVATE"]);
+export const documentAccessTypeEnum = pgEnum("document_access_type", ["VIEW", "DOWNLOAD", "EDIT"]);
+export const cohortRoleEnum = pgEnum("cohort_role", ["MENTOR", "MENTEE"]);
 
 export const userRoleEnum = pgEnum("user_role", ["SUPER_ADMIN", "ADMIN", "MENTOR", "MENTEE"]);
 
@@ -101,3 +115,212 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type CompleteProfileInput = z.infer<typeof completeProfileSchema>;
+
+export const tracks = pgTable("tracks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  icon: text("icon"),
+  color: text("color"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const cohorts = pgTable("cohorts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  applicationDeadline: timestamp("application_deadline"),
+  status: cohortStatusEnum("status").default("DRAFT"),
+  maxMentors: integer("max_mentors"),
+  maxMentees: integer("max_mentees"),
+  isPublic: boolean("is_public").default(false),
+  settings: jsonb("settings"),
+  createdById: varchar("created_by_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const cohortTracks = pgTable("cohort_tracks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cohortId: varchar("cohort_id").notNull().references(() => cohorts.id),
+  trackId: varchar("track_id").notNull().references(() => tracks.id),
+  isActive: boolean("is_active").default(true),
+  mentorCapacity: integer("mentor_capacity"),
+  menteeCapacity: integer("mentee_capacity"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const cohortMemberships = pgTable("cohort_memberships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cohortId: varchar("cohort_id").notNull().references(() => cohorts.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  role: cohortRoleEnum("role").notNull(),
+  trackId: varchar("track_id").references(() => tracks.id),
+  applicationStatus: applicationStatusEnum("application_status").default("PENDING"),
+  applicationData: jsonb("application_data"),
+  matchStatus: matchStatusEnum("match_status").default("UNMATCHED"),
+  joinedAt: timestamp("joined_at"),
+  completedAt: timestamp("completed_at"),
+  certificateIssuedAt: timestamp("certificate_issued_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const mentorshipMatches = pgTable("mentorship_matches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cohortId: varchar("cohort_id").notNull().references(() => cohorts.id),
+  mentorMembershipId: varchar("mentor_membership_id").notNull().references(() => cohortMemberships.id),
+  menteeMembershipId: varchar("mentee_membership_id").notNull().references(() => cohortMemberships.id),
+  trackId: varchar("track_id").references(() => tracks.id),
+  status: mentorshipMatchStatusEnum("status").default("PROPOSED"),
+  matchScore: integer("match_score"),
+  matchReason: jsonb("match_reason"),
+  matchedAt: timestamp("matched_at"),
+  matchedById: varchar("matched_by_id").references(() => users.id),
+  startDate: timestamp("start_date"),
+  expectedEndDate: timestamp("expected_end_date"),
+  actualEndDate: timestamp("actual_end_date"),
+  terminationReason: text("termination_reason"),
+  mentorFeedback: jsonb("mentor_feedback"),
+  menteeFeedback: jsonb("mentee_feedback"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const meetingLogs = pgTable("meeting_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  matchId: varchar("match_id").notNull().references(() => mentorshipMatches.id),
+  scheduledAt: timestamp("scheduled_at"),
+  occurredAt: timestamp("occurred_at"),
+  duration: integer("duration"),
+  meetingType: meetingTypeEnum("meeting_type"),
+  agenda: text("agenda"),
+  notes: text("notes"),
+  actionItems: text("action_items"),
+  mentorAttended: boolean("mentor_attended"),
+  menteeAttended: boolean("mentee_attended"),
+  nextMeetingDate: timestamp("next_meeting_date"),
+  createdById: varchar("created_by_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const goals = pgTable("goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  matchId: varchar("match_id").notNull().references(() => mentorshipMatches.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: goalCategoryEnum("category").default("SHORT_TERM"),
+  targetDate: timestamp("target_date"),
+  status: goalStatusEnum("status").default("NOT_STARTED"),
+  progress: integer("progress").default(0),
+  createdById: varchar("created_by_id").references(() => users.id),
+  assignedToId: varchar("assigned_to_id").references(() => users.id),
+  completedAt: timestamp("completed_at"),
+  reflectionNotes: text("reflection_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const tasks = pgTable("tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  assignedById: varchar("assigned_by_id").references(() => users.id),
+  assignedToId: varchar("assigned_to_id").references(() => users.id),
+  matchId: varchar("match_id").references(() => mentorshipMatches.id),
+  cohortId: varchar("cohort_id").references(() => cohorts.id),
+  priority: taskPriorityEnum("priority").default("MEDIUM"),
+  status: taskStatusEnum("status").default("TODO"),
+  dueDate: timestamp("due_date"),
+  reminderDate: timestamp("reminder_date"),
+  completedAt: timestamp("completed_at"),
+  tags: text("tags").array(),
+  parentTaskId: varchar("parent_task_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const documents = pgTable("documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  fileUrl: text("file_url").notNull(),
+  fileType: text("file_type"),
+  fileSize: integer("file_size"),
+  category: documentCategoryEnum("category").default("OTHER"),
+  visibility: documentVisibilityEnum("visibility").default("PRIVATE"),
+  uploadedById: varchar("uploaded_by_id").references(() => users.id),
+  cohortId: varchar("cohort_id").references(() => cohorts.id),
+  trackId: varchar("track_id").references(() => tracks.id),
+  matchId: varchar("match_id").references(() => mentorshipMatches.id),
+  version: integer("version").default(1),
+  isTemplate: boolean("is_template").default(false),
+  tags: text("tags").array(),
+  downloadCount: integer("download_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const documentAccess = pgTable("document_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").notNull().references(() => documents.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  accessType: documentAccessTypeEnum("access_type").default("VIEW"),
+  grantedById: varchar("granted_by_id").references(() => users.id),
+  grantedAt: timestamp("granted_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
+
+export const insertTrackSchema = createInsertSchema(tracks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCohortSchema = createInsertSchema(cohorts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCohortTrackSchema = createInsertSchema(cohortTracks).omit({ id: true, createdAt: true });
+export const insertCohortMembershipSchema = createInsertSchema(cohortMemberships).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMentorshipMatchSchema = createInsertSchema(mentorshipMatches).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMeetingLogSchema = createInsertSchema(meetingLogs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGoalSchema = createInsertSchema(goals).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDocumentAccessSchema = createInsertSchema(documentAccess).omit({ id: true, grantedAt: true });
+
+export type Track = typeof tracks.$inferSelect;
+export type InsertTrack = z.infer<typeof insertTrackSchema>;
+export type Cohort = typeof cohorts.$inferSelect;
+export type InsertCohort = z.infer<typeof insertCohortSchema>;
+export type CohortTrack = typeof cohortTracks.$inferSelect;
+export type InsertCohortTrack = z.infer<typeof insertCohortTrackSchema>;
+export type CohortMembership = typeof cohortMemberships.$inferSelect;
+export type InsertCohortMembership = z.infer<typeof insertCohortMembershipSchema>;
+export type MentorshipMatch = typeof mentorshipMatches.$inferSelect;
+export type InsertMentorshipMatch = z.infer<typeof insertMentorshipMatchSchema>;
+export type MeetingLog = typeof meetingLogs.$inferSelect;
+export type InsertMeetingLog = z.infer<typeof insertMeetingLogSchema>;
+export type Goal = typeof goals.$inferSelect;
+export type InsertGoal = z.infer<typeof insertGoalSchema>;
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = z.infer<typeof insertTaskSchema>;
+export type Document = typeof documents.$inferSelect;
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type DocumentAccess = typeof documentAccess.$inferSelect;
+export type InsertDocumentAccess = z.infer<typeof insertDocumentAccessSchema>;
+
+export type CohortStatus = "DRAFT" | "RECRUITING" | "MATCHING" | "ACTIVE" | "COMPLETED" | "ARCHIVED";
+export type ApplicationStatus = "PENDING" | "APPROVED" | "REJECTED" | "WAITLISTED";
+export type MatchStatus = "UNMATCHED" | "MATCHED" | "REMATCHED";
+export type MentorshipMatchStatus = "PROPOSED" | "ACTIVE" | "PAUSED" | "COMPLETED" | "TERMINATED";
+export type MeetingType = "VIRTUAL" | "IN_PERSON" | "PHONE";
+export type GoalCategory = "SHORT_TERM" | "LONG_TERM" | "MILESTONE";
+export type GoalStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
+export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type TaskStatus = "TODO" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "CANCELLED";
+export type DocumentCategory = "TEMPLATE" | "AGREEMENT" | "RESOURCE" | "SUBMISSION" | "OTHER";
+export type DocumentVisibility = "PUBLIC" | "COHORT" | "TRACK" | "MATCH" | "PRIVATE";
+export type DocumentAccessType = "VIEW" | "DOWNLOAD" | "EDIT";
+export type CohortRole = "MENTOR" | "MENTEE";

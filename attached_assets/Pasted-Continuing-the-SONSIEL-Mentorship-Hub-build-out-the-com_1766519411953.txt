@@ -1,0 +1,177 @@
+Continuing the SONSIEL Mentorship Hub, build out the complete database schema and admin dashboard foundation.
+
+COMPLETE DATABASE SCHEMA (Prisma):
+
+1. Cohort Model:
+   - id, name, description
+   - startDate, endDate
+   - applicationDeadline
+   - status (DRAFT, RECRUITING, MATCHING, ACTIVE, COMPLETED, ARCHIVED)
+   - maxMentors, maxMentees
+   - isPublic (for public applications)
+   - settings (JSON - for cohort-specific configurations)
+   - createdById (Admin who created)
+   - createdAt, updatedAt
+
+2. Track Model (the 5 SONSIEL tracks):
+   - id, name, slug, description
+   - icon (for UI display)
+   - color (hex code for UI)
+   - isActive
+   - sortOrder
+   
+   Seed with: Scientist, Innovator, Entrepreneur, Intrapreneur, Leader
+
+3. CohortTrack (junction table):
+   - cohortId, trackId
+   - isActive for this cohort
+   - mentorCapacity
+   - menteeCapacity
+
+4. CohortMembership:
+   - id
+   - cohortId, userId
+   - role (MENTOR or MENTEE in this cohort)
+   - trackId (which track they're in)
+   - applicationStatus (PENDING, APPROVED, REJECTED, WAITLISTED)
+   - applicationData (JSON - stores survey responses)
+   - matchStatus (UNMATCHED, MATCHED, REMATCHED)
+   - joinedAt
+   - completedAt
+   - certificateIssuedAt
+   - notes (admin notes)
+
+5. MentorshipMatch:
+   - id
+   - cohortId
+   - mentorMembershipId
+   - menteeMembershipId
+   - trackId
+   - status (PROPOSED, ACTIVE, PAUSED, COMPLETED, TERMINATED)
+   - matchScore (from algorithm)
+   - matchReason (JSON - explains why matched)
+   - matchedAt, matchedById (admin who approved)
+   - startDate, expectedEndDate, actualEndDate
+   - terminationReason
+   - mentorFeedback, menteeFeedback (JSON)
+   - createdAt, updatedAt
+
+6. MeetingLog:
+   - id, matchId
+   - scheduledAt, occurredAt
+   - duration (minutes)
+   - meetingType (VIRTUAL, IN_PERSON, PHONE)
+   - agenda, notes, actionItems (rich text)
+   - mentorAttended, menteeAttended
+   - nextMeetingDate
+   - createdById
+
+7. Goal:
+   - id, matchId
+   - title, description
+   - category (SHORT_TERM, LONG_TERM, MILESTONE)
+   - targetDate
+   - status (NOT_STARTED, IN_PROGRESS, COMPLETED, ABANDONED)
+   - progress (0-100)
+   - createdById, assignedToId
+   - completedAt
+   - reflectionNotes
+
+8. Task:
+   - id
+   - title, description
+   - assignedById (Admin or Mentor)
+   - assignedToId (Mentor or Mentee)
+   - matchId (optional - if task is match-specific)
+   - cohortId (optional - if cohort-wide task)
+   - priority (LOW, MEDIUM, HIGH, URGENT)
+   - status (TODO, IN_PROGRESS, BLOCKED, COMPLETED, CANCELLED)
+   - dueDate
+   - reminderDate
+   - completedAt
+   - attachments (relation to Document)
+   - tags (array)
+   - parentTaskId (for subtasks)
+
+9. Document Model:
+   - id, name, description
+   - fileUrl, fileType, fileSize
+   - category (TEMPLATE, AGREEMENT, RESOURCE, SUBMISSION, OTHER)
+   - visibility (PUBLIC, COHORT, TRACK, MATCH, PRIVATE)
+   - uploadedById
+   - cohortId (optional)
+   - trackId (optional)
+   - matchId (optional)
+   - version
+   - isTemplate
+   - tags (array)
+   - downloadCount
+   - createdAt, updatedAt
+
+10. DocumentAccess:
+    - documentId, userId
+    - accessType (VIEW, DOWNLOAD, EDIT)
+    - grantedById
+    - grantedAt, expiresAt
+
+ADMIN DASHBOARD:
+
+Build a comprehensive admin dashboard at /admin with:
+
+1. Layout:
+   - Sidebar navigation with collapsible sections
+   - Top header with user info, notifications bell, search
+   - Breadcrumb navigation
+   - Responsive design (collapsible sidebar on mobile)
+
+2. Dashboard Home (/admin):
+   - Key metrics cards:
+     * Total active mentors/mentees
+     * Active matches
+     * Pending applications
+     * Upcoming meetings this week
+     * Tasks overdue
+   - Quick actions panel
+   - Recent activity feed
+   - Cohort status overview
+
+3. User Management (/admin/users):
+   - Searchable, filterable, sortable data table
+   - Filters: role, status, cohort, track
+   - Bulk actions (activate, deactivate, export)
+   - Individual user view/edit modal
+   - Create new user (for admins)
+   - Impersonate user feature (for debugging)
+   - Export to CSV
+
+4. Cohort Management (/admin/cohorts):
+   - List all cohorts with status badges
+   - Create new cohort wizard:
+     * Basic info
+     * Date configuration
+     * Track selection
+     * Capacity settings
+     * Application settings
+   - Cohort detail page:
+     * Overview stats
+     * Members list
+     * Matches view
+     * Timeline
+     * Settings
+
+5. Applications Review (/admin/applications):
+   - Pending applications queue
+   - Application detail view with all survey responses
+   - Approve/Reject/Waitlist actions
+   - Bulk processing
+   - Notes system for reviewers
+
+Use server components where appropriate, with client components for interactive elements. Implement loading states, error boundaries, and empty states throughout.
+
+Create reusable data table component with:
+- Column sorting
+- Multi-column filtering
+- Pagination
+- Row selection
+- Custom cell renderers
+- Export functionality

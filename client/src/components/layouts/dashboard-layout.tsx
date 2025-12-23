@@ -60,19 +60,10 @@ const getNavItems = (role: UserRole) => {
   ];
 
   const adminItems = [
-    { title: "User Management", url: "/users", icon: UserCog },
-    { title: "Cohorts", url: "/cohorts", icon: Users },
-  ];
-
-  const superAdminItems = [
     { title: "Admin Panel", url: "/admin", icon: Shield },
   ];
 
-  if (role === "SUPER_ADMIN") {
-    return [...common, ...adminItems, ...superAdminItems];
-  }
-
-  if (role === "ADMIN") {
+  if (role === "SUPER_ADMIN" || role === "ADMIN") {
     return [...common, ...adminItems];
   }
 
