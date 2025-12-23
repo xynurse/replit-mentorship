@@ -17,6 +17,7 @@ import AdminDashboard from "@/pages/admin/index";
 import AdminUsers from "@/pages/admin/users";
 import AdminCohorts from "@/pages/admin/cohorts";
 import AdminApplications from "@/pages/admin/applications";
+import ApplyPage from "@/pages/apply";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <AdminRoute path="/admin/users" component={AdminUsers} />
       <AdminRoute path="/admin/cohorts" component={AdminCohorts} />
       <AdminRoute path="/admin/applications" component={AdminApplications} />
+      <Route path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <Route component={NotFound} />
     </Switch>
