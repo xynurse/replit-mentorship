@@ -236,7 +236,7 @@ export default function ApplyPage() {
       
       case 'MULTISELECT':
         const multiOptions = Array.isArray(question.options) ? question.options as string[] : [];
-        const selectedValues = value ? value.split(',') : [];
+        const selectedValues = value ? ((): string[] => { try { return JSON.parse(value); } catch { return []; } })() : [];
         return (
           <div className="space-y-2">
             {multiOptions.map((opt) => (
@@ -248,7 +248,7 @@ export default function ApplyPage() {
                     const newValues = checked 
                       ? [...selectedValues, opt]
                       : selectedValues.filter(v => v !== opt);
-                    updateResponse(question.id, newValues.join(','));
+                    updateResponse(question.id, JSON.stringify(newValues));
                   }}
                   data-testid={`checkbox-question-${question.id}-${opt}`}
                 />
@@ -290,6 +290,33 @@ export default function ApplyPage() {
               data-testid={`checkbox-question-${question.id}`}
             />
             <label htmlFor={question.id} className="text-sm">{question.helpText || 'I agree'}</label>
+          </div>
+        );
+
+      case 'DATE':
+        return (
+          <Input
+            type="date"
+            value={value}
+            onChange={(e) => updateResponse(question.id, e.target.value)}
+            data-testid={`input-date-question-${question.id}`}
+          />
+        );
+
+      case 'FILE':
+        return (
+          <div className="space-y-2">
+            <Input
+              type="file"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  updateResponse(question.id, file.name);
+                }
+              }}
+              data-testid={`input-file-question-${question.id}`}
+            />
+            {value && <p className="text-xs text-muted-foreground">Selected: {value}</p>}
           </div>
         );
       

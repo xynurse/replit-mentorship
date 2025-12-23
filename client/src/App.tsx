@@ -17,6 +17,7 @@ import AdminDashboard from "@/pages/admin/index";
 import AdminUsers from "@/pages/admin/users";
 import AdminCohorts from "@/pages/admin/cohorts";
 import AdminApplications from "@/pages/admin/applications";
+import AdminMatchingPage from "@/pages/admin/matching";
 import ApplyPage from "@/pages/apply";
 
 function Router() {
@@ -31,6 +32,7 @@ function Router() {
       <AdminRoute path="/admin/users" component={AdminUsers} />
       <AdminRoute path="/admin/cohorts" component={AdminCohorts} />
       <AdminRoute path="/admin/applications" component={AdminApplications} />
+      <AdminRoute path="/admin/matching/:cohortId" component={AdminMatchingPage} />
       <Route path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <Route component={NotFound} />
