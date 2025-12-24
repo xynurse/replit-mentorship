@@ -1,0 +1,171 @@
+Continuing SONSIEL Mentorship Hub, build a comprehensive real-time messaging system.
+
+MESSAGING INFRASTRUCTURE:
+
+1. Set up real-time with Socket.io or Pusher:
+   - Create WebSocket connection management
+   - Handle reconnection logic
+   - Presence system (who's online)
+   - Typing indicators
+   - Read receipts
+
+2. Database Models:
+
+   Conversation model:
+   - id
+   - type (DIRECT, MATCH, TRACK_COMMUNITY, COHORT_ANNOUNCEMENT)
+   - name (for group chats)
+   - matchId (if type is MATCH)
+   - trackId (if type is TRACK_COMMUNITY)
+   - cohortId
+   - createdById
+   - isArchived
+   - settings (JSON - notifications, mute, etc.)
+   - lastMessageAt
+   - createdAt
+
+   ConversationParticipant:
+   - conversationId, userId
+   - role (MEMBER, MODERATOR, ADMIN)
+   - joinedAt, leftAt
+   - lastReadAt
+   - isMuted
+   - notificationPreference
+
+   Message:
+   - id, conversationId
+   - senderId
+   - content (rich text - support markdown)
+   - messageType (TEXT, FILE, SYSTEM, ANNOUNCEMENT)
+   - attachments (relation to MessageAttachment)
+   - replyToId (for threaded replies)
+   - isEdited, editedAt
+   - isDeleted, deletedAt
+   - reactions (JSON - emoji reactions)
+   - readBy (relation to MessageRead)
+   - createdAt
+
+   MessageAttachment:
+   - id, messageId
+   - fileUrl, fileName, fileType, fileSize
+   - thumbnailUrl (for images)
+
+   MessageRead:
+   - messageId, userId, readAt
+
+MESSAGING FEATURES:
+
+1. Direct Messaging (Mentor ↔ Mentee):
+   
+   /messages - Main messaging interface
+   
+   - Conversation list sidebar:
+     * Search conversations
+     * Filter by type
+     * Unread indicators
+     * Last message preview
+     * Timestamp
+   
+   - Message view:
+     * Message history with infinite scroll
+     * Rich text editor with markdown support
+     * File/image attachments
+     * Emoji picker
+     * Reply to specific messages
+     * Edit/delete own messages
+     * Reactions (👍 ❤️ etc.)
+   
+   - Message composer:
+     * @mentions
+     * Drag-drop file upload
+     * Paste image support
+     * Send on Enter (configurable)
+
+2. Match Conversations:
+   
+   Automatically create a conversation when a match is activated.
+   Include a system message welcoming both parties with:
+   - Match details
+   - Suggested first meeting agenda
+   - Links to relevant resources
+
+3. Track Community Chats:
+   
+   /community/[trackSlug]
+   
+   One community chat per track per cohort:
+   - Scientist Track Community
+   - Innovator Track Community
+   - Entrepreneur Track Community
+   - Intrapreneur Track Community
+   - Leader Track Community
+   
+   Features:
+   - All track members can participate
+   - Admins and designated moderators can:
+     * Pin important messages
+     * Delete inappropriate content
+     * Mute disruptive users
+   - Threaded replies to keep discussions organized
+   - Search within community
+   - @channel mentions for important announcements
+
+4. Cohort Announcements:
+   
+   /announcements
+   
+   Admin-only broadcast channel:
+   - Admins can post announcements
+   - All cohort members receive
+   - Optional email notification
+   - Comments/reactions allowed (configurable)
+   - Pin important announcements
+
+5. Message Search:
+   
+   Global search across all accessible conversations:
+   - Full-text search
+   - Filter by conversation
+   - Filter by date range
+   - Filter by sender
+   - Filter by has attachments
+
+NOTIFICATION INTEGRATION:
+
+For each message:
+1. Real-time push to recipient if online
+2. Update unread count in UI
+3. Trigger in-app notification
+4. Queue email notification if:
+   - User is offline > 5 minutes
+   - User's preference allows
+   - Message is not in muted conversation
+
+UI COMPONENTS TO BUILD:
+
+- ConversationList
+- MessageThread
+- MessageComposer (rich text)
+- MessageBubble
+- TypingIndicator
+- OnlinePresenceIndicator
+- FileAttachmentPreview
+- ReactionPicker
+- MentionAutocomplete
+- CommunityChat (extends MessageThread with moderation)
+
+PERFORMANCE CONSIDERATIONS:
+
+- Virtual scrolling for long message histories
+- Lazy load images/attachments
+- Message pagination (load 50 at a time)
+- Optimistic UI updates
+- Debounce typing indicators
+- Cache recent conversations
+
+Create a messaging context/provider that manages:
+- WebSocket connection
+- Current conversation state
+- Unread counts
+- Online users
+- Typing states

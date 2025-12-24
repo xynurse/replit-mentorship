@@ -18,6 +18,9 @@ export const documentAccessTypeEnum = pgEnum("document_access_type", ["VIEW", "D
 export const cohortRoleEnum = pgEnum("cohort_role", ["MENTOR", "MENTEE"]);
 export const questionTypeEnum = pgEnum("question_type", ["TEXT", "TEXTAREA", "SELECT", "MULTISELECT", "RATING", "CHECKBOX", "DATE", "FILE"]);
 export const questionForRoleEnum = pgEnum("question_for_role", ["MENTOR", "MENTEE", "BOTH"]);
+export const conversationTypeEnum = pgEnum("conversation_type", ["DIRECT", "MATCH", "TRACK_COMMUNITY", "COHORT_ANNOUNCEMENT"]);
+export const conversationParticipantRoleEnum = pgEnum("conversation_participant_role", ["MEMBER", "MODERATOR", "ADMIN"]);
+export const messageTypeEnum = pgEnum("message_type", ["TEXT", "FILE", "SYSTEM", "ANNOUNCEMENT"]);
 
 export const userRoleEnum = pgEnum("user_role", ["SUPER_ADMIN", "ADMIN", "MENTOR", "MENTEE"]);
 
@@ -323,6 +326,67 @@ export const matchingConfigurations = pgTable("matching_configurations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const conversations = pgTable("conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: conversationTypeEnum("type").notNull().default("DIRECT"),
+  name: text("name"),
+  matchId: varchar("match_id").references(() => mentorshipMatches.id),
+  trackId: varchar("track_id").references(() => tracks.id),
+  cohortId: varchar("cohort_id").references(() => cohorts.id),
+  createdById: varchar("created_by_id").references(() => users.id).notNull(),
+  isArchived: boolean("is_archived").default(false),
+  settings: jsonb("settings").default({}),
+  lastMessageAt: timestamp("last_message_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const conversationParticipants = pgTable("conversation_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").references(() => conversations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  role: conversationParticipantRoleEnum("role").notNull().default("MEMBER"),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  leftAt: timestamp("left_at"),
+  lastReadAt: timestamp("last_read_at"),
+  isMuted: boolean("is_muted").default(false),
+  notificationPreference: text("notification_preference").default("all"),
+});
+
+export const messages = pgTable("messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").references(() => conversations.id).notNull(),
+  senderId: varchar("sender_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  messageType: messageTypeEnum("message_type").notNull().default("TEXT"),
+  replyToId: varchar("reply_to_id"),
+  isEdited: boolean("is_edited").default(false),
+  editedAt: timestamp("edited_at"),
+  isDeleted: boolean("is_deleted").default(false),
+  deletedAt: timestamp("deleted_at"),
+  isPinned: boolean("is_pinned").default(false),
+  reactions: jsonb("reactions").default({}),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const messageAttachments = pgTable("message_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").references(() => messages.id).notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type"),
+  fileSize: integer("file_size"),
+  thumbnailUrl: text("thumbnail_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const messageReads = pgTable("message_reads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").references(() => messages.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  readAt: timestamp("read_at").defaultNow(),
+});
+
 export const insertTrackSchema = createInsertSchema(tracks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCohortSchema = createInsertSchema(cohorts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCohortTrackSchema = createInsertSchema(cohortTracks).omit({ id: true, createdAt: true });
@@ -336,6 +400,11 @@ export const insertDocumentAccessSchema = createInsertSchema(documentAccess).omi
 export const insertApplicationQuestionSchema = createInsertSchema(applicationQuestions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertApplicationResponseSchema = createInsertSchema(applicationResponses).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMatchingConfigurationSchema = createInsertSchema(matchingConfigurations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true });
+export const insertConversationParticipantSchema = createInsertSchema(conversationParticipants).omit({ id: true, joinedAt: true });
+export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
+export const insertMessageAttachmentSchema = createInsertSchema(messageAttachments).omit({ id: true, createdAt: true });
+export const insertMessageReadSchema = createInsertSchema(messageReads).omit({ id: true, readAt: true });
 
 export type Track = typeof tracks.$inferSelect;
 export type InsertTrack = z.infer<typeof insertTrackSchema>;
@@ -380,3 +449,18 @@ export type ApplicationResponse = typeof applicationResponses.$inferSelect;
 export type InsertApplicationResponse = z.infer<typeof insertApplicationResponseSchema>;
 export type MatchingConfiguration = typeof matchingConfigurations.$inferSelect;
 export type InsertMatchingConfiguration = z.infer<typeof insertMatchingConfigurationSchema>;
+
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
+export type ConversationParticipant = typeof conversationParticipants.$inferSelect;
+export type InsertConversationParticipant = z.infer<typeof insertConversationParticipantSchema>;
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type MessageAttachment = typeof messageAttachments.$inferSelect;
+export type InsertMessageAttachment = z.infer<typeof insertMessageAttachmentSchema>;
+export type MessageRead = typeof messageReads.$inferSelect;
+export type InsertMessageRead = z.infer<typeof insertMessageReadSchema>;
+
+export type ConversationType = "DIRECT" | "MATCH" | "TRACK_COMMUNITY" | "COHORT_ANNOUNCEMENT";
+export type ConversationParticipantRole = "MEMBER" | "MODERATOR" | "ADMIN";
+export type MessageType = "TEXT" | "FILE" | "SYSTEM" | "ANNOUNCEMENT";
