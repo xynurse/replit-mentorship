@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema } from "@shared/schema";
 import { setupWebSocket, getOnlineUsers, isUserOnline } from "./websocket";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
@@ -1220,6 +1220,468 @@ export async function registerRoutes(
     try {
       const folderList = await storage.getFolders({});
       res.json(folderList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ============= TASK MANAGEMENT ROUTES =============
+
+  // Get tasks with filtering
+  app.get("/api/tasks", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { assignedToId, matchId, cohortId, trackId, goalId, status, priority, category, parentTaskId, overdue, search } = req.query;
+      
+      // Non-admins can only see tasks assigned to them or created by them
+      const filters: any = {
+        matchId: matchId as string | undefined,
+        cohortId: cohortId as string | undefined,
+        trackId: trackId as string | undefined,
+        goalId: goalId as string | undefined,
+        status: status as string | undefined,
+        priority: priority as string | undefined,
+        category: category as string | undefined,
+        overdue: overdue === 'true',
+        search: search as string | undefined,
+      };
+      
+      if (parentTaskId !== undefined) {
+        filters.parentTaskId = parentTaskId === 'null' ? null : parentTaskId as string;
+      }
+      
+      // If admin, allow filtering by any user; otherwise restrict to own tasks
+      if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+        if (assignedToId) filters.assignedToId = assignedToId as string;
+      } else {
+        // For mentors/mentees, only show tasks they created or are assigned to
+        filters.assignedToId = user.id;
+      }
+      
+      const taskList = await storage.getTasks(filters);
+      res.json(taskList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single task
+  app.get("/api/tasks/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const task = await storage.getTask(req.params.id);
+      
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      // Authorization: owner, assignee, or admin
+      const isAuthorized = task.createdById === user.id || 
+                          task.assignedToId === user.id || 
+                          user.role === 'SUPER_ADMIN' || 
+                          user.role === 'ADMIN';
+      
+      if (!isAuthorized) {
+        return res.status(403).json({ message: "Not authorized to view this task" });
+      }
+      
+      // Include subtasks
+      const subtasks = await storage.getSubtasks(task.id);
+      
+      res.json({ ...task, subtasks });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create task
+  app.post("/api/tasks", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const validatedData = insertTaskSchema.parse({
+        ...req.body,
+        createdById: user.id,
+        assignedToId: req.body.assignedToId || user.id,
+      });
+      
+      const task = await storage.createTask(validatedData);
+      
+      // Log activity
+      await storage.createTaskActivity({
+        taskId: task.id,
+        userId: user.id,
+        action: 'CREATED',
+        details: { title: task.title },
+      });
+      
+      res.status(201).json(task);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update task
+  app.patch("/api/tasks/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const task = await storage.getTask(req.params.id);
+      
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      // Authorization: creator, assignee, or admin
+      const isAuthorized = task.createdById === user.id || 
+                          task.assignedToId === user.id || 
+                          user.role === 'SUPER_ADMIN' || 
+                          user.role === 'ADMIN';
+      
+      if (!isAuthorized) {
+        return res.status(403).json({ message: "Not authorized to update this task" });
+      }
+      
+      // Track changes for activity log
+      const changes: any = {};
+      const allowedFields = ['title', 'description', 'status', 'priority', 'dueDate', 'startDate', 'estimatedHours', 'actualHours', 'category', 'tags', 'assignedToId', 'verifiedById', 'verifiedAt', 'completedAt'];
+      
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined && req.body[field] !== (task as any)[field]) {
+          changes[field] = { from: (task as any)[field], to: req.body[field] };
+        }
+      }
+      
+      const updatedTask = await storage.updateTask(req.params.id, req.body);
+      
+      // Log activity if there were changes
+      if (Object.keys(changes).length > 0) {
+        await storage.createTaskActivity({
+          taskId: task.id,
+          userId: user.id,
+          action: req.body.status === 'COMPLETED' ? 'COMPLETED' : 'UPDATED',
+          details: changes,
+        });
+      }
+      
+      res.json(updatedTask);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete task
+  app.delete("/api/tasks/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const task = await storage.getTask(req.params.id);
+      
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      // Only creator or admin can delete
+      const isAuthorized = task.createdById === user.id || 
+                          user.role === 'SUPER_ADMIN' || 
+                          user.role === 'ADMIN';
+      
+      if (!isAuthorized) {
+        return res.status(403).json({ message: "Not authorized to delete this task" });
+      }
+      
+      await storage.deleteTask(req.params.id);
+      res.json({ message: "Task deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Task comments
+  app.get("/api/tasks/:id/comments", requireAuth, async (req, res, next) => {
+    try {
+      const comments = await storage.getTaskComments(req.params.id);
+      res.json(comments);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/tasks/:id/comments", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const validatedData = insertTaskCommentSchema.parse({
+        taskId: req.params.id,
+        userId: user.id,
+        content: req.body.content,
+      });
+      
+      const comment = await storage.createTaskComment(validatedData);
+      
+      // Log activity
+      await storage.createTaskActivity({
+        taskId: req.params.id,
+        userId: user.id,
+        action: 'COMMENTED',
+        details: { commentId: comment.id },
+      });
+      
+      res.status(201).json(comment);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Task activities/history
+  app.get("/api/tasks/:id/activities", requireAuth, async (req, res, next) => {
+    try {
+      const activities = await storage.getTaskActivities(req.params.id);
+      res.json(activities);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ============= GOAL MANAGEMENT ROUTES =============
+
+  // Get goals with filtering
+  app.get("/api/goals", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { matchId, trackId, status, category, mentorApproved, search } = req.query;
+      
+      const filters: any = {
+        matchId: matchId as string | undefined,
+        trackId: trackId as string | undefined,
+        status: status as string | undefined,
+        category: category as string | undefined,
+        mentorApproved: mentorApproved === 'true' ? true : mentorApproved === 'false' ? false : undefined,
+        search: search as string | undefined,
+      };
+      
+      // For non-admins, restrict to their own goals
+      if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+        filters.ownerId = user.id;
+      }
+      
+      const goalList = await storage.getGoals(filters);
+      res.json(goalList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single goal with milestones
+  app.get("/api/goals/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const goal = await storage.getGoal(req.params.id);
+      
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      // Authorization check
+      const isAuthorized = goal.ownerId === user.id || 
+                          goal.createdById === user.id || 
+                          user.role === 'SUPER_ADMIN' || 
+                          user.role === 'ADMIN' ||
+                          user.role === 'MENTOR'; // Mentors can view mentee goals
+      
+      if (!isAuthorized) {
+        return res.status(403).json({ message: "Not authorized to view this goal" });
+      }
+      
+      // Include milestones and progress history
+      const milestoneList = await storage.getMilestones(goal.id);
+      const progressHistory = await storage.getGoalProgressHistory(goal.id);
+      
+      res.json({ ...goal, milestones: milestoneList, progressHistory });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create goal
+  app.post("/api/goals", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const validatedData = insertGoalSchema.parse({
+        ...req.body,
+        createdById: user.id,
+        ownerId: req.body.ownerId || user.id,
+        mentorApproved: user.role === 'MENTOR', // Auto-approve if mentor creates it
+      });
+      
+      const goal = await storage.createGoal(validatedData);
+      res.status(201).json(goal);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update goal
+  app.patch("/api/goals/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const goal = await storage.getGoal(req.params.id);
+      
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      // Authorization check
+      const isOwner = goal.ownerId === user.id;
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      const isMentor = user.role === 'MENTOR';
+      
+      if (!isOwner && !isAdmin && !isMentor) {
+        return res.status(403).json({ message: "Not authorized to update this goal" });
+      }
+      
+      // Track progress changes
+      if (req.body.progress !== undefined && req.body.progress !== goal.progress) {
+        await storage.createGoalProgress({
+          goalId: goal.id,
+          previousProgress: goal.progress || 0,
+          newProgress: req.body.progress,
+          notes: req.body.progressNotes || null,
+          updatedById: user.id,
+        });
+      }
+      
+      const updatedGoal = await storage.updateGoal(req.params.id, req.body);
+      res.json(updatedGoal);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Mentor approve goal
+  app.post("/api/goals/:id/approve", requireRole("MENTOR", "ADMIN", "SUPER_ADMIN"), async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const goal = await storage.getGoal(req.params.id);
+      
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      const updatedGoal = await storage.updateGoal(req.params.id, {
+        mentorApproved: true,
+        mentorFeedback: req.body.feedback || null,
+      });
+      
+      res.json(updatedGoal);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete goal
+  app.delete("/api/goals/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const goal = await storage.getGoal(req.params.id);
+      
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      // Only creator, owner, or admin can delete
+      const isAuthorized = goal.createdById === user.id || 
+                          goal.ownerId === user.id ||
+                          user.role === 'SUPER_ADMIN' || 
+                          user.role === 'ADMIN';
+      
+      if (!isAuthorized) {
+        return res.status(403).json({ message: "Not authorized to delete this goal" });
+      }
+      
+      await storage.deleteGoal(req.params.id);
+      res.json({ message: "Goal deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Milestone CRUD
+  app.get("/api/goals/:id/milestones", requireAuth, async (req, res, next) => {
+    try {
+      const milestoneList = await storage.getMilestones(req.params.id);
+      res.json(milestoneList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/goals/:id/milestones", requireAuth, async (req, res, next) => {
+    try {
+      const validatedData = insertMilestoneSchema.parse({
+        ...req.body,
+        goalId: req.params.id,
+      });
+      
+      const milestone = await storage.createMilestone(validatedData);
+      res.status(201).json(milestone);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/milestones/:id", requireAuth, async (req, res, next) => {
+    try {
+      const updatedMilestone = await storage.updateMilestone(req.params.id, req.body);
+      
+      if (!updatedMilestone) {
+        return res.status(404).json({ message: "Milestone not found" });
+      }
+      
+      res.json(updatedMilestone);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/milestones/:id", requireAuth, async (req, res, next) => {
+    try {
+      await storage.deleteMilestone(req.params.id);
+      res.json({ message: "Milestone deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Goal progress history
+  app.get("/api/goals/:id/progress", requireAuth, async (req, res, next) => {
+    try {
+      const progressHistory = await storage.getGoalProgressHistory(req.params.id);
+      res.json(progressHistory);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/goals/:id/progress", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const goal = await storage.getGoal(req.params.id);
+      
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      const validatedData = insertGoalProgressSchema.parse({
+        goalId: req.params.id,
+        previousProgress: goal.progress || 0,
+        newProgress: req.body.newProgress,
+        notes: req.body.notes,
+        updatedById: user.id,
+      });
+      
+      const progressRecord = await storage.createGoalProgress(validatedData);
+      
+      // Update goal's progress
+      await storage.updateGoal(req.params.id, { progress: req.body.newProgress });
+      
+      res.status(201).json(progressRecord);
     } catch (error) {
       next(error);
     }
