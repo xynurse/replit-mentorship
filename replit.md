@@ -26,6 +26,15 @@ Preferred communication style: Simple, everyday language.
 - **Session Storage**: PostgreSQL-backed sessions via connect-pg-simple
 - **Password Security**: Scrypt hashing with timing-safe comparison
 - **API Pattern**: RESTful endpoints under `/api` prefix
+- **Real-time**: Socket.io WebSocket server for messaging with fallback REST API
+
+### Messaging System
+- **WebSocket Server**: Socket.io with session authentication (server/websocket.ts)
+- **Conversation Types**: DIRECT (1-on-1), MATCH (mentor-mentee), TRACK_COMMUNITY, COHORT_ANNOUNCEMENT
+- **Message Types**: TEXT, FILE, SYSTEM, ANNOUNCEMENT with reactions, replies, editing, deletion
+- **Features**: Real-time messages, typing indicators, presence tracking, read receipts
+- **Authorization**: Participant membership verified for all message operations
+- **Frontend Hook**: useMessaging() provides WebSocket state management (client/src/hooks/use-messaging.tsx)
 
 ### Data Storage
 - **Database**: PostgreSQL
@@ -43,16 +52,17 @@ Preferred communication style: Simple, everyday language.
 ```
 ├── client/src/          # React frontend application
 │   ├── components/      # UI components (shadcn/ui in ui/, shared layouts)
-│   ├── hooks/           # Custom React hooks (auth, mobile, toast)
+│   ├── hooks/           # Custom React hooks (auth, mobile, toast, messaging)
 │   ├── lib/             # Utilities (queryClient, protected routes)
-│   └── pages/           # Page components
+│   └── pages/           # Page components (includes messages.tsx)
 ├── server/              # Express backend
 │   ├── auth.ts          # Authentication logic
-│   ├── routes.ts        # API route definitions
-│   ├── storage.ts       # Database operations layer
+│   ├── routes.ts        # API route definitions (REST + messaging endpoints)
+│   ├── storage.ts       # Database operations layer (includes messaging CRUD)
+│   ├── websocket.ts     # Socket.io WebSocket server for real-time messaging
 │   └── db.ts            # Database connection
 ├── shared/              # Shared code between client/server
-│   └── schema.ts        # Drizzle schemas and Zod validation
+│   └── schema.ts        # Drizzle schemas and Zod validation (includes messaging tables)
 └── migrations/          # Database migrations
 ```
 
