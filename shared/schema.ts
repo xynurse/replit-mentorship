@@ -260,9 +260,11 @@ export const documents = pgTable("documents", {
   fileUrl: text("file_url").notNull(),
   fileType: text("file_type"),
   fileSize: integer("file_size"),
+  mimeType: text("mime_type"),
   category: documentCategoryEnum("category").default("OTHER"),
   visibility: documentVisibilityEnum("visibility").default("PRIVATE"),
   uploadedById: varchar("uploaded_by_id").references(() => users.id),
+  folderId: varchar("folder_id"),
   cohortId: varchar("cohort_id").references(() => cohorts.id),
   trackId: varchar("track_id").references(() => tracks.id),
   matchId: varchar("match_id").references(() => mentorshipMatches.id),
@@ -270,6 +272,7 @@ export const documents = pgTable("documents", {
   isTemplate: boolean("is_template").default(false),
   tags: text("tags").array(),
   downloadCount: integer("download_count").default(0),
+  expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -282,6 +285,34 @@ export const documentAccess = pgTable("document_access", {
   grantedById: varchar("granted_by_id").references(() => users.id),
   grantedAt: timestamp("granted_at").defaultNow(),
   expiresAt: timestamp("expires_at"),
+});
+
+export const folders = pgTable("folders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  parentFolderId: varchar("parent_folder_id"),
+  ownerId: varchar("owner_id").references(() => users.id),
+  cohortId: varchar("cohort_id").references(() => cohorts.id),
+  trackId: varchar("track_id").references(() => tracks.id),
+  matchId: varchar("match_id").references(() => mentorshipMatches.id),
+  visibility: documentVisibilityEnum("visibility").default("PRIVATE"),
+  color: text("color"),
+  icon: text("icon"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const documentVersions = pgTable("document_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").notNull().references(() => documents.id),
+  version: integer("version").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileSize: integer("file_size"),
+  uploadedById: varchar("uploaded_by_id").references(() => users.id),
+  changeNotes: text("change_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const applicationQuestions = pgTable("application_questions", {
@@ -397,6 +428,8 @@ export const insertGoalSchema = createInsertSchema(goals).omit({ id: true, creat
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDocumentAccessSchema = createInsertSchema(documentAccess).omit({ id: true, grantedAt: true });
+export const insertFolderSchema = createInsertSchema(folders).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDocumentVersionSchema = createInsertSchema(documentVersions).omit({ id: true, createdAt: true });
 export const insertApplicationQuestionSchema = createInsertSchema(applicationQuestions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertApplicationResponseSchema = createInsertSchema(applicationResponses).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMatchingConfigurationSchema = createInsertSchema(matchingConfigurations).omit({ id: true, createdAt: true, updatedAt: true });
@@ -426,6 +459,10 @@ export type Document = typeof documents.$inferSelect;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type DocumentAccess = typeof documentAccess.$inferSelect;
 export type InsertDocumentAccess = z.infer<typeof insertDocumentAccessSchema>;
+export type Folder = typeof folders.$inferSelect;
+export type InsertFolder = z.infer<typeof insertFolderSchema>;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
+export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
 
 export type CohortStatus = "DRAFT" | "RECRUITING" | "MATCHING" | "ACTIVE" | "COMPLETED" | "ARCHIVED";
 export type ApplicationStatus = "PENDING" | "APPROVED" | "REJECTED" | "WAITLISTED";

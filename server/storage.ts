@@ -2,6 +2,7 @@ import {
   users, tracks, cohorts, cohortTracks, cohortMemberships, mentorshipMatches, meetingLogs, goals, tasks, documents, documentAccess,
   applicationQuestions, applicationResponses, matchingConfigurations,
   conversations, conversationParticipants, messages, messageAttachments, messageReads,
+  folders, documentVersions,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -9,7 +10,8 @@ import {
   type ApplicationQuestion, type InsertApplicationQuestion, type ApplicationResponse, type InsertApplicationResponse,
   type MatchingConfiguration, type InsertMatchingConfiguration,
   type Conversation, type InsertConversation, type ConversationParticipant, type InsertConversationParticipant,
-  type Message, type InsertMessage, type MessageAttachment, type InsertMessageAttachment, type MessageRead, type InsertMessageRead
+  type Message, type InsertMessage, type MessageAttachment, type InsertMessageAttachment, type MessageRead, type InsertMessageRead,
+  type Folder, type InsertFolder, type DocumentVersion, type InsertDocumentVersion, type DocumentAccess, type InsertDocumentAccess
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -100,6 +102,33 @@ export interface IStorage {
   
   markMessagesAsRead(conversationId: string, userId: string): Promise<void>;
   getUnreadCount(conversationId: string, userId: string): Promise<number>;
+  
+  // Documents
+  getDocument(id: string): Promise<Document | undefined>;
+  getDocuments(filters?: { folderId?: string | null; cohortId?: string; trackId?: string; matchId?: string; uploadedById?: string; visibility?: string; category?: string; isTemplate?: boolean; search?: string }): Promise<Document[]>;
+  createDocument(doc: InsertDocument): Promise<Document>;
+  updateDocument(id: string, data: Partial<Document>): Promise<Document | undefined>;
+  deleteDocument(id: string): Promise<void>;
+  incrementDownloadCount(id: string): Promise<void>;
+  
+  // Folders
+  getFolder(id: string): Promise<Folder | undefined>;
+  getFolders(filters?: { parentFolderId?: string | null; ownerId?: string; cohortId?: string; trackId?: string; matchId?: string; visibility?: string }): Promise<Folder[]>;
+  createFolder(folder: InsertFolder): Promise<Folder>;
+  updateFolder(id: string, data: Partial<Folder>): Promise<Folder | undefined>;
+  deleteFolder(id: string): Promise<void>;
+  
+  // Document Versions
+  getDocumentVersions(documentId: string): Promise<DocumentVersion[]>;
+  createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
+  
+  // Document Access
+  getDocumentAccess(documentId: string): Promise<(DocumentAccess & { user: User })[]>;
+  getDocumentAccessByUser(userId: string): Promise<DocumentAccess[]>;
+  getUserDocumentAccess(documentId: string, userId: string): Promise<DocumentAccess | undefined>;
+  getDocumentByFileUrl(fileUrl: string): Promise<Document | undefined>;
+  grantDocumentAccess(access: InsertDocumentAccess): Promise<DocumentAccess>;
+  revokeDocumentAccess(documentId: string, userId: string): Promise<void>;
   
   sessionStore: session.Store;
 }
@@ -708,6 +737,174 @@ export class DatabaseStorage implements IStorage {
         gt(messages.createdAt, participant.lastReadAt)
       ));
     return result?.count || 0;
+  }
+
+  // Document methods
+  async getDocument(id: string): Promise<Document | undefined> {
+    const [doc] = await db.select().from(documents).where(eq(documents.id, id));
+    return doc || undefined;
+  }
+
+  async getDocuments(filters?: { folderId?: string | null; cohortId?: string; trackId?: string; matchId?: string; uploadedById?: string; visibility?: string; category?: string; isTemplate?: boolean; search?: string }): Promise<Document[]> {
+    const conditions = [];
+    if (filters?.folderId !== undefined) {
+      if (filters.folderId === null) {
+        conditions.push(isNull(documents.folderId));
+      } else {
+        conditions.push(eq(documents.folderId, filters.folderId));
+      }
+    }
+    if (filters?.cohortId) conditions.push(eq(documents.cohortId, filters.cohortId));
+    if (filters?.trackId) conditions.push(eq(documents.trackId, filters.trackId));
+    if (filters?.matchId) conditions.push(eq(documents.matchId, filters.matchId));
+    if (filters?.uploadedById) conditions.push(eq(documents.uploadedById, filters.uploadedById));
+    if (filters?.visibility) conditions.push(eq(documents.visibility, filters.visibility as any));
+    if (filters?.category) conditions.push(eq(documents.category, filters.category as any));
+    if (filters?.isTemplate !== undefined) conditions.push(eq(documents.isTemplate, filters.isTemplate));
+    if (filters?.search) conditions.push(or(like(documents.name, `%${filters.search}%`), like(documents.description, `%${filters.search}%`)));
+    
+    return db.select().from(documents).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(desc(documents.createdAt));
+  }
+
+  async createDocument(doc: InsertDocument): Promise<Document> {
+    const [result] = await db.insert(documents).values(doc).returning();
+    return result;
+  }
+
+  async updateDocument(id: string, data: Partial<Document>): Promise<Document | undefined> {
+    const [result] = await db.update(documents).set({ ...data, updatedAt: new Date() }).where(eq(documents.id, id)).returning();
+    return result || undefined;
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    await db.delete(documents).where(eq(documents.id, id));
+  }
+
+  async incrementDownloadCount(id: string): Promise<void> {
+    await db.update(documents).set({ downloadCount: sql`${documents.downloadCount} + 1` }).where(eq(documents.id, id));
+  }
+
+  // Folder methods
+  async getFolder(id: string): Promise<Folder | undefined> {
+    const [folder] = await db.select().from(folders).where(eq(folders.id, id));
+    return folder || undefined;
+  }
+
+  async getFolders(filters?: { parentFolderId?: string | null; ownerId?: string; cohortId?: string; trackId?: string; matchId?: string; visibility?: string }): Promise<Folder[]> {
+    const conditions = [];
+    if (filters?.parentFolderId !== undefined) {
+      if (filters.parentFolderId === null) {
+        conditions.push(isNull(folders.parentFolderId));
+      } else {
+        conditions.push(eq(folders.parentFolderId, filters.parentFolderId));
+      }
+    }
+    if (filters?.ownerId) conditions.push(eq(folders.ownerId, filters.ownerId));
+    if (filters?.cohortId) conditions.push(eq(folders.cohortId, filters.cohortId));
+    if (filters?.trackId) conditions.push(eq(folders.trackId, filters.trackId));
+    if (filters?.matchId) conditions.push(eq(folders.matchId, filters.matchId));
+    if (filters?.visibility) conditions.push(eq(folders.visibility, filters.visibility as any));
+    
+    return db.select().from(folders).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(asc(folders.sortOrder), asc(folders.name));
+  }
+
+  async createFolder(folder: InsertFolder): Promise<Folder> {
+    const [result] = await db.insert(folders).values(folder).returning();
+    return result;
+  }
+
+  async updateFolder(id: string, data: Partial<Folder>): Promise<Folder | undefined> {
+    const [result] = await db.update(folders).set({ ...data, updatedAt: new Date() }).where(eq(folders.id, id)).returning();
+    return result || undefined;
+  }
+
+  async deleteFolder(id: string): Promise<void> {
+    await db.delete(folders).where(eq(folders.id, id));
+  }
+
+  // Document Version methods
+  async getDocumentVersions(documentId: string): Promise<DocumentVersion[]> {
+    return db.select().from(documentVersions).where(eq(documentVersions.documentId, documentId)).orderBy(desc(documentVersions.version));
+  }
+
+  async createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion> {
+    const [result] = await db.insert(documentVersions).values(version).returning();
+    return result;
+  }
+
+  // Document Access methods
+  async getDocumentAccess(documentId: string): Promise<(DocumentAccess & { user: User })[]> {
+    return db.select({
+      id: documentAccess.id,
+      documentId: documentAccess.documentId,
+      userId: documentAccess.userId,
+      accessType: documentAccess.accessType,
+      grantedById: documentAccess.grantedById,
+      grantedAt: documentAccess.grantedAt,
+      expiresAt: documentAccess.expiresAt,
+      user: users,
+    }).from(documentAccess)
+      .innerJoin(users, eq(documentAccess.userId, users.id))
+      .where(and(
+        eq(documentAccess.documentId, documentId),
+        or(
+          isNull(documentAccess.expiresAt),
+          gt(documentAccess.expiresAt, new Date())
+        )
+      ));
+  }
+
+  async getDocumentAccessByUser(userId: string): Promise<DocumentAccess[]> {
+    return db.select().from(documentAccess)
+      .where(and(
+        eq(documentAccess.userId, userId),
+        or(
+          isNull(documentAccess.expiresAt),
+          gt(documentAccess.expiresAt, new Date())
+        )
+      ));
+  }
+
+  async getUserDocumentAccess(documentId: string, userId: string): Promise<DocumentAccess | undefined> {
+    const [access] = await db.select().from(documentAccess)
+      .where(and(
+        eq(documentAccess.documentId, documentId),
+        eq(documentAccess.userId, userId),
+        or(
+          isNull(documentAccess.expiresAt),
+          gt(documentAccess.expiresAt, new Date())
+        )
+      ));
+    return access || undefined;
+  }
+
+  async getDocumentByFileUrl(fileUrl: string): Promise<Document | undefined> {
+    // Normalize the path - strip leading slash if present
+    const normalizedUrl = fileUrl.startsWith('/') ? fileUrl.substring(1) : fileUrl;
+    
+    // Try exact equality matching first (canonical format)
+    const [doc] = await db.select().from(documents)
+      .where(eq(documents.fileUrl, normalizedUrl));
+    if (doc) return doc;
+    
+    // Dual-lookup for legacy formats: try without "objects/" prefix
+    if (normalizedUrl.startsWith('objects/')) {
+      const legacyUrl = normalizedUrl.substring(8); // Remove "objects/"
+      const [legacyDoc] = await db.select().from(documents)
+        .where(eq(documents.fileUrl, legacyUrl));
+      return legacyDoc || undefined;
+    }
+    
+    return undefined;
+  }
+
+  async grantDocumentAccess(access: InsertDocumentAccess): Promise<DocumentAccess> {
+    const [result] = await db.insert(documentAccess).values(access).returning();
+    return result;
+  }
+
+  async revokeDocumentAccess(documentId: string, userId: string): Promise<void> {
+    await db.delete(documentAccess).where(and(eq(documentAccess.documentId, documentId), eq(documentAccess.userId, userId)));
   }
 }
 

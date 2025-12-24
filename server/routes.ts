@@ -2,8 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema } from "@shared/schema";
 import { setupWebSocket, getOnlineUsers, isUserOnline } from "./websocket";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -786,6 +787,439 @@ export async function registerRoutes(
       });
       
       res.status(201).json(conversation);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Document access validator for file downloads
+  const validateDocumentAccess = async (req: Request, canonicalKey: string): Promise<boolean> => {
+    const user = req.user;
+    if (!user) return false;
+    
+    // canonicalKey is already normalized by the download handler
+    // Look up document by canonical key (storage handles dual-lookup for legacy formats)
+    const doc = await storage.getDocumentByFileUrl(canonicalKey);
+    
+    // If no document found for this path, deny access (could be orphaned file)
+    if (!doc) return false;
+    
+    // Check document access permission
+    const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+    if (isAdmin) return true;
+    
+    const isOwner = doc.uploadedById === user.id;
+    if (isOwner) return true;
+    
+    const isPublic = doc.visibility === 'PUBLIC';
+    if (isPublic) return true;
+    
+    // Check for explicit share access
+    const accessRecord = await storage.getUserDocumentAccess(doc.id, user.id);
+    if (accessRecord) return true;
+    
+    return false;
+  };
+
+  // Register object storage routes for file uploads with authentication and ACL
+  registerObjectStorageRoutes(app, requireAuth, validateDocumentAccess);
+
+  // ============ DOCUMENT MANAGEMENT ROUTES ============
+
+  // Get all documents with filtering
+  app.get("/api/documents", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user!;
+      const { folderId, cohortId, trackId, matchId, visibility, category, isTemplate, search } = req.query;
+      const allDocs = await storage.getDocuments({
+        folderId: folderId === 'null' ? null : folderId as string | undefined,
+        cohortId: cohortId as string | undefined,
+        trackId: trackId as string | undefined,
+        matchId: matchId as string | undefined,
+        visibility: visibility as string | undefined,
+        category: category as string | undefined,
+        isTemplate: isTemplate === 'true' ? true : isTemplate === 'false' ? false : undefined,
+        search: search as string | undefined,
+      });
+      
+      // Filter documents based on user visibility permissions
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      
+      // Get all documents user has explicit access to
+      const userAccessDocs = await storage.getDocumentAccessByUser(user.id);
+      const accessibleDocIds = new Set(userAccessDocs.map(a => a.documentId));
+      
+      const filteredDocs = allDocs.filter(doc => {
+        // Admins can see all documents
+        if (isAdmin) return true;
+        // Owner can always see their own documents
+        if (doc.uploadedById === user.id) return true;
+        // PUBLIC documents visible to everyone
+        if (doc.visibility === 'PUBLIC') return true;
+        // Check if user has explicit share access
+        if (accessibleDocIds.has(doc.id)) return true;
+        // PRIVATE only visible to owner (already handled)
+        if (doc.visibility === 'PRIVATE') return false;
+        // COHORT/TRACK/MATCH visibility requires checking user's context
+        // TODO: Implement full cohort/track/match membership checking
+        return false;
+      });
+      
+      res.json(filteredDocs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single document
+  app.get("/api/documents/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user!;
+      const doc = await storage.getDocument(req.params.id);
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Check visibility permission
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      const isOwner = doc.uploadedById === user.id;
+      const isPublic = doc.visibility === 'PUBLIC';
+      
+      // Check for explicit share access
+      let hasShareAccess = false;
+      if (!isAdmin && !isOwner && !isPublic) {
+        const accessRecords = await storage.getDocumentAccess(req.params.id);
+        hasShareAccess = accessRecords.some(a => a.userId === user.id);
+      }
+      
+      if (!isAdmin && !isOwner && !isPublic && !hasShareAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      res.json(doc);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create document (after file upload)
+  app.post("/api/documents", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const validatedData = insertDocumentSchema.parse({
+        ...req.body,
+        uploadedById: userId,
+      });
+      const doc = await storage.createDocument(validatedData);
+      res.status(201).json(doc);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update document
+  app.patch("/api/documents/:id", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const doc = await storage.getDocument(req.params.id);
+      
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can update
+      if (doc.uploadedById !== userId && !(req.user as any).role.includes("ADMIN")) {
+        return res.status(403).json({ message: "Not authorized to update this document" });
+      }
+      
+      const updated = await storage.updateDocument(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete document
+  app.delete("/api/documents/:id", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const doc = await storage.getDocument(req.params.id);
+      
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can delete
+      if (doc.uploadedById !== userId && !(req.user as any).role.includes("ADMIN")) {
+        return res.status(403).json({ message: "Not authorized to delete this document" });
+      }
+      
+      await storage.deleteDocument(req.params.id);
+      res.json({ message: "Document deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Download document (validates access and increments count)
+  app.post("/api/documents/:id/download", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user!;
+      const doc = await storage.getDocument(req.params.id);
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Check document access permission
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      const isOwner = doc.uploadedById === user.id;
+      const isPublic = doc.visibility === 'PUBLIC';
+      
+      // Check for explicit share access
+      let hasShareAccess = false;
+      if (!isAdmin && !isOwner && !isPublic) {
+        const accessRecords = await storage.getDocumentAccess(req.params.id);
+        hasShareAccess = accessRecords.some(a => a.userId === user.id);
+      }
+      
+      if (!isAdmin && !isOwner && !isPublic && !hasShareAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.incrementDownloadCount(req.params.id);
+      res.json({ fileUrl: doc.fileUrl });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get document versions
+  app.get("/api/documents/:id/versions", requireAuth, async (req, res, next) => {
+    try {
+      const versions = await storage.getDocumentVersions(req.params.id);
+      res.json(versions);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create new document version
+  app.post("/api/documents/:id/versions", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const doc = await storage.getDocument(req.params.id);
+      
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Create version record
+      const version = await storage.createDocumentVersion({
+        documentId: req.params.id,
+        version: (doc.version || 1) + 1,
+        fileUrl: req.body.fileUrl,
+        fileSize: req.body.fileSize,
+        uploadedById: userId,
+        changeNotes: req.body.changeNotes,
+      });
+      
+      // Update document with new version
+      await storage.updateDocument(req.params.id, {
+        fileUrl: req.body.fileUrl,
+        fileSize: req.body.fileSize,
+        version: version.version,
+      });
+      
+      res.status(201).json(version);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ============ FOLDER ROUTES ============
+
+  // Get all folders
+  app.get("/api/folders", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user!;
+      const { parentFolderId, cohortId, trackId, matchId, visibility } = req.query;
+      const allFolders = await storage.getFolders({
+        parentFolderId: parentFolderId === 'null' ? null : parentFolderId as string | undefined,
+        cohortId: cohortId as string | undefined,
+        trackId: trackId as string | undefined,
+        matchId: matchId as string | undefined,
+        visibility: visibility as string | undefined,
+      });
+      
+      // Filter folders based on user visibility permissions
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      const filteredFolders = allFolders.filter(folder => {
+        if (isAdmin) return true;
+        if (folder.createdById === user.id) return true;
+        if (folder.visibility === 'PUBLIC') return true;
+        if (folder.visibility === 'PRIVATE') return false;
+        // TODO: Implement cohort/track/match membership checking
+        return false;
+      });
+      
+      res.json(filteredFolders);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single folder
+  app.get("/api/folders/:id", requireAuth, async (req, res, next) => {
+    try {
+      const folder = await storage.getFolder(req.params.id);
+      if (!folder) {
+        return res.status(404).json({ message: "Folder not found" });
+      }
+      res.json(folder);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create folder
+  app.post("/api/folders", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const validatedData = insertFolderSchema.parse({
+        ...req.body,
+        ownerId: userId,
+      });
+      const folder = await storage.createFolder(validatedData);
+      res.status(201).json(folder);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update folder
+  app.patch("/api/folders/:id", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const folder = await storage.getFolder(req.params.id);
+      
+      if (!folder) {
+        return res.status(404).json({ message: "Folder not found" });
+      }
+      
+      if (folder.ownerId !== userId && !(req.user as any).role.includes("ADMIN")) {
+        return res.status(403).json({ message: "Not authorized to update this folder" });
+      }
+      
+      const updated = await storage.updateFolder(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete folder
+  app.delete("/api/folders/:id", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const folder = await storage.getFolder(req.params.id);
+      
+      if (!folder) {
+        return res.status(404).json({ message: "Folder not found" });
+      }
+      
+      if (folder.ownerId !== userId && !(req.user as any).role.includes("ADMIN")) {
+        return res.status(403).json({ message: "Not authorized to delete this folder" });
+      }
+      
+      await storage.deleteFolder(req.params.id);
+      res.json({ message: "Folder deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ============ DOCUMENT ACCESS/SHARING ROUTES ============
+
+  // Get document access list
+  app.get("/api/documents/:id/access", requireAuth, async (req, res, next) => {
+    try {
+      const accessList = await storage.getDocumentAccess(req.params.id);
+      res.json(accessList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Grant document access
+  app.post("/api/documents/:id/access", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const doc = await storage.getDocument(req.params.id);
+      
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      if (doc.uploadedById !== userId && !(req.user as any).role.includes("ADMIN")) {
+        return res.status(403).json({ message: "Not authorized to share this document" });
+      }
+      
+      const validatedData = insertDocumentAccessSchema.parse({
+        documentId: req.params.id,
+        userId: req.body.userId,
+        accessType: req.body.accessType || "VIEW",
+        grantedById: userId,
+        expiresAt: req.body.expiresAt,
+      });
+      
+      const access = await storage.grantDocumentAccess(validatedData);
+      res.status(201).json(access);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Revoke document access
+  app.delete("/api/documents/:id/access/:userId", requireAuth, async (req, res, next) => {
+    try {
+      const currentUserId = (req.user as any).id;
+      const doc = await storage.getDocument(req.params.id);
+      
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      if (doc.uploadedById !== currentUserId && !(req.user as any).role.includes("ADMIN")) {
+        return res.status(403).json({ message: "Not authorized to manage access for this document" });
+      }
+      
+      await storage.revokeDocumentAccess(req.params.id, req.params.userId);
+      res.json({ message: "Access revoked" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Get all documents for management
+  app.get("/api/admin/documents", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { category, visibility, search } = req.query;
+      const docs = await storage.getDocuments({
+        category: category as string | undefined,
+        visibility: visibility as string | undefined,
+        search: search as string | undefined,
+      });
+      res.json(docs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Get all folders for management
+  app.get("/api/admin/folders", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const folderList = await storage.getFolders({});
+      res.json(folderList);
     } catch (error) {
       next(error);
     }

@@ -1,0 +1,197 @@
+Continuing SONSIEL Mentorship Hub, build a comprehensive document management system.
+
+FILE STORAGE SETUP:
+
+Configure cloud storage (AWS S3 or Cloudflare R2):
+- Secure upload with presigned URLs
+- File type validation
+- File size limits (configurable, suggest 50MB default)
+- Virus scanning integration (optional but recommended)
+- Automatic image optimization/thumbnailing
+
+DOCUMENT SYSTEM FEATURES:
+
+1. Document Library (/documents):
+   
+   Main document hub with multiple views:
+   
+   a) My Documents:
+      - Documents I've uploaded
+      - Documents shared with me
+      - Documents for my matches
+   
+   b) Program Resources (for all participants):
+      - Getting Started Guide
+      - Code of Conduct
+      - Do's and Don'ts
+      - Goal-Setting Templates
+      - Meeting Agenda Templates
+   
+   c) Track Resources (per track):
+      - Scientist Track resources
+      - Innovator Track resources
+      - Entrepreneur Track resources
+      - Intrapreneur Track resources
+      - Leader Track resources
+   
+   d) Templates (fillable):
+      - Mentorship Agreement/Compact
+      - Goal-Setting Worksheet
+      - Meeting Log Template
+      - Progress Report Template
+      - Exit Conversation Template
+
+2. Document Organization:
+   
+   Folder model:
+   - id, name, description
+   - parentFolderId (for nesting)
+   - ownerId
+   - cohortId (optional)
+   - trackId (optional)
+   - matchId (optional)
+   - visibility
+   - color, icon
+   
+   Features:
+   - Create folders
+   - Move documents between folders
+   - Drag-and-drop organization
+   - Bulk operations
+
+3. Document Upload:
+   
+   Smooth upload experience:
+   - Drag-and-drop zone
+   - Multi-file upload
+   - Upload progress indicators
+   - Automatic metadata extraction
+   - Manual metadata entry:
+     * Title
+     * Description
+     * Category
+     * Tags
+     * Visibility setting
+     * Expiration date (optional)
+
+4. Document Sharing:
+   
+   Visibility levels:
+   - PRIVATE: Only uploader
+   - MATCH: Shared with match partner(s)
+   - TRACK: All members of the track
+   - COHORT: All cohort members
+   - PUBLIC: All platform users
+   
+   Additional sharing:
+   - Share with specific users
+   - Generate shareable link (with optional expiration)
+   - View who has access
+   - Revoke access
+
+5. Document Viewer:
+   
+   /documents/[id]
+   
+   In-browser preview for:
+   - PDF (embedded viewer)
+   - Images
+   - Word documents (convert to PDF or use viewer)
+   - Text files
+   - Markdown (rendered)
+   
+   Viewer features:
+   - Download button
+   - Print option
+   - Share button
+   - Version history (if multiple versions)
+   - Comments/annotations
+   - Related documents
+
+6. Version Control:
+   
+   DocumentVersion model:
+   - id, documentId
+   - version (1, 2, 3...)
+   - fileUrl
+   - uploadedById
+   - changeNotes
+   - createdAt
+   
+   Features:
+   - Upload new version
+   - View version history
+   - Compare versions (for text files)
+   - Restore previous version
+   - Download any version
+
+7. Document Templates:
+   
+   Admin-managed templates:
+   - Mark documents as templates
+   - Users can "Use Template" to create personal copy
+   - Pre-filled with user's info where applicable
+   
+   Template categories:
+   - Agreements (Mentorship Compact)
+   - Planning (Goal-Setting, Action Plans)
+   - Tracking (Meeting Logs, Progress Reports)
+   - Exit (Evaluation, Exit Conversation)
+
+8. Admin Document Management:
+   
+   /admin/documents
+   
+   - View all documents
+   - Manage program resources
+   - Upload track-specific resources
+   - Set document permissions
+   - Monitor storage usage
+   - Bulk operations
+   - Flag inappropriate content
+
+INTEGRATION WITH OTHER FEATURES:
+
+1. Task Attachments:
+   - Attach documents to tasks
+   - Create task from document
+   
+2. Message Attachments:
+   - Share documents in messages
+   - Documents shared in messages appear in library
+   
+3. Goal Attachments:
+   - Attach evidence/artifacts to goals
+   - Track documents related to goal completion
+
+4. Meeting Log Attachments:
+   - Attach meeting notes
+   - Attach action item documents
+
+UI COMPONENTS:
+
+- DocumentUploader (drag-drop, multi-file)
+- DocumentCard (thumbnail, title, metadata)
+- DocumentGrid / DocumentList (toggle views)
+- DocumentViewer (modal or page)
+- FolderTree (navigable hierarchy)
+- ShareModal (permission management)
+- VersionHistory (timeline view)
+- DocumentSearch (with filters)
+
+SEARCH & FILTER:
+
+- Full-text search (in document names, descriptions, tags)
+- Filter by:
+  * File type
+  * Category
+  * Uploader
+  * Date range
+  * Track
+  * Cohort
+  * Visibility
+- Sort by:
+  * Date uploaded
+  * Name
+  * Size
+  * Downloads
