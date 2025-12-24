@@ -36,6 +36,16 @@ Preferred communication style: Simple, everyday language.
 - **Authorization**: Participant membership verified for all message operations
 - **Frontend Hook**: useMessaging() provides WebSocket state management (client/src/hooks/use-messaging.tsx)
 
+### Document Management System
+- **Object Storage**: Replit Object Storage with cloud-based file persistence
+- **Folder Organization**: Hierarchical folders with navigation and nested structure support
+- **Version Control**: Document versioning with change notes and version history
+- **Access Control**: Granular visibility (PRIVATE, MENTORSHIP, COHORT, PUBLIC) with share links and expiration
+- **File Upload**: Uppy integration with drag-drop, progress tracking, and resumable uploads
+- **Security**: Path normalization with segment validation, ACL checks before file access, namespace enforcement
+- **Admin Oversight**: Admin dashboard for monitoring all documents across the platform
+- **Schema Tables**: documents, folders, documentVersions, documentAccess (shared/schema.ts)
+
 ### Data Storage
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
