@@ -1,0 +1,223 @@
+Continuing SONSIEL Mentorship Hub, build comprehensive task management and goal tracking.
+
+TASK MANAGEMENT SYSTEM:
+
+1. Task Creation & Assignment:
+   
+   Who can create/assign tasks:
+   - ADMIN → Anyone (platform-wide or cohort-specific)
+   - MENTOR → Their mentees only
+   - MENTEE → Themselves only (self-assigned tasks)
+   
+   Task Model (expand from previous):
+   - id
+   - title, description (rich text)
+   - createdById, assignedToId
+   - matchId (optional - ties task to specific mentorship)
+   - cohortId (optional - for cohort-wide tasks)
+   - trackId (optional - for track-specific tasks)
+   - category (ADMIN_TASK, MENTOR_TASK, SELF_TASK, GOAL_TASK)
+   - priority (LOW, MEDIUM, HIGH, URGENT)
+   - status (TODO, IN_PROGRESS, BLOCKED, IN_REVIEW, COMPLETED, CANCELLED)
+   - dueDate, reminderDate
+   - estimatedHours
+   - actualHours
+   - recurrence (NONE, DAILY, WEEKLY, BIWEEKLY, MONTHLY)
+   - parentTaskId (for subtasks)
+   - dependencies (array of task IDs that must complete first)
+   - tags (array)
+   - completedAt, completedById
+   - verifiedAt, verifiedById (for mentor-verified tasks)
+   - createdAt, updatedAt
+
+   TaskComment:
+   - id, taskId
+   - userId
+   - content
+   - createdAt
+
+   TaskActivity:
+   - id, taskId
+   - userId
+   - action (CREATED, UPDATED, ASSIGNED, COMPLETED, etc.)
+   - details (JSON)
+   - createdAt
+
+2. Task Views (/tasks):
+   
+   Multiple view options:
+   
+   a) List View:
+      - Sortable, filterable table
+      - Quick actions (complete, edit, delete)
+      - Inline status change
+   
+   b) Kanban Board:
+      - Columns by status
+      - Drag-and-drop between columns
+      - Quick filters
+   
+   c) Calendar View:
+      - Tasks by due date
+      - Week/month toggle
+      - Color by priority
+   
+   d) Timeline/Gantt (for admins):
+      - Cohort-wide task timeline
+      - Dependencies visualization
+
+3. Task Features:
+   
+   - Subtasks (checklist within task)
+   - Task dependencies
+   - Recurring tasks (auto-recreate)
+   - Task templates (admin creates, users instantiate)
+   - Time tracking (log hours spent)
+   - File attachments
+   - Comments/discussion thread
+   - Activity history
+   - Due date reminders (configurable: 1 day, 3 days, 1 week before)
+
+4. Admin Task Dashboard (/admin/tasks):
+   
+   - All tasks across cohorts
+   - Overdue task alerts
+   - Completion rates by cohort/track/user
+   - Bulk task assignment
+   - Task template management
+   - Export task data
+
+GOAL TRACKING SYSTEM:
+
+1. SMART Goals Framework:
+   
+   Based on SONSIEL's Goal-Setting & Development Plan Template:
+   
+   Goal Model:
+   - id
+   - matchId (ties to mentorship relationship)
+   - createdById, ownerId
+   - title
+   - description
+   - category (SHORT_TERM, LONG_TERM, STRETCH)
+   - trackId (aligned with track)
+   - specificDetails (what exactly will be accomplished)
+   - measurableMetrics (how will success be measured - JSON array)
+   - achievabilityNotes (what makes this achievable)
+   - relevanceExplanation (why this matters)
+   - targetDate (time-bound)
+   - status (NOT_STARTED, IN_PROGRESS, COMPLETED, ABANDONED, DEFERRED)
+   - progress (0-100)
+   - progressNotes (array of progress updates)
+   - milestones (relation to Milestone)
+   - reflectionNotes
+   - mentorApproved, mentorFeedback
+   - createdAt, updatedAt, completedAt
+
+   Milestone:
+   - id, goalId
+   - title, description
+   - targetDate
+   - isCompleted, completedAt
+   - evidenceAttachments (relation to Document)
+   - sortOrder
+
+   GoalProgress:
+   - id, goalId
+   - previousProgress, newProgress
+   - notes
+   - updatedById
+   - createdAt
+
+2. Goal Setting Workflow:
+
+   /goals/new (within context of a match)
+   
+   a) Guided goal creation wizard:
+      Step 1: What area? (aligned with track competencies)
+      Step 2: Specific - What exactly do you want to achieve?
+      Step 3: Measurable - How will you know when it's done?
+      Step 4: Achievable - What resources/support do you need?
+      Step 5: Relevant - Why does this matter to your development?
+      Step 6: Time-bound - When will you complete this?
+      Step 7: Milestones - Break it into smaller steps
+      Step 8: Review and submit
+   
+   b) Mentor review:
+      - Mentor receives notification of new goal
+      - Reviews and provides feedback
+      - Approves or requests revision
+      
+   c) Tracking:
+      - Regular progress updates (prompted by system)
+      - Milestone check-offs
+      - Progress visualization
+
+3. Goal Views (/goals):
+   
+   For Mentees:
+   - My active goals
+   - Completed goals (portfolio)
+   - Goal by goal detail view
+   - Progress timeline
+   
+   For Mentors:
+   - Mentee goals dashboard
+   - Pending reviews
+   - Progress across all mentees
+   
+   For Admins:
+   - Cohort goal statistics
+   - Completion rates
+   - Common goal themes
+
+4. Goal Analytics:
+   
+   - Progress over time charts
+   - Completion rate by track
+   - Average time to completion
+   - Goals by category distribution
+   - Stalled goals alerts
+
+MEETING LOG INTEGRATION:
+
+MeetingLog Model (expand):
+- id, matchId
+- meetingNumber (sequential per match)
+- scheduledDate, actualDate
+- duration
+- format (VIRTUAL, IN_PERSON, PHONE, ASYNC)
+- platform (ZOOM, TEAMS, GOOGLE_MEET, OTHER)
+- location (if in-person)
+- mentorAttended, menteeAttended
+- agenda (prepared before meeting)
+- discussionNotes (captured during)
+- actionItems (relation to Task - auto-creates tasks)
+- goalsDiscussed (relation to Goal)
+- nextMeetingDate
+- mentorMoodRating (1-5, optional)
+- menteeMoodRating (1-5, optional)
+- createdById
+- createdAt
+
+Meeting Log Features:
+- Template-based meeting agendas
+- Note-taking during meeting
+- Action item extraction (convert to tasks)
+- Link to discussed goals
+- Automatic meeting count tracking
+- Meeting history timeline
+- Export meeting notes
+
+UI COMPONENTS:
+
+- TaskCard
+- TaskList / TaskKanban / TaskCalendar
+- TaskDetailModal
+- GoalWizard (multi-step)
+- GoalProgressChart
+- MilestoneChecklist
+- GoalCard
+- MeetingLogForm
+- MeetingHistory
+- ProgressRing (visual 0-100%)
