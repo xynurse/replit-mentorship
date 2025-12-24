@@ -2,7 +2,7 @@ import {
   users, tracks, cohorts, cohortTracks, cohortMemberships, mentorshipMatches, meetingLogs, goals, tasks, documents, documentAccess,
   applicationQuestions, applicationResponses, matchingConfigurations,
   conversations, conversationParticipants, messages, messageAttachments, messageReads,
-  folders, documentVersions,
+  folders, documentVersions, taskComments, taskActivities, milestones, goalProgress,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -11,7 +11,9 @@ import {
   type MatchingConfiguration, type InsertMatchingConfiguration,
   type Conversation, type InsertConversation, type ConversationParticipant, type InsertConversationParticipant,
   type Message, type InsertMessage, type MessageAttachment, type InsertMessageAttachment, type MessageRead, type InsertMessageRead,
-  type Folder, type InsertFolder, type DocumentVersion, type InsertDocumentVersion, type DocumentAccess, type InsertDocumentAccess
+  type Folder, type InsertFolder, type DocumentVersion, type InsertDocumentVersion, type DocumentAccess, type InsertDocumentAccess,
+  type TaskComment, type InsertTaskComment, type TaskActivity, type InsertTaskActivity,
+  type Milestone, type InsertMilestone, type GoalProgress, type InsertGoalProgress
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -129,6 +131,31 @@ export interface IStorage {
   getDocumentByFileUrl(fileUrl: string): Promise<Document | undefined>;
   grantDocumentAccess(access: InsertDocumentAccess): Promise<DocumentAccess>;
   revokeDocumentAccess(documentId: string, userId: string): Promise<void>;
+  
+  // Tasks
+  getTask(id: string): Promise<Task | undefined>;
+  getTasks(filters?: { assignedToId?: string; createdById?: string; matchId?: string; cohortId?: string; trackId?: string; goalId?: string; status?: string; priority?: string; category?: string; parentTaskId?: string | null; overdue?: boolean; search?: string }): Promise<Task[]>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: string, data: Partial<Task>): Promise<Task | undefined>;
+  deleteTask(id: string): Promise<void>;
+  getTaskComments(taskId: string): Promise<(TaskComment & { user: User })[]>;
+  createTaskComment(comment: InsertTaskComment): Promise<TaskComment>;
+  getTaskActivities(taskId: string): Promise<(TaskActivity & { user: User })[]>;
+  createTaskActivity(activity: InsertTaskActivity): Promise<TaskActivity>;
+  getSubtasks(parentTaskId: string): Promise<Task[]>;
+  
+  // Goals
+  getGoal(id: string): Promise<Goal | undefined>;
+  getGoals(filters?: { matchId?: string; ownerId?: string; createdById?: string; trackId?: string; status?: string; category?: string; mentorApproved?: boolean; search?: string }): Promise<Goal[]>;
+  createGoal(goal: InsertGoal): Promise<Goal>;
+  updateGoal(id: string, data: Partial<Goal>): Promise<Goal | undefined>;
+  deleteGoal(id: string): Promise<void>;
+  getMilestones(goalId: string): Promise<Milestone[]>;
+  createMilestone(milestone: InsertMilestone): Promise<Milestone>;
+  updateMilestone(id: string, data: Partial<Milestone>): Promise<Milestone | undefined>;
+  deleteMilestone(id: string): Promise<void>;
+  getGoalProgressHistory(goalId: string): Promise<(GoalProgress & { user: User })[]>;
+  createGoalProgress(progress: InsertGoalProgress): Promise<GoalProgress>;
   
   sessionStore: session.Store;
 }
@@ -355,8 +382,8 @@ export class DatabaseStorage implements IStorage {
     
     return db.select().from(meetingLogs).where(
       and(
-        sql`${meetingLogs.scheduledAt} >= NOW()`,
-        sql`${meetingLogs.scheduledAt} <= ${endOfWeek}`
+        sql`${meetingLogs.scheduledDate} >= NOW()`,
+        sql`${meetingLogs.scheduledDate} <= ${endOfWeek}`
       )
     );
   }
@@ -905,6 +932,198 @@ export class DatabaseStorage implements IStorage {
 
   async revokeDocumentAccess(documentId: string, userId: string): Promise<void> {
     await db.delete(documentAccess).where(and(eq(documentAccess.documentId, documentId), eq(documentAccess.userId, userId)));
+  }
+
+  // Task Methods
+  async getTask(id: string): Promise<Task | undefined> {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    return task || undefined;
+  }
+
+  async getTasks(filters?: { assignedToId?: string; createdById?: string; matchId?: string; cohortId?: string; trackId?: string; goalId?: string; status?: string; priority?: string; category?: string; parentTaskId?: string | null; overdue?: boolean; search?: string }): Promise<Task[]> {
+    const conditions = [];
+    if (filters?.assignedToId) conditions.push(eq(tasks.assignedToId, filters.assignedToId));
+    if (filters?.createdById) conditions.push(eq(tasks.createdById, filters.createdById));
+    if (filters?.matchId) conditions.push(eq(tasks.matchId, filters.matchId));
+    if (filters?.cohortId) conditions.push(eq(tasks.cohortId, filters.cohortId));
+    if (filters?.trackId) conditions.push(eq(tasks.trackId, filters.trackId));
+    if (filters?.goalId) conditions.push(eq(tasks.goalId, filters.goalId));
+    if (filters?.status) conditions.push(eq(tasks.status, filters.status as any));
+    if (filters?.priority) conditions.push(eq(tasks.priority, filters.priority as any));
+    if (filters?.category) conditions.push(eq(tasks.category, filters.category as any));
+    if (filters?.parentTaskId !== undefined) {
+      if (filters.parentTaskId === null) {
+        conditions.push(isNull(tasks.parentTaskId));
+      } else {
+        conditions.push(eq(tasks.parentTaskId, filters.parentTaskId));
+      }
+    }
+    if (filters?.overdue) {
+      conditions.push(and(
+        sql`${tasks.dueDate} < NOW()`,
+        sql`${tasks.status} NOT IN ('COMPLETED', 'CANCELLED')`
+      ));
+    }
+    if (filters?.search) {
+      conditions.push(or(
+        like(tasks.title, `%${filters.search}%`),
+        like(tasks.description, `%${filters.search}%`)
+      ));
+    }
+    
+    return db.select().from(tasks)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(tasks.createdAt));
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    const [result] = await db.insert(tasks).values(task).returning();
+    return result;
+  }
+
+  async updateTask(id: string, data: Partial<Task>): Promise<Task | undefined> {
+    const [task] = await db.update(tasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(tasks.id, id))
+      .returning();
+    return task || undefined;
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, id));
+  }
+
+  async getTaskComments(taskId: string): Promise<(TaskComment & { user: User })[]> {
+    return db.select({
+      id: taskComments.id,
+      taskId: taskComments.taskId,
+      userId: taskComments.userId,
+      content: taskComments.content,
+      createdAt: taskComments.createdAt,
+      user: users,
+    }).from(taskComments)
+      .innerJoin(users, eq(taskComments.userId, users.id))
+      .where(eq(taskComments.taskId, taskId))
+      .orderBy(asc(taskComments.createdAt));
+  }
+
+  async createTaskComment(comment: InsertTaskComment): Promise<TaskComment> {
+    const [result] = await db.insert(taskComments).values(comment).returning();
+    return result;
+  }
+
+  async getTaskActivities(taskId: string): Promise<(TaskActivity & { user: User })[]> {
+    return db.select({
+      id: taskActivities.id,
+      taskId: taskActivities.taskId,
+      userId: taskActivities.userId,
+      action: taskActivities.action,
+      details: taskActivities.details,
+      createdAt: taskActivities.createdAt,
+      user: users,
+    }).from(taskActivities)
+      .innerJoin(users, eq(taskActivities.userId, users.id))
+      .where(eq(taskActivities.taskId, taskId))
+      .orderBy(desc(taskActivities.createdAt));
+  }
+
+  async createTaskActivity(activity: InsertTaskActivity): Promise<TaskActivity> {
+    const [result] = await db.insert(taskActivities).values(activity).returning();
+    return result;
+  }
+
+  async getSubtasks(parentTaskId: string): Promise<Task[]> {
+    return db.select().from(tasks)
+      .where(eq(tasks.parentTaskId, parentTaskId))
+      .orderBy(asc(tasks.createdAt));
+  }
+
+  // Goal Methods
+  async getGoal(id: string): Promise<Goal | undefined> {
+    const [goal] = await db.select().from(goals).where(eq(goals.id, id));
+    return goal || undefined;
+  }
+
+  async getGoals(filters?: { matchId?: string; ownerId?: string; createdById?: string; trackId?: string; status?: string; category?: string; mentorApproved?: boolean; search?: string }): Promise<Goal[]> {
+    const conditions = [];
+    if (filters?.matchId) conditions.push(eq(goals.matchId, filters.matchId));
+    if (filters?.ownerId) conditions.push(eq(goals.ownerId, filters.ownerId));
+    if (filters?.createdById) conditions.push(eq(goals.createdById, filters.createdById));
+    if (filters?.trackId) conditions.push(eq(goals.trackId, filters.trackId));
+    if (filters?.status) conditions.push(eq(goals.status, filters.status as any));
+    if (filters?.category) conditions.push(eq(goals.category, filters.category as any));
+    if (filters?.mentorApproved !== undefined) conditions.push(eq(goals.mentorApproved, filters.mentorApproved));
+    if (filters?.search) {
+      conditions.push(or(
+        like(goals.title, `%${filters.search}%`),
+        like(goals.description, `%${filters.search}%`)
+      ));
+    }
+    
+    return db.select().from(goals)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(goals.createdAt));
+  }
+
+  async createGoal(goal: InsertGoal): Promise<Goal> {
+    const [result] = await db.insert(goals).values(goal).returning();
+    return result;
+  }
+
+  async updateGoal(id: string, data: Partial<Goal>): Promise<Goal | undefined> {
+    const [goal] = await db.update(goals)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(goals.id, id))
+      .returning();
+    return goal || undefined;
+  }
+
+  async deleteGoal(id: string): Promise<void> {
+    await db.delete(goals).where(eq(goals.id, id));
+  }
+
+  async getMilestones(goalId: string): Promise<Milestone[]> {
+    return db.select().from(milestones)
+      .where(eq(milestones.goalId, goalId))
+      .orderBy(asc(milestones.sortOrder));
+  }
+
+  async createMilestone(milestone: InsertMilestone): Promise<Milestone> {
+    const [result] = await db.insert(milestones).values(milestone).returning();
+    return result;
+  }
+
+  async updateMilestone(id: string, data: Partial<Milestone>): Promise<Milestone | undefined> {
+    const [milestone] = await db.update(milestones)
+      .set(data)
+      .where(eq(milestones.id, id))
+      .returning();
+    return milestone || undefined;
+  }
+
+  async deleteMilestone(id: string): Promise<void> {
+    await db.delete(milestones).where(eq(milestones.id, id));
+  }
+
+  async getGoalProgressHistory(goalId: string): Promise<(GoalProgress & { user: User })[]> {
+    return db.select({
+      id: goalProgress.id,
+      goalId: goalProgress.goalId,
+      previousProgress: goalProgress.previousProgress,
+      newProgress: goalProgress.newProgress,
+      notes: goalProgress.notes,
+      updatedById: goalProgress.updatedById,
+      createdAt: goalProgress.createdAt,
+      user: users,
+    }).from(goalProgress)
+      .innerJoin(users, eq(goalProgress.updatedById, users.id))
+      .where(eq(goalProgress.goalId, goalId))
+      .orderBy(desc(goalProgress.createdAt));
+  }
+
+  async createGoalProgress(progress: InsertGoalProgress): Promise<GoalProgress> {
+    const [result] = await db.insert(goalProgress).values(progress).returning();
+    return result;
   }
 }
 
