@@ -19,6 +19,7 @@ import AdminCohorts from "@/pages/admin/cohorts";
 import AdminApplications from "@/pages/admin/applications";
 import AdminMatchingPage from "@/pages/admin/matching";
 import ApplyPage from "@/pages/apply";
+import MessagesPage from "@/pages/messages";
 
 function Router() {
   return (
@@ -34,6 +35,7 @@ function Router() {
       <AdminRoute path="/admin/applications" component={AdminApplications} />
       <AdminRoute path="/admin/matching/:cohortId" component={AdminMatchingPage} />
       <Route path="/apply/:cohortId" component={ApplyPage} />
+      <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <Route component={NotFound} />
     </Switch>
