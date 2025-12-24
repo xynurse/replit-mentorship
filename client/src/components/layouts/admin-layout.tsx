@@ -12,6 +12,7 @@ import {
   Menu,
   Shield,
   ClipboardList,
+  ListTodo,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -49,6 +50,7 @@ const adminMenuItems = [
   { title: "Users", url: "/admin/users", icon: Users },
   { title: "Cohorts", url: "/admin/cohorts", icon: GraduationCap },
   { title: "Applications", url: "/admin/applications", icon: ClipboardList },
+  { title: "Task Analytics", url: "/admin/tasks", icon: ListTodo },
   { title: "Documents", url: "/admin/documents", icon: FileText },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];

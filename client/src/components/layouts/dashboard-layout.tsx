@@ -15,6 +15,8 @@ import {
   ChevronDown,
   Shield,
   UserCog,
+  ListTodo,
+  Target,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -54,6 +56,8 @@ interface DashboardLayoutProps {
 const getNavItems = (role: UserRole) => {
   const common = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Tasks", url: "/tasks", icon: ListTodo },
+    { title: "Goals", url: "/goals", icon: Target },
     { title: "Messages", url: "/messages", icon: MessageSquare },
     { title: "Calendar", url: "/calendar", icon: Calendar },
     { title: "Documents", url: "/documents", icon: FileText },
