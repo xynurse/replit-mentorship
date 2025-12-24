@@ -19,10 +19,12 @@ import AdminCohorts from "@/pages/admin/cohorts";
 import AdminApplications from "@/pages/admin/applications";
 import AdminMatchingPage from "@/pages/admin/matching";
 import AdminDocuments from "@/pages/admin/documents";
+import AdminTasks from "@/pages/admin/tasks";
 import ApplyPage from "@/pages/apply";
 import MessagesPage from "@/pages/messages";
 import DocumentsPage from "@/pages/documents";
 import TasksPage from "@/pages/tasks";
+import GoalsPage from "@/pages/goals";
 
 function Router() {
   return (
@@ -38,10 +40,12 @@ function Router() {
       <AdminRoute path="/admin/applications" component={AdminApplications} />
       <AdminRoute path="/admin/matching/:cohortId" component={AdminMatchingPage} />
       <AdminRoute path="/admin/documents" component={AdminDocuments} />
+      <AdminRoute path="/admin/tasks" component={AdminTasks} />
       <Route path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
       <ProtectedRoute path="/tasks" component={TasksPage} />
+      <ProtectedRoute path="/goals" component={GoalsPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <Route component={NotFound} />
     </Switch>

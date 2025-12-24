@@ -63,7 +63,11 @@ import {
   Filter,
   SortDesc,
   RefreshCw,
+  LayoutGrid,
+  List,
+  GripVertical,
 } from "lucide-react";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string; icon: typeof Circle }[] = [
   { value: "TODO", label: "To Do", icon: Circle },
@@ -122,10 +126,154 @@ const taskFormSchema = z.object({
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
   category: z.enum(["ADMIN_TASK", "MENTOR_TASK", "SELF_TASK", "GOAL_TASK"]).default("SELF_TASK"),
   dueDate: z.string().optional(),
-  estimatedHours: z.number().optional(),
+  estimatedHours: z.coerce.number().optional(),
 });
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
+
+const KANBAN_COLUMNS: { status: TaskStatus; label: string; icon: typeof Circle }[] = [
+  { status: "TODO", label: "To Do", icon: Circle },
+  { status: "IN_PROGRESS", label: "In Progress", icon: Clock },
+  { status: "BLOCKED", label: "Blocked", icon: AlertCircle },
+  { status: "IN_REVIEW", label: "In Review", icon: Clock },
+  { status: "COMPLETED", label: "Completed", icon: CheckCircle2 },
+];
+
+interface KanbanBoardProps {
+  tasks: Task[];
+  onTaskClick: (task: Task) => void;
+  onStatusChange: (taskId: string, newStatus: TaskStatus) => void;
+  onCreateTask: () => void;
+}
+
+function KanbanBoard({ tasks, onTaskClick, onStatusChange, onCreateTask }: KanbanBoardProps) {
+  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
+
+  const getTasksByStatus = (status: TaskStatus) => {
+    return tasks.filter((task) => task.status === status);
+  };
+
+  const handleDragStart = (e: React.DragEvent, task: Task) => {
+    setDraggedTask(task);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, status: TaskStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverColumn(status);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, status: TaskStatus) => {
+    e.preventDefault();
+    if (draggedTask && draggedTask.status !== status) {
+      onStatusChange(draggedTask.id, status);
+    }
+    setDraggedTask(null);
+    setDragOverColumn(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTask(null);
+    setDragOverColumn(null);
+  };
+
+  if (tasks.length === 0) {
+    return (
+      <Card className="p-8 text-center">
+        <ListTodo className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+        <CardTitle className="mb-2">No tasks found</CardTitle>
+        <CardDescription>Create your first task to get started</CardDescription>
+        <Button className="mt-4" onClick={onCreateTask} data-testid="button-kanban-create-task">
+          <Plus className="h-4 w-4 mr-2" />
+          Create Task
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="flex gap-4 h-full min-h-[calc(100vh-16rem)] overflow-x-auto pb-4">
+      {KANBAN_COLUMNS.map((column) => {
+        const columnTasks = getTasksByStatus(column.status);
+        const Icon = column.icon;
+
+        return (
+          <div
+            key={column.status}
+            className={`flex flex-col min-w-[280px] w-[280px] flex-shrink-0 rounded-lg border bg-muted/30 ${
+              dragOverColumn === column.status ? "ring-2 ring-primary" : ""
+            }`}
+            onDragOver={(e) => handleDragOver(e, column.status)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, column.status)}
+            data-testid={`kanban-column-${column.status}`}
+          >
+            <div className="flex items-center justify-between gap-2 p-3 border-b bg-muted/50 rounded-t-lg">
+              <div className="flex items-center gap-2">
+                <Icon className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium text-sm">{column.label}</span>
+              </div>
+              <Badge variant="secondary">{columnTasks.length}</Badge>
+            </div>
+
+            <ScrollArea className="flex-1 p-2">
+              <div className="space-y-2">
+                {columnTasks.map((task) => (
+                  <Card
+                    key={task.id}
+                    className={`cursor-pointer hover-elevate ${
+                      draggedTask?.id === task.id ? "opacity-50" : ""
+                    }`}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, task)}
+                    onDragEnd={handleDragEnd}
+                    onClick={() => onTaskClick(task)}
+                    data-testid={`kanban-task-${task.id}`}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-start gap-2">
+                        <GripVertical className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0 cursor-grab" />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm line-clamp-2">{task.title}</h4>
+                          {task.description && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              {task.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            {task.priority && getPriorityIcon(task.priority as TaskPriority)}
+                            {task.dueDate && (
+                              <span
+                                className={`flex items-center gap-1 text-xs ${
+                                  isOverdue(task.dueDate) && task.status !== "COMPLETED"
+                                    ? "text-red-600 dark:text-red-400"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(task.dueDate)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -136,6 +284,7 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -254,10 +403,32 @@ export default function TasksPage() {
               </Badge>
             )}
           </div>
-          <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-task">
-            <Plus className="h-4 w-4 mr-2" />
-            New Task
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center border rounded-md">
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="icon"
+                className="rounded-r-none"
+                onClick={() => setViewMode("list")}
+                data-testid="button-list-view"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "kanban" ? "secondary" : "ghost"}
+                size="icon"
+                className="rounded-l-none"
+                onClick={() => setViewMode("kanban")}
+                data-testid="button-kanban-view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </div>
+            <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-task">
+              <Plus className="h-4 w-4 mr-2" />
+              New Task
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 mt-4 md:flex-row md:items-center">
@@ -347,6 +518,18 @@ export default function TasksPage() {
               </Card>
             ))}
           </div>
+        ) : viewMode === "kanban" ? (
+          <KanbanBoard
+            tasks={tasks || []}
+            onTaskClick={(task) => {
+              setSelectedTask(task);
+              setShowDetailDialog(true);
+            }}
+            onStatusChange={(taskId, newStatus) => {
+              updateTaskMutation.mutate({ id: taskId, data: { status: newStatus } });
+            }}
+            onCreateTask={() => setShowCreateDialog(true)}
+          />
         ) : tasks && tasks.length > 0 ? (
           <div className="space-y-2">
             {tasks.map((task) => (
