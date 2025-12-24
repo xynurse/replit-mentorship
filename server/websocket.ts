@@ -71,6 +71,12 @@ export function setupWebSocket(httpServer: HTTPServer, sessionMiddleware: Reques
 
     socket.on("message:send", async (data: { conversationId: string; content: string; replyToId?: string }) => {
       try {
+        const participants = await storage.getConversationParticipants(data.conversationId);
+        if (!participants.some(p => p.userId === userId)) {
+          socket.emit("error", { message: "Not authorized to send to this conversation" });
+          return;
+        }
+
         const message = await storage.createMessage({
           conversationId: data.conversationId,
           senderId: userId,
@@ -88,7 +94,6 @@ export function setupWebSocket(httpServer: HTTPServer, sessionMiddleware: Reques
 
         io.to(`conversation:${data.conversationId}`).emit("message:new", fullMessage);
 
-        const participants = await storage.getConversationParticipants(data.conversationId);
         for (const p of participants) {
           if (p.userId !== userId) {
             io.to(`user:${p.userId}`).emit("notification:unread", {
@@ -132,6 +137,12 @@ export function setupWebSocket(httpServer: HTTPServer, sessionMiddleware: Reques
       try {
         const message = await storage.getMessage(data.messageId);
         if (message) {
+          const participants = await storage.getConversationParticipants(message.conversationId);
+          if (!participants.some(p => p.userId === userId)) {
+            socket.emit("error", { message: "Not authorized to react in this conversation" });
+            return;
+          }
+
           const reactions = (message.reactions as Record<string, string[]>) || {};
           if (data.add) {
             if (!reactions[data.emoji]) reactions[data.emoji] = [];
