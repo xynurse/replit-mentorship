@@ -22,6 +22,7 @@ import AdminDocuments from "@/pages/admin/documents";
 import ApplyPage from "@/pages/apply";
 import MessagesPage from "@/pages/messages";
 import DocumentsPage from "@/pages/documents";
+import TasksPage from "@/pages/tasks";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
+      <ProtectedRoute path="/tasks" component={TasksPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <Route component={NotFound} />
     </Switch>
