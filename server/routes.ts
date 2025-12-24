@@ -1,14 +1,21 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth, requireAuth, requireRole } from "./auth";
+import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema } from "@shared/schema";
+import { setupWebSocket, getOnlineUsers, isUserOnline } from "./websocket";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   setupAuth(app);
+  
+  // Set up WebSocket server after auth is initialized
+  const sessionMiddleware = getSessionMiddleware();
+  if (sessionMiddleware) {
+    setupWebSocket(httpServer, sessionMiddleware);
+  }
 
   app.get("/api/admin/stats", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
@@ -539,6 +546,246 @@ export async function registerRoutes(
         compatibilityMatrix,
         config,
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ============= MESSAGING ROUTES =============
+
+  // Get user's conversations
+  app.get("/api/conversations", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const conversations = await storage.getUserConversations(userId);
+      
+      const sanitizedConversations = conversations.map(conv => ({
+        ...conv,
+        participants: conv.participants.map(p => ({
+          ...p,
+          user: { 
+            id: p.user.id, 
+            firstName: p.user.firstName, 
+            lastName: p.user.lastName, 
+            profileImage: p.user.profileImage 
+          }
+        }))
+      }));
+      
+      res.json(sanitizedConversations);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get or create direct conversation with another user
+  app.post("/api/conversations/direct", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const { recipientId } = req.body;
+      
+      if (!recipientId) {
+        return res.status(400).json({ message: "Recipient ID is required" });
+      }
+      
+      const conversation = await storage.getOrCreateDirectConversation(userId, recipientId);
+      const participants = await storage.getConversationParticipants(conversation.id);
+      
+      res.json({
+        ...conversation,
+        participants: participants.map(p => ({
+          ...p,
+          user: { 
+            id: p.user.id, 
+            firstName: p.user.firstName, 
+            lastName: p.user.lastName, 
+            profileImage: p.user.profileImage 
+          }
+        }))
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single conversation
+  app.get("/api/conversations/:id", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const { id } = req.params;
+      
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      const participants = await storage.getConversationParticipants(id);
+      if (!participants.some(p => p.userId === userId)) {
+        return res.status(403).json({ message: "Not authorized to view this conversation" });
+      }
+      
+      res.json({
+        ...conversation,
+        participants: participants.map(p => ({
+          ...p,
+          user: { 
+            id: p.user.id, 
+            firstName: p.user.firstName, 
+            lastName: p.user.lastName, 
+            profileImage: p.user.profileImage 
+          }
+        }))
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get messages for a conversation
+  app.get("/api/conversations/:id/messages", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const { id } = req.params;
+      const { limit, before } = req.query;
+      
+      const participants = await storage.getConversationParticipants(id);
+      if (!participants.some(p => p.userId === userId)) {
+        return res.status(403).json({ message: "Not authorized to view this conversation" });
+      }
+      
+      const messages = await storage.getMessages(
+        id, 
+        limit ? parseInt(limit as string) : 50,
+        before as string | undefined
+      );
+      
+      res.json(messages.map(m => ({
+        ...m,
+        sender: { 
+          id: m.sender.id, 
+          firstName: m.sender.firstName, 
+          lastName: m.sender.lastName, 
+          profileImage: m.sender.profileImage 
+        }
+      })));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Send a message via REST (fallback if WebSocket not available)
+  app.post("/api/conversations/:id/messages", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const { id } = req.params;
+      const { content, replyToId } = req.body;
+      
+      if (!content || !content.trim()) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+      
+      const participants = await storage.getConversationParticipants(id);
+      if (!participants.some(p => p.userId === userId)) {
+        return res.status(403).json({ message: "Not authorized to send to this conversation" });
+      }
+      
+      const message = await storage.createMessage({
+        conversationId: id,
+        senderId: userId,
+        content: content.trim(),
+        messageType: "TEXT",
+        replyToId,
+      });
+      
+      const sender = await storage.getUser(userId);
+      
+      res.status(201).json({
+        ...message,
+        sender: sender ? { 
+          id: sender.id, 
+          firstName: sender.firstName, 
+          lastName: sender.lastName, 
+          profileImage: sender.profileImage 
+        } : null,
+        attachments: []
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Mark messages as read
+  app.post("/api/conversations/:id/read", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const { id } = req.params;
+      
+      const participants = await storage.getConversationParticipants(id);
+      if (!participants.some(p => p.userId === userId)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      await storage.markMessagesAsRead(id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get online users
+  app.get("/api/users/online", requireAuth, async (req, res, next) => {
+    try {
+      const onlineUserIds = getOnlineUsers();
+      res.json({ onlineUserIds });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Check if specific user is online
+  app.get("/api/users/:id/online", requireAuth, async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      res.json({ isOnline: isUserOnline(id) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create track community conversation (admin only)
+  app.post("/api/conversations/community", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const { trackId, cohortId, name } = req.body;
+      
+      const conversation = await storage.createConversation({
+        type: "TRACK_COMMUNITY",
+        name,
+        trackId,
+        cohortId,
+        createdById: userId,
+      });
+      
+      res.status(201).json(conversation);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create cohort announcement channel (admin only)
+  app.post("/api/conversations/announcement", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const { cohortId, name } = req.body;
+      
+      const conversation = await storage.createConversation({
+        type: "COHORT_ANNOUNCEMENT",
+        name: name || "Announcements",
+        cohortId,
+        createdById: userId,
+      });
+      
+      res.status(201).json(conversation);
     } catch (error) {
       next(error);
     }

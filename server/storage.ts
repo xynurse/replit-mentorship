@@ -1,12 +1,15 @@
 import { 
   users, tracks, cohorts, cohortTracks, cohortMemberships, mentorshipMatches, meetingLogs, goals, tasks, documents, documentAccess,
   applicationQuestions, applicationResponses, matchingConfigurations,
+  conversations, conversationParticipants, messages, messageAttachments, messageReads,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
   type Goal, type InsertGoal, type Task, type InsertTask, type Document, type InsertDocument,
   type ApplicationQuestion, type InsertApplicationQuestion, type ApplicationResponse, type InsertApplicationResponse,
-  type MatchingConfiguration, type InsertMatchingConfiguration
+  type MatchingConfiguration, type InsertMatchingConfiguration,
+  type Conversation, type InsertConversation, type ConversationParticipant, type InsertConversationParticipant,
+  type Message, type InsertMessage, type MessageAttachment, type InsertMessageAttachment, type MessageRead, type InsertMessageRead
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -73,6 +76,30 @@ export interface IStorage {
   // Matches
   createMatch(match: InsertMentorshipMatch): Promise<MentorshipMatch>;
   updateMatch(id: string, data: Partial<MentorshipMatch>): Promise<MentorshipMatch | undefined>;
+  
+  // Messaging
+  getConversation(id: string): Promise<Conversation | undefined>;
+  getUserConversations(userId: string): Promise<(Conversation & { participants: (ConversationParticipant & { user: User })[], unreadCount: number, lastMessage?: Message })[]>;
+  createConversation(conversation: InsertConversation): Promise<Conversation>;
+  updateConversation(id: string, data: Partial<Conversation>): Promise<Conversation | undefined>;
+  getOrCreateDirectConversation(userId1: string, userId2: string): Promise<Conversation>;
+  
+  getConversationParticipants(conversationId: string): Promise<(ConversationParticipant & { user: User })[]>;
+  addConversationParticipant(participant: InsertConversationParticipant): Promise<ConversationParticipant>;
+  updateConversationParticipant(id: string, data: Partial<ConversationParticipant>): Promise<ConversationParticipant | undefined>;
+  removeConversationParticipant(conversationId: string, userId: string): Promise<void>;
+  
+  getMessages(conversationId: string, limit?: number, before?: string): Promise<(Message & { sender: User, attachments: MessageAttachment[] })[]>;
+  getMessage(id: string): Promise<Message | undefined>;
+  createMessage(message: InsertMessage): Promise<Message>;
+  updateMessage(id: string, data: Partial<Message>): Promise<Message | undefined>;
+  deleteMessage(id: string): Promise<void>;
+  
+  createMessageAttachment(attachment: InsertMessageAttachment): Promise<MessageAttachment>;
+  getMessageAttachments(messageId: string): Promise<MessageAttachment[]>;
+  
+  markMessagesAsRead(conversationId: string, userId: string): Promise<void>;
+  getUnreadCount(conversationId: string, userId: string): Promise<number>;
   
   sessionStore: session.Store;
 }
@@ -484,6 +511,203 @@ export class DatabaseStorage implements IStorage {
     }
     const [result] = await db.update(mentorshipMatches).set(cleanData).where(eq(mentorshipMatches.id, id)).returning();
     return result || undefined;
+  }
+
+  // Messaging Implementation
+  async getConversation(id: string): Promise<Conversation | undefined> {
+    const [result] = await db.select().from(conversations).where(eq(conversations.id, id));
+    return result || undefined;
+  }
+
+  async getUserConversations(userId: string): Promise<(Conversation & { participants: (ConversationParticipant & { user: User })[], unreadCount: number, lastMessage?: Message })[]> {
+    const participantRecords = await db.select()
+      .from(conversationParticipants)
+      .where(and(eq(conversationParticipants.userId, userId), isNull(conversationParticipants.leftAt)));
+    
+    const conversationIds = participantRecords.map(p => p.conversationId);
+    if (conversationIds.length === 0) return [];
+
+    const convs = await db.select()
+      .from(conversations)
+      .where(and(inArray(conversations.id, conversationIds), eq(conversations.isArchived, false)))
+      .orderBy(desc(conversations.lastMessageAt));
+
+    const results: (Conversation & { participants: (ConversationParticipant & { user: User })[], unreadCount: number, lastMessage?: Message })[] = [];
+
+    for (const conv of convs) {
+      const participants = await this.getConversationParticipants(conv.id);
+      const unreadCount = await this.getUnreadCount(conv.id, userId);
+      const [lastMessage] = await db.select()
+        .from(messages)
+        .where(and(eq(messages.conversationId, conv.id), eq(messages.isDeleted, false)))
+        .orderBy(desc(messages.createdAt))
+        .limit(1);
+
+      results.push({ ...conv, participants, unreadCount, lastMessage: lastMessage || undefined });
+    }
+
+    return results;
+  }
+
+  async createConversation(conversation: InsertConversation): Promise<Conversation> {
+    const [result] = await db.insert(conversations).values(conversation).returning();
+    return result;
+  }
+
+  async updateConversation(id: string, data: Partial<Conversation>): Promise<Conversation | undefined> {
+    const cleanData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) cleanData[key] = value;
+    }
+    const [result] = await db.update(conversations).set(cleanData).where(eq(conversations.id, id)).returning();
+    return result || undefined;
+  }
+
+  async getOrCreateDirectConversation(userId1: string, userId2: string): Promise<Conversation> {
+    const user1Participations = await db.select()
+      .from(conversationParticipants)
+      .where(eq(conversationParticipants.userId, userId1));
+    
+    for (const p1 of user1Participations) {
+      const conv = await this.getConversation(p1.conversationId);
+      if (conv && conv.type === 'DIRECT') {
+        const participants = await db.select()
+          .from(conversationParticipants)
+          .where(eq(conversationParticipants.conversationId, conv.id));
+        if (participants.length === 2 && participants.some(p => p.userId === userId2)) {
+          return conv;
+        }
+      }
+    }
+
+    const newConv = await this.createConversation({ type: 'DIRECT', createdById: userId1 });
+    await this.addConversationParticipant({ conversationId: newConv.id, userId: userId1, role: 'MEMBER' });
+    await this.addConversationParticipant({ conversationId: newConv.id, userId: userId2, role: 'MEMBER' });
+    return newConv;
+  }
+
+  async getConversationParticipants(conversationId: string): Promise<(ConversationParticipant & { user: User })[]> {
+    const results = await db.select({ participant: conversationParticipants, user: users })
+      .from(conversationParticipants)
+      .innerJoin(users, eq(conversationParticipants.userId, users.id))
+      .where(and(eq(conversationParticipants.conversationId, conversationId), isNull(conversationParticipants.leftAt)));
+    return results.map(r => ({ ...r.participant, user: r.user }));
+  }
+
+  async addConversationParticipant(participant: InsertConversationParticipant): Promise<ConversationParticipant> {
+    const [result] = await db.insert(conversationParticipants).values(participant).returning();
+    return result;
+  }
+
+  async updateConversationParticipant(id: string, data: Partial<ConversationParticipant>): Promise<ConversationParticipant | undefined> {
+    const cleanData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) cleanData[key] = value;
+    }
+    const [result] = await db.update(conversationParticipants).set(cleanData).where(eq(conversationParticipants.id, id)).returning();
+    return result || undefined;
+  }
+
+  async removeConversationParticipant(conversationId: string, userId: string): Promise<void> {
+    await db.update(conversationParticipants)
+      .set({ leftAt: new Date() })
+      .where(and(eq(conversationParticipants.conversationId, conversationId), eq(conversationParticipants.userId, userId)));
+  }
+
+  async getMessages(conversationId: string, limit = 50, before?: string): Promise<(Message & { sender: User, attachments: MessageAttachment[] })[]> {
+    let query = db.select({ message: messages, sender: users })
+      .from(messages)
+      .innerJoin(users, eq(messages.senderId, users.id))
+      .where(and(eq(messages.conversationId, conversationId), eq(messages.isDeleted, false)));
+
+    if (before) {
+      const beforeMsg = await this.getMessage(before);
+      if (beforeMsg && beforeMsg.createdAt) {
+        query = db.select({ message: messages, sender: users })
+          .from(messages)
+          .innerJoin(users, eq(messages.senderId, users.id))
+          .where(and(
+            eq(messages.conversationId, conversationId),
+            eq(messages.isDeleted, false),
+            sql`${messages.createdAt} < ${beforeMsg.createdAt}`
+          ));
+      }
+    }
+
+    const results = await query.orderBy(desc(messages.createdAt)).limit(limit);
+    
+    const messagesWithAttachments: (Message & { sender: User, attachments: MessageAttachment[] })[] = [];
+    for (const r of results) {
+      const attachments = await this.getMessageAttachments(r.message.id);
+      messagesWithAttachments.push({ ...r.message, sender: r.sender, attachments });
+    }
+    
+    return messagesWithAttachments.reverse();
+  }
+
+  async getMessage(id: string): Promise<Message | undefined> {
+    const [result] = await db.select().from(messages).where(eq(messages.id, id));
+    return result || undefined;
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const [result] = await db.insert(messages).values(message).returning();
+    await db.update(conversations).set({ lastMessageAt: new Date() }).where(eq(conversations.id, message.conversationId));
+    return result;
+  }
+
+  async updateMessage(id: string, data: Partial<Message>): Promise<Message | undefined> {
+    const cleanData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) cleanData[key] = value;
+    }
+    if (data.content !== undefined) {
+      cleanData.isEdited = true;
+      cleanData.editedAt = new Date();
+    }
+    const [result] = await db.update(messages).set(cleanData).where(eq(messages.id, id)).returning();
+    return result || undefined;
+  }
+
+  async deleteMessage(id: string): Promise<void> {
+    await db.update(messages).set({ isDeleted: true, deletedAt: new Date() }).where(eq(messages.id, id));
+  }
+
+  async createMessageAttachment(attachment: InsertMessageAttachment): Promise<MessageAttachment> {
+    const [result] = await db.insert(messageAttachments).values(attachment).returning();
+    return result;
+  }
+
+  async getMessageAttachments(messageId: string): Promise<MessageAttachment[]> {
+    return db.select().from(messageAttachments).where(eq(messageAttachments.messageId, messageId));
+  }
+
+  async markMessagesAsRead(conversationId: string, userId: string): Promise<void> {
+    await db.update(conversationParticipants)
+      .set({ lastReadAt: new Date() })
+      .where(and(eq(conversationParticipants.conversationId, conversationId), eq(conversationParticipants.userId, userId)));
+  }
+
+  async getUnreadCount(conversationId: string, userId: string): Promise<number> {
+    const [participant] = await db.select()
+      .from(conversationParticipants)
+      .where(and(eq(conversationParticipants.conversationId, conversationId), eq(conversationParticipants.userId, userId)));
+    
+    if (!participant || !participant.lastReadAt) {
+      const [result] = await db.select({ count: count() })
+        .from(messages)
+        .where(and(eq(messages.conversationId, conversationId), eq(messages.isDeleted, false)));
+      return result?.count || 0;
+    }
+
+    const [result] = await db.select({ count: count() })
+      .from(messages)
+      .where(and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.isDeleted, false),
+        gt(messages.createdAt, participant.lastReadAt)
+      ));
+    return result?.count || 0;
   }
 }
 

@@ -70,6 +70,12 @@ export function requireRole(...roles: UserRole[]) {
   };
 }
 
+let sessionMiddleware: ReturnType<typeof session> | null = null;
+
+export function getSessionMiddleware() {
+  return sessionMiddleware;
+}
+
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || "sonsiel-mentorship-hub-secret-key",
@@ -84,8 +90,10 @@ export function setupAuth(app: Express) {
     },
   };
 
+  sessionMiddleware = session(sessionSettings);
+
   app.set("trust proxy", 1);
-  app.use(session(sessionSettings));
+  app.use(sessionMiddleware);
   app.use(passport.initialize());
   app.use(passport.session());
 
