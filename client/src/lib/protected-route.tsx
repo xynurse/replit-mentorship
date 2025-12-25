@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2, ShieldX } from "lucide-react";
 import { Redirect, Route, Link } from "wouter";
@@ -37,7 +38,7 @@ export function ProtectedRoute({
   requireCompleteProfile = true,
 }: {
   path: string;
-  component: () => React.JSX.Element;
+  component: React.ComponentType;
   requireCompleteProfile?: boolean;
 }) {
   const { user, isLoading } = useAuth();
@@ -54,7 +55,13 @@ export function ProtectedRoute({
     return <Route path={path}><Redirect to="/complete-profile" /></Route>;
   }
 
-  return <Route path={path} component={Component} />;
+  return (
+    <Route path={path}>
+      <Suspense fallback={<LoadingState />}>
+        <Component />
+      </Suspense>
+    </Route>
+  );
 }
 
 export function AdminRoute({
@@ -62,7 +69,7 @@ export function AdminRoute({
   component: Component,
 }: {
   path: string;
-  component: () => React.JSX.Element;
+  component: React.ComponentType;
 }) {
   const { user, isLoading } = useAuth();
 
@@ -82,5 +89,11 @@ export function AdminRoute({
     return <Route path={path}><UnauthorizedState /></Route>;
   }
 
-  return <Route path={path} component={Component} />;
+  return (
+    <Route path={path}>
+      <Suspense fallback={<LoadingState />}>
+        <Component />
+      </Suspense>
+    </Route>
+  );
 }
