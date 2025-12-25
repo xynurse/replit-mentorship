@@ -1831,6 +1831,45 @@ export async function registerRoutes(
     }
   });
 
+  // Analytics API routes
+  app.get("/api/analytics/dashboard", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const dashboard = await storage.getAnalyticsDashboard();
+      res.json(dashboard);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/analytics/trends", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const trends = await storage.getAnalyticsTrends(days);
+      res.json(trends);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/analytics/tracks", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const trackAnalytics = await storage.getTrackAnalytics();
+      res.json(trackAnalytics);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/analytics/cohorts", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const cohortId = req.query.cohortId as string | undefined;
+      const cohortAnalytics = await storage.getCohortAnalytics(cohortId);
+      res.json(cohortAnalytics);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return httpServer;
 }
 
