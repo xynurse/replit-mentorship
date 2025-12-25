@@ -25,6 +25,7 @@ import MessagesPage from "@/pages/messages";
 import DocumentsPage from "@/pages/documents";
 import TasksPage from "@/pages/tasks";
 import GoalsPage from "@/pages/goals";
+import NotificationsPage from "@/pages/notifications";
 
 function Router() {
   return (
@@ -46,6 +47,7 @@ function Router() {
       <ProtectedRoute path="/documents" component={DocumentsPage} />
       <ProtectedRoute path="/tasks" component={TasksPage} />
       <ProtectedRoute path="/goals" component={GoalsPage} />
+      <ProtectedRoute path="/notifications" component={NotificationsPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <Route component={NotFound} />
     </Switch>
