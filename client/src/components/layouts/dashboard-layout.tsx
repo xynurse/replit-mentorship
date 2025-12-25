@@ -203,6 +203,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       Settings
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/privacy" data-testid="link-privacy">
+                      <Shield className="mr-2 h-4 w-4" />
+                      Privacy & Data
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => logoutMutation.mutate()}
