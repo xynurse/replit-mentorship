@@ -21,6 +21,8 @@ import AdminMatchingPage from "@/pages/admin/matching";
 import AdminDocuments from "@/pages/admin/documents";
 import AdminTasks from "@/pages/admin/tasks";
 import AdminAnalytics from "@/pages/admin/analytics";
+import AdminAuditLogs from "@/pages/admin/audit-logs";
+import AdminErrorLogs from "@/pages/admin/error-logs";
 import ApplyPage from "@/pages/apply";
 import MessagesPage from "@/pages/messages";
 import DocumentsPage from "@/pages/documents";
@@ -44,6 +46,8 @@ function Router() {
       <AdminRoute path="/admin/documents" component={AdminDocuments} />
       <AdminRoute path="/admin/tasks" component={AdminTasks} />
       <AdminRoute path="/admin/analytics" component={AdminAnalytics} />
+      <AdminRoute path="/admin/audit-logs" component={AdminAuditLogs} />
+      <AdminRoute path="/admin/error-logs" component={AdminErrorLogs} />
       <Route path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
