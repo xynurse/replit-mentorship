@@ -17,6 +17,7 @@ import {
   ScrollText,
   AlertTriangle,
   MessageSquare,
+  Award,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -58,6 +59,7 @@ const adminMenuItems = [
   { title: "Task Analytics", url: "/admin/tasks", icon: ListTodo },
   { title: "Documents", url: "/admin/documents", icon: FileText },
   { title: "Surveys", url: "/admin/surveys", icon: MessageSquare },
+  { title: "Certificates", url: "/admin/certificates", icon: Award },
   { title: "Audit Logs", url: "/admin/audit-logs", icon: ScrollText },
   { title: "Error Logs", url: "/admin/error-logs", icon: AlertTriangle },
   { title: "Settings", url: "/admin/settings", icon: Settings },

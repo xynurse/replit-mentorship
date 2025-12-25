@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema } from "@shared/schema";
+import { z } from "zod";
 import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { AuditService, createAuditMiddleware } from "./audit";
@@ -66,6 +67,80 @@ export async function registerRoutes(
       });
       const safeUsers = users.map(({ password, ...user }) => user);
       res.json(safeUsers);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // CSV Export endpoints
+  app.get("/api/export/users", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { role, isActive } = req.query;
+      const users = await storage.getAllUsers({
+        role: role as string | undefined,
+        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+      });
+      
+      const headers = ["ID", "Email", "First Name", "Last Name", "Role", "Status", "Created At"];
+      const rows = users.map(u => [
+        u.id,
+        u.email,
+        u.firstName,
+        u.lastName,
+        u.role,
+        u.isActive ? "Active" : "Inactive",
+        u.createdAt ? new Date(u.createdAt).toISOString() : ""
+      ]);
+      
+      const sanitizeCell = (val: unknown) => {
+        const str = String(val || '').replace(/"/g, '""').replace(/[\r\n]+/g, ' ');
+        return `"${str}"`;
+      };
+      const csv = [headers, ...rows].map(row => 
+        row.map(sanitizeCell).join(",")
+      ).join("\r\n");
+      
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename=users_export_${Date.now()}.csv`);
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+      res.send(csv);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/export/certificates", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const filters: { userId?: string; cohortId?: string; status?: string } = {};
+      if (req.query.userId) filters.userId = req.query.userId as string;
+      if (req.query.cohortId) filters.cohortId = req.query.cohortId as string;
+      if (req.query.status) filters.status = req.query.status as string;
+      
+      const certs = await storage.getCertificates(filters);
+      
+      const headers = ["Certificate Number", "User ID", "Cohort ID", "Status", "Issued At", "Expires At", "Created At"];
+      const rows = certs.map(c => [
+        c.certificateNumber,
+        c.userId,
+        c.cohortId || "",
+        c.status,
+        c.issuedAt ? new Date(c.issuedAt).toISOString() : "",
+        c.expiresAt ? new Date(c.expiresAt).toISOString() : "",
+        c.createdAt ? new Date(c.createdAt).toISOString() : ""
+      ]);
+      
+      const sanitizeCell = (val: unknown) => {
+        const str = String(val || '').replace(/"/g, '""').replace(/[\r\n]+/g, ' ');
+        return `"${str}"`;
+      };
+      const csv = [headers, ...rows].map(row => 
+        row.map(sanitizeCell).join(",")
+      ).join("\r\n");
+      
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename=certificates_export_${Date.now()}.csv`);
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+      res.send(csv);
     } catch (error) {
       next(error);
     }
@@ -2401,6 +2476,158 @@ export async function registerRoutes(
       const user = req.user as any;
       const progress = await storage.updateOnboardingProgress(user.id, req.body);
       res.json(progress);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // =====================
+  // Certificate Routes
+  // =====================
+
+  // Get certificates (users see their own, admins see all)
+  app.get("/api/certificates", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const filters: { userId?: string; cohortId?: string; status?: string } = {};
+      
+      if (!["SUPER_ADMIN", "ADMIN"].includes(user.role)) {
+        filters.userId = user.id;
+      } else {
+        if (req.query.userId) filters.userId = req.query.userId as string;
+        if (req.query.cohortId) filters.cohortId = req.query.cohortId as string;
+        if (req.query.status) filters.status = req.query.status as string;
+      }
+      
+      const certs = await storage.getCertificates(filters);
+      res.json(certs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single certificate
+  app.get("/api/certificates/:id", requireAuth, async (req, res, next) => {
+    try {
+      const cert = await storage.getCertificate(req.params.id);
+      if (!cert) {
+        return res.status(404).json({ message: "Certificate not found" });
+      }
+      
+      const user = req.user as any;
+      if (!["SUPER_ADMIN", "ADMIN"].includes(user.role) && cert.userId !== user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      res.json(cert);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Verify certificate by number (public endpoint)
+  app.get("/api/certificates/verify/:certificateNumber", async (req, res, next) => {
+    try {
+      const cert = await storage.getCertificateByNumber(req.params.certificateNumber);
+      if (!cert) {
+        return res.status(404).json({ valid: false, message: "Certificate not found" });
+      }
+      
+      // Only return public fields for verification
+      const publicCert = {
+        certificateNumber: cert.certificateNumber,
+        status: cert.status,
+        issuedAt: cert.issuedAt,
+        expiresAt: cert.expiresAt,
+      };
+      
+      if (cert.status === "REVOKED") {
+        return res.json({ valid: false, message: "Certificate has been revoked", certificate: publicCert });
+      }
+      
+      if (cert.expiresAt && new Date(cert.expiresAt) < new Date()) {
+        return res.json({ valid: false, message: "Certificate has expired", certificate: publicCert });
+      }
+      
+      res.json({ valid: true, certificate: publicCert });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Issue certificate (admin only)
+  const issueCertificateInputSchema = insertCertificateSchema
+    .omit({ certificateNumber: true, status: true, verificationUrl: true, issuedAt: true })
+    .extend({
+      cohortId: z.string().nullish().transform(val => val && val.trim() ? val : null),
+      templateData: z.record(z.unknown()).optional().default({}),
+      expiresAt: z.string().nullish()
+        .transform(val => {
+          if (!val) return null;
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        })
+        .refine(val => val === null || val instanceof Date, { message: "Invalid date format" }),
+    });
+
+  app.post("/api/certificates", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      // Validate request body using shared schema
+      const parseResult = issueCertificateInputSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parseResult.error.flatten().fieldErrors 
+        });
+      }
+      
+      const { userId, cohortId, templateData, expiresAt } = parseResult.data;
+      
+      // Generate unique certificate number with retry loop
+      let certificate = null;
+      let retries = 3;
+      
+      while (retries > 0) {
+        const certificateNumber = `SONSIEL-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        
+        try {
+          certificate = await storage.createCertificate({
+            userId,
+            cohortId,
+            certificateNumber,
+            status: "GENERATED",
+            templateData,
+            issuedAt: new Date(),
+            expiresAt,
+            verificationUrl: `/verify/${certificateNumber}`,
+          });
+          break; // Success, exit loop
+        } catch (error: any) {
+          if (error?.code === '23505' || error?.message?.includes('unique constraint')) {
+            retries--;
+            if (retries === 0) {
+              return res.status(409).json({ message: "Failed to generate unique certificate number. Please try again." });
+            }
+            continue; // Retry with new number
+          }
+          throw error; // Re-throw non-duplicate errors
+        }
+      }
+      
+      res.status(201).json(certificate);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update certificate status (admin only)
+  app.patch("/api/certificates/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const certificate = await storage.updateCertificate(req.params.id, req.body);
+      if (!certificate) {
+        return res.status(404).json({ message: "Certificate not found" });
+      }
+      res.json(certificate);
     } catch (error) {
       next(error);
     }

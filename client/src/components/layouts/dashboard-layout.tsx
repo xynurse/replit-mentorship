@@ -16,6 +16,7 @@ import {
   UserCog,
   ListTodo,
   Target,
+  Award,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
@@ -62,6 +63,7 @@ const getNavItems = (role: UserRole) => {
     { title: "Messages", url: "/messages", icon: MessageSquare },
     { title: "Calendar", url: "/calendar", icon: Calendar },
     { title: "Documents", url: "/documents", icon: FileText },
+    { title: "Certificates", url: "/certificates", icon: Award },
   ];
 
   const adminItems = [

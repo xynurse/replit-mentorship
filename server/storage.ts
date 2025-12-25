@@ -5,7 +5,7 @@ import {
   folders, documentVersions, taskComments, taskActivities, milestones, goalProgress,
   notifications, notificationPreferences,
   auditLogs, errorLogs, dataExportRequests, accountDeletionRequests,
-  searchHistory, savedSearches, surveys, surveyResponses, onboardingProgress,
+  searchHistory, savedSearches, surveys, surveyResponses, onboardingProgress, certificates,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -22,7 +22,8 @@ import {
   type DataExportRequest, type InsertDataExportRequest, type AccountDeletionRequest, type InsertAccountDeletionRequest,
   type SearchHistory, type InsertSearchHistory, type SavedSearch, type InsertSavedSearch,
   type Survey, type InsertSurvey, type SurveyResponse, type InsertSurveyResponse,
-  type OnboardingProgress, type InsertOnboardingProgress
+  type OnboardingProgress, type InsertOnboardingProgress,
+  type Certificate, type InsertCertificate
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -272,6 +273,13 @@ export interface IStorage {
   getOnboardingProgress(userId: string): Promise<OnboardingProgress | undefined>;
   createOnboardingProgress(progress: InsertOnboardingProgress): Promise<OnboardingProgress>;
   updateOnboardingProgress(userId: string, data: Partial<OnboardingProgress>): Promise<OnboardingProgress | undefined>;
+  
+  // Certificates
+  getCertificates(filters?: { userId?: string; cohortId?: string; status?: string }): Promise<Certificate[]>;
+  getCertificate(id: string): Promise<Certificate | undefined>;
+  getCertificateByNumber(certificateNumber: string): Promise<Certificate | undefined>;
+  createCertificate(certificate: InsertCertificate): Promise<Certificate>;
+  updateCertificate(id: string, data: Partial<Certificate>): Promise<Certificate | undefined>;
   
   sessionStore: session.Store;
 }
@@ -1903,6 +1911,43 @@ export class DatabaseStorage implements IStorage {
       .where(eq(onboardingProgress.userId, userId))
       .returning();
     return progress || undefined;
+  }
+
+  // Certificates
+  async getCertificates(filters?: { userId?: string; cohortId?: string; status?: string }): Promise<Certificate[]> {
+    const conditions = [];
+    if (filters?.userId) conditions.push(eq(certificates.userId, filters.userId));
+    if (filters?.cohortId) conditions.push(eq(certificates.cohortId, filters.cohortId));
+    if (filters?.status) conditions.push(eq(certificates.status, filters.status as any));
+    
+    const query = conditions.length > 0 
+      ? db.select().from(certificates).where(and(...conditions))
+      : db.select().from(certificates);
+    
+    return query.orderBy(desc(certificates.createdAt));
+  }
+
+  async getCertificate(id: string): Promise<Certificate | undefined> {
+    const [cert] = await db.select().from(certificates).where(eq(certificates.id, id));
+    return cert || undefined;
+  }
+
+  async getCertificateByNumber(certificateNumber: string): Promise<Certificate | undefined> {
+    const [cert] = await db.select().from(certificates).where(eq(certificates.certificateNumber, certificateNumber));
+    return cert || undefined;
+  }
+
+  async createCertificate(certificate: InsertCertificate): Promise<Certificate> {
+    const [result] = await db.insert(certificates).values(certificate).returning();
+    return result;
+  }
+
+  async updateCertificate(id: string, data: Partial<Certificate>): Promise<Certificate | undefined> {
+    const [cert] = await db.update(certificates)
+      .set(data)
+      .where(eq(certificates.id, id))
+      .returning();
+    return cert || undefined;
   }
 }
 

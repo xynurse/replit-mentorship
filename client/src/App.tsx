@@ -24,7 +24,9 @@ import AdminAnalytics from "@/pages/admin/analytics";
 import AdminAuditLogs from "@/pages/admin/audit-logs";
 import AdminErrorLogs from "@/pages/admin/error-logs";
 import AdminSurveys from "@/pages/admin/surveys";
+import AdminCertificates from "@/pages/admin/certificates";
 import ApplyPage from "@/pages/apply";
+import CertificatesPage from "@/pages/certificates";
 import MessagesPage from "@/pages/messages";
 import DocumentsPage from "@/pages/documents";
 import TasksPage from "@/pages/tasks";
@@ -53,6 +55,7 @@ function Router() {
       <AdminRoute path="/admin/audit-logs" component={AdminAuditLogs} />
       <AdminRoute path="/admin/error-logs" component={AdminErrorLogs} />
       <AdminRoute path="/admin/surveys" component={AdminSurveys} />
+      <AdminRoute path="/admin/certificates" component={AdminCertificates} />
       <Route path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
@@ -61,6 +64,7 @@ function Router() {
       <ProtectedRoute path="/notifications" component={NotificationsPage} />
       <ProtectedRoute path="/privacy" component={PrivacyPage} />
       <ProtectedRoute path="/search" component={SearchPage} />
+      <ProtectedRoute path="/certificates" component={CertificatesPage} />
       <ProtectedRoute path="/onboarding" component={OnboardingPage} requireCompleteProfile={false} />
       <ProtectedRoute path="/" component={HomePage} />
       <Route component={NotFound} />
