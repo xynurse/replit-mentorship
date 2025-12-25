@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema } from "@shared/schema";
 import { setupWebSocket, getOnlineUsers, isUserOnline } from "./websocket";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
@@ -1682,6 +1682,142 @@ export async function registerRoutes(
       await storage.updateGoal(req.params.id, { progress: req.body.newProgress });
       
       res.status(201).json(progressRecord);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Notification Routes
+  app.get("/api/notifications", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { isRead, isArchived, type, limit, offset } = req.query;
+      
+      const notifications = await storage.getNotifications(user.id, {
+        isRead: isRead === 'true' ? true : isRead === 'false' ? false : undefined,
+        isArchived: isArchived === 'true' ? true : isArchived === 'false' ? false : undefined,
+        type: type as string | undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      });
+      
+      res.json(notifications);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/notifications/unread-count", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const count = await storage.getUnreadNotificationCount(user.id);
+      res.json({ count });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/notifications/:id/read", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const notification = await storage.getNotification(req.params.id);
+      
+      if (!notification || notification.userId !== user.id) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
+      
+      const updated = await storage.markNotificationRead(req.params.id);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/notifications/read-all", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      await storage.markAllNotificationsRead(user.id);
+      res.json({ message: "All notifications marked as read" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/notifications/:id/archive", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const notification = await storage.getNotification(req.params.id);
+      
+      if (!notification || notification.userId !== user.id) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
+      
+      const updated = await storage.archiveNotification(req.params.id);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/notifications/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const notification = await storage.getNotification(req.params.id);
+      
+      if (!notification || notification.userId !== user.id) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
+      
+      await storage.deleteNotification(req.params.id);
+      res.json({ message: "Notification deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Notification Preferences
+  app.get("/api/notification-preferences", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const preferences = await storage.getNotificationPreferences(user.id);
+      res.json(preferences);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/notification-preferences", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const validatedData = insertNotificationPreferenceSchema.parse({
+        ...req.body,
+        userId: user.id,
+      });
+      
+      const preference = await storage.upsertNotificationPreference(validatedData);
+      res.json(preference);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Create notifications for users (system announcements, etc.)
+  app.post("/api/admin/notifications", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { userIds, ...notificationData } = req.body;
+      
+      if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ message: "userIds array is required" });
+      }
+      
+      const notificationsToCreate = userIds.map((userId: string) => ({
+        ...notificationData,
+        userId,
+      }));
+      
+      const created = await storage.createManyNotifications(notificationsToCreate);
+      res.status(201).json(created);
     } catch (error) {
       next(error);
     }
