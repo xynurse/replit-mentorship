@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema } from "@shared/schema";
 import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { AuditService, createAuditMiddleware } from "./audit";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1865,6 +1866,239 @@ export async function registerRoutes(
       const cohortId = req.query.cohortId as string | undefined;
       const cohortAnalytics = await storage.getCohortAnalytics(cohortId);
       res.json(cohortAnalytics);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Audit Log API routes
+  app.get("/api/audit-logs", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { actorId, action, resourceType, resourceId, success, startDate, endDate, search, limit, offset } = req.query;
+      
+      const filters = {
+        actorId: actorId as string | undefined,
+        action: action as string | undefined,
+        resourceType: resourceType as string | undefined,
+        resourceId: resourceId as string | undefined,
+        success: success === 'true' ? true : success === 'false' ? false : undefined,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+        search: search as string | undefined,
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : 0,
+      };
+      
+      const [logs, totalCount] = await Promise.all([
+        storage.getAuditLogs(filters),
+        storage.getAuditLogsCount(filters),
+      ]);
+      
+      res.json({ logs, totalCount, limit: filters.limit, offset: filters.offset });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Error Log API routes
+  app.get("/api/error-logs", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { resolved, errorType, userId, limit, offset } = req.query;
+      
+      const filters = {
+        resolved: resolved === 'true' ? true : resolved === 'false' ? false : undefined,
+        errorType: errorType as string | undefined,
+        userId: userId as string | undefined,
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : 0,
+      };
+      
+      const [logs, totalCount] = await Promise.all([
+        storage.getErrorLogs(filters),
+        storage.getErrorLogsCount(filters),
+      ]);
+      
+      res.json({ logs, totalCount, limit: filters.limit, offset: filters.offset });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/error-logs/:id/resolve", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const resolvedLog = await storage.resolveErrorLog(id, req.user!.id);
+      
+      if (!resolvedLog) {
+        return res.status(404).json({ message: "Error log not found" });
+      }
+      
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'SETTINGS_CHANGED',
+        resourceType: 'SYSTEM',
+        resourceId: id,
+        resourceName: 'Error Log Resolution',
+        metadata: { errorLogId: id },
+      });
+      
+      res.json(resolvedLog);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // GDPR Data Export API routes
+  app.post("/api/data-export", requireAuth, async (req, res, next) => {
+    try {
+      const existingRequests = await storage.getDataExportRequestsByUser(req.user!.id);
+      const pendingRequest = existingRequests.find(r => r.status === 'PENDING' || r.status === 'PROCESSING');
+      
+      if (pendingRequest) {
+        return res.status(400).json({ message: "You already have a pending export request" });
+      }
+      
+      const exportRequest = await storage.createDataExportRequest({
+        userId: req.user!.id,
+        status: 'PENDING',
+      });
+      
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'DATA_EXPORTED',
+        resourceType: 'USER',
+        resourceId: req.user!.id,
+        resourceName: 'Data Export Request',
+      });
+      
+      res.status(201).json(exportRequest);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/data-export", requireAuth, async (req, res, next) => {
+    try {
+      const requests = await storage.getDataExportRequestsByUser(req.user!.id);
+      res.json(requests);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // GDPR Account Deletion API routes
+  app.post("/api/account-deletion", requireAuth, async (req, res, next) => {
+    try {
+      const { reason } = req.body;
+      
+      const existingRequests = await storage.getAccountDeletionRequestsByUser(req.user!.id);
+      const pendingRequest = existingRequests.find(r => r.status === 'PENDING' || r.status === 'SCHEDULED');
+      
+      if (pendingRequest) {
+        return res.status(400).json({ message: "You already have a pending deletion request" });
+      }
+      
+      const scheduledDeletionAt = new Date();
+      scheduledDeletionAt.setDate(scheduledDeletionAt.getDate() + 30);
+      
+      const deletionRequest = await storage.createAccountDeletionRequest({
+        userId: req.user!.id,
+        reason,
+        status: 'PENDING',
+        scheduledDeletionAt,
+      });
+      
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_DEACTIVATED',
+        resourceType: 'USER',
+        resourceId: req.user!.id,
+        resourceName: 'Account Deletion Request',
+        metadata: { reason, scheduledDeletionAt },
+      });
+      
+      res.status(201).json(deletionRequest);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/account-deletion", requireAuth, async (req, res, next) => {
+    try {
+      const requests = await storage.getAccountDeletionRequestsByUser(req.user!.id);
+      res.json(requests);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/account-deletion/:id", requireAuth, async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const request = await storage.getAccountDeletionRequest(id);
+      
+      if (!request || request.userId !== req.user!.id) {
+        return res.status(404).json({ message: "Deletion request not found" });
+      }
+      
+      if (request.status !== 'PENDING' && request.status !== 'SCHEDULED') {
+        return res.status(400).json({ message: "Cannot cancel this request" });
+      }
+      
+      const cancelled = await storage.updateAccountDeletionRequest(id, {
+        status: 'CANCELLED',
+        cancelledAt: new Date(),
+      });
+      
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_ACTIVATED',
+        resourceType: 'USER',
+        resourceId: req.user!.id,
+        resourceName: 'Account Deletion Cancellation',
+      });
+      
+      res.json(cancelled);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: View pending deletion requests
+  app.get("/api/admin/account-deletion-requests", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const requests = await storage.getPendingAccountDeletionRequests();
+      res.json(requests);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Approve deletion request
+  app.patch("/api/admin/account-deletion-requests/:id/approve", requireRole("SUPER_ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const request = await storage.getAccountDeletionRequest(id);
+      
+      if (!request) {
+        return res.status(404).json({ message: "Deletion request not found" });
+      }
+      
+      const approved = await storage.updateAccountDeletionRequest(id, {
+        status: 'SCHEDULED',
+        adminApprovedBy: req.user!.id,
+      });
+      
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_DELETED',
+        resourceType: 'USER',
+        resourceId: request.userId,
+        resourceName: 'Account Deletion Approved',
+        metadata: { requestId: id, approvedBy: req.user!.id },
+      });
+      
+      res.json(approved);
     } catch (error) {
       next(error);
     }
