@@ -175,6 +175,26 @@ export interface IStorage {
   getNotificationPreference(userId: string, notificationType: string): Promise<NotificationPreference | undefined>;
   upsertNotificationPreference(preference: InsertNotificationPreference): Promise<NotificationPreference>;
   
+  // Analytics
+  getAnalyticsDashboard(): Promise<{
+    userMetrics: { totalUsers: number; totalMentors: number; totalMentees: number; totalAdmins: number; activeUsers: number; newUsersThisMonth: number };
+    cohortMetrics: { totalCohorts: number; activeCohorts: number; totalApplications: number; pendingApplications: number; approvedApplications: number };
+    matchMetrics: { totalMatches: number; activeMatches: number; completedMatches: number; averageMatchScore: number };
+    meetingMetrics: { totalMeetings: number; meetingsThisMonth: number; completedMeetings: number; averageDuration: number };
+    taskMetrics: { totalTasks: number; completedTasks: number; inProgressTasks: number; overdueTasks: number; completionRate: number };
+    goalMetrics: { totalGoals: number; completedGoals: number; inProgressGoals: number; averageProgress: number; completionRate: number };
+    engagementMetrics: { totalMessages: number; messagesThisMonth: number; totalDocuments: number; totalConversations: number };
+  }>;
+  getAnalyticsTrends(days: number): Promise<{
+    userGrowth: { date: string; count: number }[];
+    matchActivity: { date: string; count: number }[];
+    taskCompletion: { date: string; completed: number; created: number }[];
+    goalProgress: { date: string; completed: number; created: number }[];
+    meetingActivity: { date: string; count: number }[];
+  }>;
+  getTrackAnalytics(): Promise<{ trackId: string; trackName: string; memberCount: number; matchCount: number; goalCount: number; taskCount: number }[]>;
+  getCohortAnalytics(cohortId?: string): Promise<{ cohortId: string; cohortName: string; memberCount: number; mentorCount: number; menteeCount: number; matchCount: number; completionRate: number }[]>;
+  
   sessionStore: session.Store;
 }
 
@@ -1242,6 +1262,270 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(notificationPreferences).values(preference).returning();
     return created;
+  }
+
+  // Analytics Methods
+  async getAnalyticsDashboard() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [userStats] = await db.select({
+      totalUsers: count(),
+      totalMentors: sql<number>`count(*) filter (where ${users.role} = 'MENTOR')`,
+      totalMentees: sql<number>`count(*) filter (where ${users.role} = 'MENTEE')`,
+      totalAdmins: sql<number>`count(*) filter (where ${users.role} in ('ADMIN', 'SUPER_ADMIN'))`,
+      activeUsers: sql<number>`count(*) filter (where ${users.isActive} = true)`,
+      newUsersThisMonth: sql<number>`count(*) filter (where ${users.createdAt} >= ${startOfMonth})`,
+    }).from(users).where(isNull(users.deletedAt));
+
+    const [cohortStats] = await db.select({
+      totalCohorts: count(),
+      activeCohorts: sql<number>`count(*) filter (where ${cohorts.status} = 'ACTIVE')`,
+    }).from(cohorts);
+
+    const [membershipStats] = await db.select({
+      totalApplications: count(),
+      pendingApplications: sql<number>`count(*) filter (where ${cohortMemberships.applicationStatus} = 'PENDING')`,
+      approvedApplications: sql<number>`count(*) filter (where ${cohortMemberships.applicationStatus} = 'APPROVED')`,
+    }).from(cohortMemberships);
+
+    const [matchStats] = await db.select({
+      totalMatches: count(),
+      activeMatches: sql<number>`count(*) filter (where ${mentorshipMatches.status} = 'ACTIVE')`,
+      completedMatches: sql<number>`count(*) filter (where ${mentorshipMatches.status} = 'COMPLETED')`,
+      averageMatchScore: sql<number>`coalesce(avg(${mentorshipMatches.matchScore}), 0)`,
+    }).from(mentorshipMatches);
+
+    const [meetingStats] = await db.select({
+      totalMeetings: count(),
+      meetingsThisMonth: sql<number>`count(*) filter (where ${meetingLogs.scheduledDate} >= ${startOfMonth})`,
+      completedMeetings: sql<number>`count(*) filter (where ${meetingLogs.actualDate} is not null)`,
+      averageDuration: sql<number>`coalesce(avg(${meetingLogs.duration}), 0)`,
+    }).from(meetingLogs);
+
+    const [taskStats] = await db.select({
+      totalTasks: count(),
+      completedTasks: sql<number>`count(*) filter (where ${tasks.status} = 'COMPLETED')`,
+      inProgressTasks: sql<number>`count(*) filter (where ${tasks.status} = 'IN_PROGRESS')`,
+      overdueTasks: sql<number>`count(*) filter (where ${tasks.status} != 'COMPLETED' and ${tasks.dueDate} < ${now})`,
+    }).from(tasks);
+
+    const totalTasksNum = Number(taskStats?.totalTasks) || 0;
+    const completedTasksNum = Number(taskStats?.completedTasks) || 0;
+    const taskCompletionRate = totalTasksNum > 0 ? Math.round((completedTasksNum / totalTasksNum) * 100) : 0;
+
+    const [goalStats] = await db.select({
+      totalGoals: count(),
+      completedGoals: sql<number>`count(*) filter (where ${goals.status} = 'COMPLETED')`,
+      inProgressGoals: sql<number>`count(*) filter (where ${goals.status} = 'IN_PROGRESS')`,
+      averageProgress: sql<number>`coalesce(avg(${goals.progress}), 0)`,
+    }).from(goals);
+
+    const totalGoalsNum = Number(goalStats?.totalGoals) || 0;
+    const completedGoalsNum = Number(goalStats?.completedGoals) || 0;
+    const goalCompletionRate = totalGoalsNum > 0 ? Math.round((completedGoalsNum / totalGoalsNum) * 100) : 0;
+
+    const [messageStats] = await db.select({
+      totalMessages: count(),
+      messagesThisMonth: sql<number>`count(*) filter (where ${messages.createdAt} >= ${startOfMonth})`,
+    }).from(messages);
+
+    const [documentStats] = await db.select({
+      totalDocuments: count(),
+    }).from(documents);
+
+    const [conversationStats] = await db.select({
+      totalConversations: count(),
+    }).from(conversations);
+
+    return {
+      userMetrics: {
+        totalUsers: Number(userStats?.totalUsers) || 0,
+        totalMentors: Number(userStats?.totalMentors) || 0,
+        totalMentees: Number(userStats?.totalMentees) || 0,
+        totalAdmins: Number(userStats?.totalAdmins) || 0,
+        activeUsers: Number(userStats?.activeUsers) || 0,
+        newUsersThisMonth: Number(userStats?.newUsersThisMonth) || 0,
+      },
+      cohortMetrics: {
+        totalCohorts: Number(cohortStats?.totalCohorts) || 0,
+        activeCohorts: Number(cohortStats?.activeCohorts) || 0,
+        totalApplications: Number(membershipStats?.totalApplications) || 0,
+        pendingApplications: Number(membershipStats?.pendingApplications) || 0,
+        approvedApplications: Number(membershipStats?.approvedApplications) || 0,
+      },
+      matchMetrics: {
+        totalMatches: Number(matchStats?.totalMatches) || 0,
+        activeMatches: Number(matchStats?.activeMatches) || 0,
+        completedMatches: Number(matchStats?.completedMatches) || 0,
+        averageMatchScore: Math.round(Number(matchStats?.averageMatchScore) || 0),
+      },
+      meetingMetrics: {
+        totalMeetings: Number(meetingStats?.totalMeetings) || 0,
+        meetingsThisMonth: Number(meetingStats?.meetingsThisMonth) || 0,
+        completedMeetings: Number(meetingStats?.completedMeetings) || 0,
+        averageDuration: Math.round(Number(meetingStats?.averageDuration) || 0),
+      },
+      taskMetrics: {
+        totalTasks: totalTasksNum,
+        completedTasks: completedTasksNum,
+        inProgressTasks: Number(taskStats?.inProgressTasks) || 0,
+        overdueTasks: Number(taskStats?.overdueTasks) || 0,
+        completionRate: taskCompletionRate,
+      },
+      goalMetrics: {
+        totalGoals: totalGoalsNum,
+        completedGoals: completedGoalsNum,
+        inProgressGoals: Number(goalStats?.inProgressGoals) || 0,
+        averageProgress: Math.round(Number(goalStats?.averageProgress) || 0),
+        completionRate: goalCompletionRate,
+      },
+      engagementMetrics: {
+        totalMessages: Number(messageStats?.totalMessages) || 0,
+        messagesThisMonth: Number(messageStats?.messagesThisMonth) || 0,
+        totalDocuments: Number(documentStats?.totalDocuments) || 0,
+        totalConversations: Number(conversationStats?.totalConversations) || 0,
+      },
+    };
+  }
+
+  async getAnalyticsTrends(days: number) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const userGrowthRaw = await db.select({
+      date: sql<string>`date(${users.createdAt})`,
+      count: count(),
+    }).from(users)
+      .where(and(gt(users.createdAt, startDate), isNull(users.deletedAt)))
+      .groupBy(sql`date(${users.createdAt})`)
+      .orderBy(sql`date(${users.createdAt})`);
+
+    const matchActivityRaw = await db.select({
+      date: sql<string>`date(${mentorshipMatches.createdAt})`,
+      count: count(),
+    }).from(mentorshipMatches)
+      .where(gt(mentorshipMatches.createdAt, startDate))
+      .groupBy(sql`date(${mentorshipMatches.createdAt})`)
+      .orderBy(sql`date(${mentorshipMatches.createdAt})`);
+
+    const taskCreatedRaw = await db.select({
+      date: sql<string>`date(${tasks.createdAt})`,
+      created: count(),
+    }).from(tasks)
+      .where(gt(tasks.createdAt, startDate))
+      .groupBy(sql`date(${tasks.createdAt})`)
+      .orderBy(sql`date(${tasks.createdAt})`);
+
+    const taskCompletedRaw = await db.select({
+      date: sql<string>`date(${tasks.completedAt})`,
+      completed: count(),
+    }).from(tasks)
+      .where(gt(tasks.completedAt, startDate))
+      .groupBy(sql`date(${tasks.completedAt})`)
+      .orderBy(sql`date(${tasks.completedAt})`);
+
+    const goalCreatedRaw = await db.select({
+      date: sql<string>`date(${goals.createdAt})`,
+      created: count(),
+    }).from(goals)
+      .where(gt(goals.createdAt, startDate))
+      .groupBy(sql`date(${goals.createdAt})`)
+      .orderBy(sql`date(${goals.createdAt})`);
+
+    const goalCompletedRaw = await db.select({
+      date: sql<string>`date(${goals.completedAt})`,
+      completed: count(),
+    }).from(goals)
+      .where(gt(goals.completedAt, startDate))
+      .groupBy(sql`date(${goals.completedAt})`)
+      .orderBy(sql`date(${goals.completedAt})`);
+
+    const meetingActivityRaw = await db.select({
+      date: sql<string>`date(${meetingLogs.scheduledDate})`,
+      count: count(),
+    }).from(meetingLogs)
+      .where(gt(meetingLogs.scheduledDate, startDate))
+      .groupBy(sql`date(${meetingLogs.scheduledDate})`)
+      .orderBy(sql`date(${meetingLogs.scheduledDate})`);
+
+    const taskCompletionMap = new Map<string, { completed: number; created: number }>();
+    taskCreatedRaw.forEach(t => {
+      const existing = taskCompletionMap.get(t.date) || { completed: 0, created: 0 };
+      taskCompletionMap.set(t.date, { ...existing, created: Number(t.created) });
+    });
+    taskCompletedRaw.forEach(t => {
+      const existing = taskCompletionMap.get(t.date) || { completed: 0, created: 0 };
+      taskCompletionMap.set(t.date, { ...existing, completed: Number(t.completed) });
+    });
+
+    const goalProgressMap = new Map<string, { completed: number; created: number }>();
+    goalCreatedRaw.forEach(g => {
+      const existing = goalProgressMap.get(g.date) || { completed: 0, created: 0 };
+      goalProgressMap.set(g.date, { ...existing, created: Number(g.created) });
+    });
+    goalCompletedRaw.forEach(g => {
+      const existing = goalProgressMap.get(g.date) || { completed: 0, created: 0 };
+      goalProgressMap.set(g.date, { ...existing, completed: Number(g.completed) });
+    });
+
+    return {
+      userGrowth: userGrowthRaw.map(u => ({ date: u.date, count: Number(u.count) })),
+      matchActivity: matchActivityRaw.map(m => ({ date: m.date, count: Number(m.count) })),
+      taskCompletion: Array.from(taskCompletionMap.entries()).map(([date, data]) => ({ date, ...data })).sort((a, b) => a.date.localeCompare(b.date)),
+      goalProgress: Array.from(goalProgressMap.entries()).map(([date, data]) => ({ date, ...data })).sort((a, b) => a.date.localeCompare(b.date)),
+      meetingActivity: meetingActivityRaw.map(m => ({ date: m.date, count: Number(m.count) })),
+    };
+  }
+
+  async getTrackAnalytics() {
+    const trackList = await db.select().from(tracks).where(eq(tracks.isActive, true));
+    
+    const results = await Promise.all(trackList.map(async (track) => {
+      const [memberCount] = await db.select({ count: count() }).from(cohortMemberships).where(eq(cohortMemberships.trackId, track.id));
+      const [matchCount] = await db.select({ count: count() }).from(mentorshipMatches).where(eq(mentorshipMatches.trackId, track.id));
+      const [goalCount] = await db.select({ count: count() }).from(goals).where(eq(goals.trackId, track.id));
+      const [taskCount] = await db.select({ count: count() }).from(tasks).where(eq(tasks.trackId, track.id));
+      
+      return {
+        trackId: track.id,
+        trackName: track.name,
+        memberCount: Number(memberCount?.count) || 0,
+        matchCount: Number(matchCount?.count) || 0,
+        goalCount: Number(goalCount?.count) || 0,
+        taskCount: Number(taskCount?.count) || 0,
+      };
+    }));
+    
+    return results;
+  }
+
+  async getCohortAnalytics(cohortId?: string) {
+    let cohortList = await db.select().from(cohorts);
+    if (cohortId) {
+      cohortList = cohortList.filter(c => c.id === cohortId);
+    }
+    
+    const results = await Promise.all(cohortList.map(async (cohort) => {
+      const memberships = await db.select().from(cohortMemberships).where(eq(cohortMemberships.cohortId, cohort.id));
+      const mentorCount = memberships.filter(m => m.role === 'MENTOR').length;
+      const menteeCount = memberships.filter(m => m.role === 'MENTEE').length;
+      const completedCount = memberships.filter(m => m.completedAt !== null).length;
+      
+      const [matchCount] = await db.select({ count: count() }).from(mentorshipMatches).where(eq(mentorshipMatches.cohortId, cohort.id));
+      
+      return {
+        cohortId: cohort.id,
+        cohortName: cohort.name,
+        memberCount: memberships.length,
+        mentorCount,
+        menteeCount,
+        matchCount: Number(matchCount?.count) || 0,
+        completionRate: memberships.length > 0 ? Math.round((completedCount / memberships.length) * 100) : 0,
+      };
+    }));
+    
+    return results;
   }
 }
 
