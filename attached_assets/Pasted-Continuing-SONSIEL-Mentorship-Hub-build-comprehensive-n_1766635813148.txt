@@ -1,0 +1,112 @@
+Continuing SONSIEL Mentorship Hub, build comprehensive notification and email systems.
+
+NOTIFICATION SYSTEM:
+
+1. Notification Model:
+   
+   Notification:
+   - id
+   - userId (recipient)
+   - type (enum - see below)
+   - title
+   - message
+   - data (JSON - context-specific data)
+   - resourceType (USER, MATCH, TASK, GOAL, MESSAGE, DOCUMENT, etc.)
+   - resourceId
+   - priority (LOW, NORMAL, HIGH, URGENT)
+   - isRead, readAt
+   - isArchived
+   - actionUrl (where to navigate on click)
+   - createdAt
+   - expiresAt (optional)
+
+   Notification Types (enum):
+   - WELCOME
+   - APPLICATION_RECEIVED
+   - APPLICATION_APPROVED
+   - APPLICATION_REJECTED
+   - MATCH_PROPOSED
+   - MATCH_CONFIRMED
+   - NEW_MESSAGE
+   - NEW_ANNOUNCEMENT
+   - TASK_ASSIGNED
+   - TASK_DUE_SOON
+   - TASK_OVERDUE
+   - TASK_COMPLETED
+   - GOAL_APPROVED
+   - GOAL_FEEDBACK
+   - GOAL_MILESTONE_DUE
+   - MEETING_REMINDER
+   - MEETING_SCHEDULED
+   - DOCUMENT_SHARED
+   - MENTEE_PROGRESS_UPDATE
+   - COHORT_ENDING_SOON
+   - SYSTEM_ANNOUNCEMENT
+
+2. Notification Preferences:
+   
+   NotificationPreference:
+   - userId
+   - notificationType
+   - inAppEnabled (default: true)
+   - emailEnabled (default: varies by type)
+   - emailFrequency (INSTANT, DAILY_DIGEST, WEEKLY_DIGEST)
+   - pushEnabled (for future mobile app)
+   
+   Default preferences matrix:
+   | Type                    | In-App | Email (Default) |
+   |------------------------|--------|-----------------|
+   | NEW_MESSAGE            | ✓      | After 5 min     |
+   | TASK_ASSIGNED          | ✓      | Instant         |
+   | TASK_OVERDUE           | ✓      | Instant         |
+   | MEETING_REMINDER       | ✓      | Instant         |
+   | NEW_ANNOUNCEMENT       | ✓      | Instant         |
+   | MATCH_CONFIRMED        | ✓      | Instant         |
+   | APPLICATION_APPROVED   | ✓      | Instant         |
+   | GOAL_FEEDBACK          | ✓      | Daily digest    |
+   | DOCUMENT_SHARED        | ✓      | Daily digest    |
+
+3. In-App Notifications UI:
+   
+   Notification Bell (header component):
+   - Unread count badge
+   - Dropdown panel on click
+   - Mark all as read
+   - Link to full notifications page
+   
+   Notification Panel:
+   - Real-time updates via WebSocket
+   - Grouped by date
+   - Click to navigate to relevant resource
+   - Quick actions (mark read, archive)
+   - Load more (pagination)
+   
+   Notifications Page (/notifications):
+   - Full notification history
+   - Filter by type
+   - Filter by read/unread
+   - Archive old notifications
+   - Notification preferences link
+
+4. Notification Service:
+   
+   Create a centralized NotificationService:
+   
+   ```typescript
+   interface NotificationService {
+     // Create single notification
+     notify(userId: string, type: NotificationType, data: NotificationData): Promise<void>;
+     
+     // Bulk notify
+     notifyMany(userIds: string[], type: NotificationType, data: NotificationData): Promise<void>;
+     
+     // Notify all in cohort
+     notifyCohort(cohortId: string, type: NotificationType, data: NotificationData): Promise<void>;
+     
+     // Notify all in track
+     notifyTrack(trackId: string, type: NotificationType, data: NotificationData): Promise<void>;
+     
+     // Mark as read
+     markRead(notificationId: string): Promise<void>;
+     markAllRead(userId: string): Promise<void>;
+   }

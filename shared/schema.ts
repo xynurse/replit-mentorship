@@ -27,6 +27,47 @@ export const conversationTypeEnum = pgEnum("conversation_type", ["DIRECT", "MATC
 export const conversationParticipantRoleEnum = pgEnum("conversation_participant_role", ["MEMBER", "MODERATOR", "ADMIN"]);
 export const messageTypeEnum = pgEnum("message_type", ["TEXT", "FILE", "SYSTEM", "ANNOUNCEMENT"]);
 
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "WELCOME",
+  "APPLICATION_RECEIVED",
+  "APPLICATION_APPROVED",
+  "APPLICATION_REJECTED",
+  "MATCH_PROPOSED",
+  "MATCH_CONFIRMED",
+  "NEW_MESSAGE",
+  "NEW_ANNOUNCEMENT",
+  "TASK_ASSIGNED",
+  "TASK_DUE_SOON",
+  "TASK_OVERDUE",
+  "TASK_COMPLETED",
+  "GOAL_APPROVED",
+  "GOAL_FEEDBACK",
+  "GOAL_MILESTONE_DUE",
+  "MEETING_REMINDER",
+  "MEETING_SCHEDULED",
+  "DOCUMENT_SHARED",
+  "MENTEE_PROGRESS_UPDATE",
+  "COHORT_ENDING_SOON",
+  "SYSTEM_ANNOUNCEMENT",
+]);
+
+export const notificationPriorityEnum = pgEnum("notification_priority", ["LOW", "NORMAL", "HIGH", "URGENT"]);
+
+export const notificationResourceTypeEnum = pgEnum("notification_resource_type", [
+  "USER",
+  "MATCH",
+  "TASK",
+  "GOAL",
+  "MESSAGE",
+  "DOCUMENT",
+  "COHORT",
+  "APPLICATION",
+  "MEETING",
+  "SYSTEM",
+]);
+
+export const emailFrequencyEnum = pgEnum("email_frequency", ["INSTANT", "DAILY_DIGEST", "WEEKLY_DIGEST", "NEVER"]);
+
 export const userRoleEnum = pgEnum("user_role", ["SUPER_ADMIN", "ADMIN", "MENTOR", "MENTEE"]);
 
 export const users = pgTable("users", {
@@ -588,3 +629,55 @@ export type InsertMessageRead = z.infer<typeof insertMessageReadSchema>;
 export type ConversationType = "DIRECT" | "MATCH" | "TRACK_COMMUNITY" | "COHORT_ANNOUNCEMENT";
 export type ConversationParticipantRole = "MEMBER" | "MODERATOR" | "ADMIN";
 export type MessageType = "TEXT" | "FILE" | "SYSTEM" | "ANNOUNCEMENT";
+
+// Notification tables
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  type: notificationTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  data: jsonb("data"),
+  resourceType: notificationResourceTypeEnum("resource_type"),
+  resourceId: varchar("resource_id"),
+  priority: notificationPriorityEnum("priority").default("NORMAL"),
+  isRead: boolean("is_read").default(false),
+  readAt: timestamp("read_at"),
+  isArchived: boolean("is_archived").default(false),
+  actionUrl: text("action_url"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+  readAt: true,
+});
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  notificationType: notificationTypeEnum("notification_type").notNull(),
+  inAppEnabled: boolean("in_app_enabled").default(true),
+  emailEnabled: boolean("email_enabled").default(true),
+  emailFrequency: emailFrequencyEnum("email_frequency").default("INSTANT"),
+  pushEnabled: boolean("push_enabled").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertNotificationPreferenceSchema = createInsertSchema(notificationPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferenceSchema>;
+export type NotificationType = "WELCOME" | "APPLICATION_RECEIVED" | "APPLICATION_APPROVED" | "APPLICATION_REJECTED" | "MATCH_PROPOSED" | "MATCH_CONFIRMED" | "NEW_MESSAGE" | "NEW_ANNOUNCEMENT" | "TASK_ASSIGNED" | "TASK_DUE_SOON" | "TASK_OVERDUE" | "TASK_COMPLETED" | "GOAL_APPROVED" | "GOAL_FEEDBACK" | "GOAL_MILESTONE_DUE" | "MEETING_REMINDER" | "MEETING_SCHEDULED" | "DOCUMENT_SHARED" | "MENTEE_PROGRESS_UPDATE" | "COHORT_ENDING_SOON" | "SYSTEM_ANNOUNCEMENT";
+export type NotificationPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export type NotificationResourceType = "USER" | "MATCH" | "TASK" | "GOAL" | "MESSAGE" | "DOCUMENT" | "COHORT" | "APPLICATION" | "MEETING" | "SYSTEM";
+export type EmailFrequency = "INSTANT" | "DAILY_DIGEST" | "WEEKLY_DIGEST" | "NEVER";
