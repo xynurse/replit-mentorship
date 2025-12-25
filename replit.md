@@ -46,6 +46,16 @@ Preferred communication style: Simple, everyday language.
 - **Admin Oversight**: Admin dashboard for monitoring all documents across the platform
 - **Schema Tables**: documents, folders, documentVersions, documentAccess (shared/schema.ts)
 
+### Notification System
+- **Notification Types**: 21 event types covering WELCOME, APPLICATION_*, MATCH_*, TASK_*, GOAL_*, MEETING_*, DOCUMENT_SHARED, SYSTEM_ANNOUNCEMENT
+- **Priority Levels**: LOW, NORMAL, HIGH, URGENT with visual indicators
+- **Email Preferences**: Per-type email frequency (INSTANT, DAILY_DIGEST, WEEKLY_DIGEST, NEVER)
+- **Real-time Delivery**: Socket.io WebSocket events (notification:new, notification:count) for instant updates
+- **Inbox Management**: Archive, mark read/unread, bulk operations, type/priority filtering
+- **Admin Broadcast**: Admins can send system announcements to all users or specific roles
+- **Frontend Components**: NotificationBell (header dropdown), Notifications page (client/src/pages/notifications.tsx)
+- **Schema Tables**: notifications, notificationPreferences (shared/schema.ts)
+
 ### Data Storage
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
