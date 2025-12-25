@@ -56,6 +56,7 @@ interface DashboardLayoutProps {
 const getNavItems = (role: UserRole) => {
   const common = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Search", url: "/search", icon: Search },
     { title: "Tasks", url: "/tasks", icon: ListTodo },
     { title: "Goals", url: "/goals", icon: Target },
     { title: "Messages", url: "/messages", icon: MessageSquare },

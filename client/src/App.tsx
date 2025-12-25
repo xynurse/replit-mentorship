@@ -23,6 +23,7 @@ import AdminTasks from "@/pages/admin/tasks";
 import AdminAnalytics from "@/pages/admin/analytics";
 import AdminAuditLogs from "@/pages/admin/audit-logs";
 import AdminErrorLogs from "@/pages/admin/error-logs";
+import AdminSurveys from "@/pages/admin/surveys";
 import ApplyPage from "@/pages/apply";
 import MessagesPage from "@/pages/messages";
 import DocumentsPage from "@/pages/documents";
@@ -31,6 +32,7 @@ import GoalsPage from "@/pages/goals";
 import NotificationsPage from "@/pages/notifications";
 import PrivacyPage from "@/pages/privacy";
 import SearchPage from "@/pages/search";
+import OnboardingPage from "@/pages/onboarding";
 
 function Router() {
   return (
@@ -50,6 +52,7 @@ function Router() {
       <AdminRoute path="/admin/analytics" component={AdminAnalytics} />
       <AdminRoute path="/admin/audit-logs" component={AdminAuditLogs} />
       <AdminRoute path="/admin/error-logs" component={AdminErrorLogs} />
+      <AdminRoute path="/admin/surveys" component={AdminSurveys} />
       <Route path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
@@ -58,6 +61,7 @@ function Router() {
       <ProtectedRoute path="/notifications" component={NotificationsPage} />
       <ProtectedRoute path="/privacy" component={PrivacyPage} />
       <ProtectedRoute path="/search" component={SearchPage} />
+      <ProtectedRoute path="/onboarding" component={OnboardingPage} requireCompleteProfile={false} />
       <ProtectedRoute path="/" component={HomePage} />
       <Route component={NotFound} />
     </Switch>
