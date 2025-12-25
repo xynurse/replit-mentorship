@@ -1,3 +1,4 @@
+import { useEffect, useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Bell, Check, CheckCheck, Archive, Trash2, ExternalLink } from "lucide-react";
@@ -13,6 +14,8 @@ import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { io, Socket } from "socket.io-client";
 import type { Notification } from "@shared/schema";
 
 function getNotificationIcon(type: string) {
@@ -143,6 +146,10 @@ function NotificationItem({
 }
 
 export function NotificationBell() {
+  const { user } = useAuth();
+  const socketRef = useRef<Socket | null>(null);
+  const [realtimeCount, setRealtimeCount] = useState<number | null>(null);
+
   const { data: countData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
     refetchInterval: 30000,
@@ -151,6 +158,36 @@ export function NotificationBell() {
   const { data: notifications, isLoading } = useQuery<Notification[]>({
     queryKey: ["/api/notifications", { isArchived: false, limit: 10 }],
   });
+
+  useEffect(() => {
+    if (!user) return;
+
+    const socket = io({
+      path: "/socket.io",
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+    });
+
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("Notification socket connected");
+    });
+
+    socket.on("notification:new", (notification: Notification) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
+    });
+
+    socket.on("notification:count", ({ count }: { count: number }) => {
+      setRealtimeCount(count);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [user]);
 
   const markReadMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -192,7 +229,7 @@ export function NotificationBell() {
     },
   });
 
-  const unreadCount = countData?.count || 0;
+  const unreadCount = realtimeCount ?? countData?.count ?? 0;
 
   return (
     <Popover>

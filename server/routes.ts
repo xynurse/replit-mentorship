@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
 import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema } from "@shared/schema";
-import { setupWebSocket, getOnlineUsers, isUserOnline } from "./websocket";
+import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 export async function registerRoutes(
@@ -1817,6 +1817,14 @@ export async function registerRoutes(
       }));
       
       const created = await storage.createManyNotifications(notificationsToCreate);
+      
+      // Emit real-time notifications to each user
+      for (const notification of created) {
+        emitNotification(notification.userId, notification);
+        const count = await storage.getUnreadNotificationCount(notification.userId);
+        emitNotificationCountUpdate(notification.userId, count);
+      }
+      
       res.status(201).json(created);
     } catch (error) {
       next(error);

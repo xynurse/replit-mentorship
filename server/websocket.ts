@@ -5,6 +5,7 @@ import { storage } from "./storage";
 
 const onlineUsers = new Map<string, Set<string>>();
 const typingUsers = new Map<string, Set<string>>();
+let ioInstance: Server | null = null;
 
 export function setupWebSocket(httpServer: HTTPServer, sessionMiddleware: RequestHandler) {
   const io = new Server(httpServer, {
@@ -14,6 +15,8 @@ export function setupWebSocket(httpServer: HTTPServer, sessionMiddleware: Reques
     },
     path: "/socket.io",
   });
+  
+  ioInstance = io;
 
   io.use((socket, next) => {
     sessionMiddleware(socket.request as Request, {} as any, (err?: any) => {
@@ -233,4 +236,16 @@ export function getOnlineUsers(): string[] {
 
 export function isUserOnline(userId: string): boolean {
   return onlineUsers.has(userId) && onlineUsers.get(userId)!.size > 0;
+}
+
+export function emitNotification(userId: string, notification: any) {
+  if (ioInstance) {
+    ioInstance.to(`user:${userId}`).emit("notification:new", notification);
+  }
+}
+
+export function emitNotificationCountUpdate(userId: string, count: number) {
+  if (ioInstance) {
+    ioInstance.to(`user:${userId}`).emit("notification:count", { count });
+  }
 }
