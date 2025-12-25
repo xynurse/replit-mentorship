@@ -4,6 +4,7 @@ import {
   conversations, conversationParticipants, messages, messageAttachments, messageReads,
   folders, documentVersions, taskComments, taskActivities, milestones, goalProgress,
   notifications, notificationPreferences,
+  auditLogs, errorLogs, dataExportRequests, accountDeletionRequests,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -15,7 +16,9 @@ import {
   type Folder, type InsertFolder, type DocumentVersion, type InsertDocumentVersion, type DocumentAccess, type InsertDocumentAccess,
   type TaskComment, type InsertTaskComment, type TaskActivity, type InsertTaskActivity,
   type Milestone, type InsertMilestone, type GoalProgress, type InsertGoalProgress,
-  type Notification, type InsertNotification, type NotificationPreference, type InsertNotificationPreference
+  type Notification, type InsertNotification, type NotificationPreference, type InsertNotificationPreference,
+  type AuditLog, type InsertAuditLog, type ErrorLog, type InsertErrorLog,
+  type DataExportRequest, type InsertDataExportRequest, type AccountDeletionRequest, type InsertAccountDeletionRequest
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -194,6 +197,56 @@ export interface IStorage {
   }>;
   getTrackAnalytics(): Promise<{ trackId: string; trackName: string; memberCount: number; matchCount: number; goalCount: number; taskCount: number }[]>;
   getCohortAnalytics(cohortId?: string): Promise<{ cohortId: string; cohortName: string; memberCount: number; mentorCount: number; menteeCount: number; matchCount: number; completionRate: number }[]>;
+  
+  // Audit Logs
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogs(filters?: { 
+    actorId?: string; 
+    action?: string; 
+    resourceType?: string; 
+    resourceId?: string; 
+    success?: boolean; 
+    startDate?: Date; 
+    endDate?: Date; 
+    search?: string;
+    limit?: number; 
+    offset?: number;
+  }): Promise<AuditLog[]>;
+  getAuditLogsCount(filters?: { 
+    actorId?: string; 
+    action?: string; 
+    resourceType?: string; 
+    resourceId?: string; 
+    success?: boolean; 
+    startDate?: Date; 
+    endDate?: Date; 
+    search?: string;
+  }): Promise<number>;
+  
+  // Error Logs
+  createErrorLog(log: InsertErrorLog): Promise<ErrorLog>;
+  getErrorLogs(filters?: { 
+    resolved?: boolean; 
+    errorType?: string; 
+    userId?: string;
+    limit?: number; 
+    offset?: number;
+  }): Promise<ErrorLog[]>;
+  getErrorLogsCount(filters?: { resolved?: boolean; errorType?: string; userId?: string }): Promise<number>;
+  resolveErrorLog(id: string, resolvedBy: string): Promise<ErrorLog | undefined>;
+  
+  // Data Export Requests (GDPR)
+  createDataExportRequest(request: InsertDataExportRequest): Promise<DataExportRequest>;
+  getDataExportRequest(id: string): Promise<DataExportRequest | undefined>;
+  getDataExportRequestsByUser(userId: string): Promise<DataExportRequest[]>;
+  updateDataExportRequest(id: string, data: Partial<DataExportRequest>): Promise<DataExportRequest | undefined>;
+  
+  // Account Deletion Requests (GDPR)
+  createAccountDeletionRequest(request: InsertAccountDeletionRequest): Promise<AccountDeletionRequest>;
+  getAccountDeletionRequest(id: string): Promise<AccountDeletionRequest | undefined>;
+  getAccountDeletionRequestsByUser(userId: string): Promise<AccountDeletionRequest[]>;
+  getPendingAccountDeletionRequests(): Promise<(AccountDeletionRequest & { user: User })[]>;
+  updateAccountDeletionRequest(id: string, data: Partial<AccountDeletionRequest>): Promise<AccountDeletionRequest | undefined>;
   
   sessionStore: session.Store;
 }
@@ -1526,6 +1579,203 @@ export class DatabaseStorage implements IStorage {
     }));
     
     return results;
+  }
+
+  // Audit Logs
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [auditLog] = await db.insert(auditLogs).values(log).returning();
+    return auditLog;
+  }
+
+  async getAuditLogs(filters?: { 
+    actorId?: string; 
+    action?: string; 
+    resourceType?: string; 
+    resourceId?: string; 
+    success?: boolean; 
+    startDate?: Date; 
+    endDate?: Date; 
+    search?: string;
+    limit?: number; 
+    offset?: number;
+  }): Promise<AuditLog[]> {
+    const conditions = [];
+    
+    if (filters?.actorId) conditions.push(eq(auditLogs.actorId, filters.actorId));
+    if (filters?.action) conditions.push(eq(auditLogs.action, filters.action as any));
+    if (filters?.resourceType) conditions.push(eq(auditLogs.resourceType, filters.resourceType as any));
+    if (filters?.resourceId) conditions.push(eq(auditLogs.resourceId, filters.resourceId));
+    if (filters?.success !== undefined) conditions.push(eq(auditLogs.success, filters.success));
+    if (filters?.startDate) conditions.push(gt(auditLogs.timestamp, filters.startDate));
+    if (filters?.endDate) conditions.push(sql`${auditLogs.timestamp} <= ${filters.endDate}`);
+    if (filters?.search) {
+      conditions.push(or(
+        like(auditLogs.actorEmail, `%${filters.search}%`),
+        like(auditLogs.resourceName, `%${filters.search}%`)
+      ));
+    }
+    
+    let query = db.select().from(auditLogs);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return query
+      .orderBy(desc(auditLogs.timestamp))
+      .limit(filters?.limit || 50)
+      .offset(filters?.offset || 0);
+  }
+
+  async getAuditLogsCount(filters?: { 
+    actorId?: string; 
+    action?: string; 
+    resourceType?: string; 
+    resourceId?: string; 
+    success?: boolean; 
+    startDate?: Date; 
+    endDate?: Date; 
+    search?: string;
+  }): Promise<number> {
+    const conditions = [];
+    
+    if (filters?.actorId) conditions.push(eq(auditLogs.actorId, filters.actorId));
+    if (filters?.action) conditions.push(eq(auditLogs.action, filters.action as any));
+    if (filters?.resourceType) conditions.push(eq(auditLogs.resourceType, filters.resourceType as any));
+    if (filters?.resourceId) conditions.push(eq(auditLogs.resourceId, filters.resourceId));
+    if (filters?.success !== undefined) conditions.push(eq(auditLogs.success, filters.success));
+    if (filters?.startDate) conditions.push(gt(auditLogs.timestamp, filters.startDate));
+    if (filters?.endDate) conditions.push(sql`${auditLogs.timestamp} <= ${filters.endDate}`);
+    if (filters?.search) {
+      conditions.push(or(
+        like(auditLogs.actorEmail, `%${filters.search}%`),
+        like(auditLogs.resourceName, `%${filters.search}%`)
+      ));
+    }
+    
+    let query = db.select({ count: count() }).from(auditLogs);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    const [result] = await query;
+    return Number(result?.count) || 0;
+  }
+
+  // Error Logs
+  async createErrorLog(log: InsertErrorLog): Promise<ErrorLog> {
+    const [errorLog] = await db.insert(errorLogs).values(log).returning();
+    return errorLog;
+  }
+
+  async getErrorLogs(filters?: { 
+    resolved?: boolean; 
+    errorType?: string; 
+    userId?: string;
+    limit?: number; 
+    offset?: number;
+  }): Promise<ErrorLog[]> {
+    const conditions = [];
+    
+    if (filters?.resolved !== undefined) conditions.push(eq(errorLogs.resolved, filters.resolved));
+    if (filters?.errorType) conditions.push(eq(errorLogs.errorType, filters.errorType));
+    if (filters?.userId) conditions.push(eq(errorLogs.userId, filters.userId));
+    
+    let query = db.select().from(errorLogs);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return query
+      .orderBy(desc(errorLogs.timestamp))
+      .limit(filters?.limit || 50)
+      .offset(filters?.offset || 0);
+  }
+
+  async getErrorLogsCount(filters?: { resolved?: boolean; errorType?: string; userId?: string }): Promise<number> {
+    const conditions = [];
+    
+    if (filters?.resolved !== undefined) conditions.push(eq(errorLogs.resolved, filters.resolved));
+    if (filters?.errorType) conditions.push(eq(errorLogs.errorType, filters.errorType));
+    if (filters?.userId) conditions.push(eq(errorLogs.userId, filters.userId));
+    
+    let query = db.select({ count: count() }).from(errorLogs);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    const [result] = await query;
+    return Number(result?.count) || 0;
+  }
+
+  async resolveErrorLog(id: string, resolvedBy: string): Promise<ErrorLog | undefined> {
+    const [errorLog] = await db.update(errorLogs)
+      .set({ resolved: true, resolvedAt: new Date(), resolvedBy })
+      .where(eq(errorLogs.id, id))
+      .returning();
+    return errorLog || undefined;
+  }
+
+  // Data Export Requests (GDPR)
+  async createDataExportRequest(request: InsertDataExportRequest): Promise<DataExportRequest> {
+    const [exportRequest] = await db.insert(dataExportRequests).values(request).returning();
+    return exportRequest;
+  }
+
+  async getDataExportRequest(id: string): Promise<DataExportRequest | undefined> {
+    const [request] = await db.select().from(dataExportRequests).where(eq(dataExportRequests.id, id));
+    return request || undefined;
+  }
+
+  async getDataExportRequestsByUser(userId: string): Promise<DataExportRequest[]> {
+    return db.select().from(dataExportRequests)
+      .where(eq(dataExportRequests.userId, userId))
+      .orderBy(desc(dataExportRequests.createdAt));
+  }
+
+  async updateDataExportRequest(id: string, data: Partial<DataExportRequest>): Promise<DataExportRequest | undefined> {
+    const [request] = await db.update(dataExportRequests)
+      .set(data)
+      .where(eq(dataExportRequests.id, id))
+      .returning();
+    return request || undefined;
+  }
+
+  // Account Deletion Requests (GDPR)
+  async createAccountDeletionRequest(request: InsertAccountDeletionRequest): Promise<AccountDeletionRequest> {
+    const [deletionRequest] = await db.insert(accountDeletionRequests).values(request).returning();
+    return deletionRequest;
+  }
+
+  async getAccountDeletionRequest(id: string): Promise<AccountDeletionRequest | undefined> {
+    const [request] = await db.select().from(accountDeletionRequests).where(eq(accountDeletionRequests.id, id));
+    return request || undefined;
+  }
+
+  async getAccountDeletionRequestsByUser(userId: string): Promise<AccountDeletionRequest[]> {
+    return db.select().from(accountDeletionRequests)
+      .where(eq(accountDeletionRequests.userId, userId))
+      .orderBy(desc(accountDeletionRequests.createdAt));
+  }
+
+  async getPendingAccountDeletionRequests(): Promise<(AccountDeletionRequest & { user: User })[]> {
+    const requests = await db.select().from(accountDeletionRequests)
+      .where(eq(accountDeletionRequests.status, 'PENDING'))
+      .orderBy(desc(accountDeletionRequests.createdAt));
+    
+    const result = await Promise.all(requests.map(async (req) => {
+      const [user] = await db.select().from(users).where(eq(users.id, req.userId));
+      return { ...req, user };
+    }));
+    
+    return result;
+  }
+
+  async updateAccountDeletionRequest(id: string, data: Partial<AccountDeletionRequest>): Promise<AccountDeletionRequest | undefined> {
+    const [request] = await db.update(accountDeletionRequests)
+      .set(data)
+      .where(eq(accountDeletionRequests.id, id))
+      .returning();
+    return request || undefined;
   }
 }
 

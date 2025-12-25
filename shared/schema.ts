@@ -681,3 +681,144 @@ export type NotificationType = "WELCOME" | "APPLICATION_RECEIVED" | "APPLICATION
 export type NotificationPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type NotificationResourceType = "USER" | "MATCH" | "TASK" | "GOAL" | "MESSAGE" | "DOCUMENT" | "COHORT" | "APPLICATION" | "MEETING" | "SYSTEM";
 export type EmailFrequency = "INSTANT" | "DAILY_DIGEST" | "WEEKLY_DIGEST" | "NEVER";
+
+// Audit Log System
+export const auditActorTypeEnum = pgEnum("audit_actor_type", ["USER", "SYSTEM", "API", "SCHEDULED_JOB"]);
+
+export const auditActionEnum = pgEnum("audit_action", [
+  "LOGIN_SUCCESS", "LOGIN_FAILED", "LOGOUT",
+  "PASSWORD_RESET_REQUESTED", "PASSWORD_RESET_COMPLETED",
+  "EMAIL_VERIFICATION", "EMAIL_CHANGE",
+  "ACCOUNT_LOCKED", "ACCOUNT_UNLOCKED",
+  "SESSION_EXPIRED", "SESSION_INVALIDATED",
+  "USER_CREATED", "USER_UPDATED", "USER_DELETED",
+  "USER_ROLE_CHANGED", "USER_ACTIVATED", "USER_DEACTIVATED",
+  "PROFILE_UPDATED", "PREFERENCES_CHANGED",
+  "USER_IMPERSONATION_STARTED", "USER_IMPERSONATION_ENDED",
+  "COHORT_CREATED", "COHORT_UPDATED", "COHORT_DELETED", "COHORT_STATUS_CHANGED",
+  "APPLICATION_SUBMITTED", "APPLICATION_REVIEWED", "APPLICATION_APPROVED", "APPLICATION_REJECTED",
+  "MATCH_CREATED", "MATCH_UPDATED", "MATCH_ACTIVATED", "MATCH_TERMINATED",
+  "DOCUMENT_UPLOADED", "DOCUMENT_UPDATED", "DOCUMENT_DELETED",
+  "DOCUMENT_SHARED", "DOCUMENT_ACCESS_REVOKED", "DOCUMENT_DOWNLOADED", "DOCUMENT_VIEWED",
+  "MESSAGE_SENT", "MESSAGE_EDITED", "MESSAGE_DELETED",
+  "TASK_CREATED", "TASK_UPDATED", "TASK_COMPLETED",
+  "GOAL_CREATED", "GOAL_UPDATED", "GOAL_COMPLETED",
+  "SETTINGS_CHANGED", "BULK_OPERATION_PERFORMED", "DATA_EXPORTED", "REPORT_GENERATED",
+  "SCHEDULED_JOB_EXECUTED", "NOTIFICATION_SENT", "EMAIL_SENT", "ERROR_OCCURRED",
+]);
+
+export const auditResourceTypeEnum = pgEnum("audit_resource_type", [
+  "USER", "SESSION", "COHORT", "TRACK", "APPLICATION", "MATCH", "MEETING",
+  "DOCUMENT", "FOLDER", "MESSAGE", "CONVERSATION", "TASK", "GOAL", "MILESTONE",
+  "NOTIFICATION", "SETTINGS", "SYSTEM",
+]);
+
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  timestamp: timestamp("timestamp", { withTimezone: true }).defaultNow().notNull(),
+  actorId: varchar("actor_id").references(() => users.id),
+  actorType: auditActorTypeEnum("actor_type").notNull().default("USER"),
+  actorEmail: text("actor_email"),
+  actorRole: text("actor_role"),
+  impersonatorId: varchar("impersonator_id").references(() => users.id),
+  action: auditActionEnum("action").notNull(),
+  resourceType: auditResourceTypeEnum("resource_type").notNull(),
+  resourceId: varchar("resource_id"),
+  resourceName: text("resource_name"),
+  previousState: jsonb("previous_state"),
+  newState: jsonb("new_state"),
+  changedFields: text("changed_fields").array(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  requestId: varchar("request_id"),
+  sessionId: varchar("session_id"),
+  success: boolean("success").default(true),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata"),
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditAction = "LOGIN_SUCCESS" | "LOGIN_FAILED" | "LOGOUT" | "PASSWORD_RESET_REQUESTED" | "PASSWORD_RESET_COMPLETED" | "EMAIL_VERIFICATION" | "EMAIL_CHANGE" | "ACCOUNT_LOCKED" | "ACCOUNT_UNLOCKED" | "SESSION_EXPIRED" | "SESSION_INVALIDATED" | "USER_CREATED" | "USER_UPDATED" | "USER_DELETED" | "USER_ROLE_CHANGED" | "USER_ACTIVATED" | "USER_DEACTIVATED" | "PROFILE_UPDATED" | "PREFERENCES_CHANGED" | "USER_IMPERSONATION_STARTED" | "USER_IMPERSONATION_ENDED" | "COHORT_CREATED" | "COHORT_UPDATED" | "COHORT_DELETED" | "COHORT_STATUS_CHANGED" | "APPLICATION_SUBMITTED" | "APPLICATION_REVIEWED" | "APPLICATION_APPROVED" | "APPLICATION_REJECTED" | "MATCH_CREATED" | "MATCH_UPDATED" | "MATCH_ACTIVATED" | "MATCH_TERMINATED" | "DOCUMENT_UPLOADED" | "DOCUMENT_UPDATED" | "DOCUMENT_DELETED" | "DOCUMENT_SHARED" | "DOCUMENT_ACCESS_REVOKED" | "DOCUMENT_DOWNLOADED" | "DOCUMENT_VIEWED" | "MESSAGE_SENT" | "MESSAGE_EDITED" | "MESSAGE_DELETED" | "TASK_CREATED" | "TASK_UPDATED" | "TASK_COMPLETED" | "GOAL_CREATED" | "GOAL_UPDATED" | "GOAL_COMPLETED" | "SETTINGS_CHANGED" | "BULK_OPERATION_PERFORMED" | "DATA_EXPORTED" | "REPORT_GENERATED" | "SCHEDULED_JOB_EXECUTED" | "NOTIFICATION_SENT" | "EMAIL_SENT" | "ERROR_OCCURRED";
+export type AuditActorType = "USER" | "SYSTEM" | "API" | "SCHEDULED_JOB";
+export type AuditResourceType = "USER" | "SESSION" | "COHORT" | "TRACK" | "APPLICATION" | "MATCH" | "MEETING" | "DOCUMENT" | "FOLDER" | "MESSAGE" | "CONVERSATION" | "TASK" | "GOAL" | "MILESTONE" | "NOTIFICATION" | "SETTINGS" | "SYSTEM";
+
+// Error Tracking
+export const errorLogs = pgTable("error_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  requestId: varchar("request_id"),
+  userId: varchar("user_id").references(() => users.id),
+  errorType: text("error_type").notNull(),
+  errorMessage: text("error_message").notNull(),
+  stackTrace: text("stack_trace"),
+  context: jsonb("context"),
+  path: text("path"),
+  method: text("method"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  resolved: boolean("resolved").default(false),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  timestamp: timestamp("timestamp", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const insertErrorLogSchema = createInsertSchema(errorLogs).omit({
+  id: true,
+  timestamp: true,
+  resolvedAt: true,
+});
+
+export type ErrorLog = typeof errorLogs.$inferSelect;
+export type InsertErrorLog = z.infer<typeof insertErrorLogSchema>;
+
+// Data Export Requests (GDPR)
+export const dataExportRequestStatusEnum = pgEnum("data_export_request_status", ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "EXPIRED"]);
+
+export const dataExportRequests = pgTable("data_export_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  status: dataExportRequestStatusEnum("status").default("PENDING"),
+  downloadUrl: text("download_url"),
+  expiresAt: timestamp("expires_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDataExportRequestSchema = createInsertSchema(dataExportRequests).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export type DataExportRequest = typeof dataExportRequests.$inferSelect;
+export type InsertDataExportRequest = z.infer<typeof insertDataExportRequestSchema>;
+
+// Account Deletion Requests (GDPR)
+export const accountDeletionRequestStatusEnum = pgEnum("account_deletion_request_status", ["PENDING", "SCHEDULED", "COMPLETED", "CANCELLED"]);
+
+export const accountDeletionRequests = pgTable("account_deletion_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  status: accountDeletionRequestStatusEnum("status").default("PENDING"),
+  reason: text("reason"),
+  scheduledDeletionAt: timestamp("scheduled_deletion_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  completedAt: timestamp("completed_at"),
+  adminApprovedBy: varchar("admin_approved_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAccountDeletionRequestSchema = createInsertSchema(accountDeletionRequests).omit({
+  id: true,
+  createdAt: true,
+  cancelledAt: true,
+  completedAt: true,
+});
+
+export type AccountDeletionRequest = typeof accountDeletionRequests.$inferSelect;
+export type InsertAccountDeletionRequest = z.infer<typeof insertAccountDeletionRequestSchema>;

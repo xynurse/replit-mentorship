@@ -1,0 +1,292 @@
+Continuing SONSIEL Mentorship Hub, build comprehensive audit logging and security hardening.
+
+AUDIT LOGGING SYSTEM:
+
+1. Audit Log Model:
+   
+   AuditLog:
+   - id (UUID)
+   - timestamp (precise, with timezone)
+   - actorId (user who performed action, null for system)
+   - actorType (USER, SYSTEM, API, SCHEDULED_JOB)
+   - actorEmail (denormalized for quick reference)
+   - actorRole (role at time of action)
+   - impersonatorId (if admin is impersonating)
+   - action (enum)
+   - resourceType (what was affected)
+   - resourceId
+   - resourceName (denormalized)
+   - previousState (JSON - before)
+   - newState (JSON - after)
+   - changedFields (array of field names that changed)
+   - ipAddress
+   - userAgent
+   - requestId (for tracing)
+   - sessionId
+   - success (boolean)
+   - errorMessage (if failed)
+   - metadata (JSON - additional context)
+
+   Action Types (comprehensive enum):
+   
+   Authentication:
+   - LOGIN_SUCCESS, LOGIN_FAILED
+   - LOGOUT
+   - PASSWORD_RESET_REQUESTED, PASSWORD_RESET_COMPLETED
+   - EMAIL_VERIFICATION, EMAIL_CHANGE
+   - ACCOUNT_LOCKED, ACCOUNT_UNLOCKED
+   - SESSION_EXPIRED, SESSION_INVALIDATED
+   
+   User Management:
+   - USER_CREATED, USER_UPDATED, USER_DELETED
+   - USER_ROLE_CHANGED
+   - USER_ACTIVATED, USER_DEACTIVATED
+   - PROFILE_UPDATED
+   - PREFERENCES_CHANGED
+   - USER_IMPERSONATION_STARTED, USER_IMPERSONATION_ENDED
+   
+   Cohort & Matching:
+   - COHORT_CREATED, COHORT_UPDATED, COHORT_DELETED
+   - COHORT_STATUS_CHANGED
+   - APPLICATION_SUBMITTED, APPLICATION_REVIEWED
+   - APPLICATION_APPROVED, APPLICATION_REJECTED
+   - MATCH_CREATED, MATCH_UPDATED
+   - MATCH_ACTIVATED, MATCH_TERMINATED
+   
+   Content:
+   - DOCUMENT_UPLOADED, DOCUMENT_UPDATED, DOCUMENT_DELETED
+   - DOCUMENT_SHARED, DOCUMENT_ACCESS_REVOKED
+   - DOCUMENT_DOWNLOADED, DOCUMENT_VIEWED
+   - MESSAGE_SENT, MESSAGE_EDITED, MESSAGE_DELETED
+   - TASK_CREATED, TASK_UPDATED, TASK_COMPLETED
+   - GOAL_CREATED, GOAL_UPDATED, GOAL_COMPLETED
+   
+   Admin:
+   - SETTINGS_CHANGED
+   - BULK_OPERATION_PERFORMED
+   - DATA_EXPORTED
+   - REPORT_GENERATED
+   
+   System:
+   - SCHEDULED_JOB_EXECUTED
+   - NOTIFICATION_SENT
+   - EMAIL_SENT
+   - ERROR_OCCURRED
+
+2. Audit Service:
+   
+   Create a centralized AuditService:
+```typescript
+   interface AuditService {
+     log(params: {
+       action: AuditAction;
+       resourceType: ResourceType;
+       resourceId: string;
+       previousState?: Record<string, any>;
+       newState?: Record<string, any>;
+       metadata?: Record<string, any>;
+     }): Promise<void>;
+     
+     logWithDiff(params: {
+       action: AuditAction;
+       resourceType: ResourceType;
+       resourceId: string;
+       before: Record<string, any>;
+       after: Record<string, any>;
+     }): Promise<void>;
+   }
+```
+   
+   Features:
+   - Automatic diff calculation (what changed)
+   - Request context capture (IP, user agent)
+   - Actor resolution from auth context
+   - Async logging (don't block main request)
+
+3. Automatic Auditing:
+   
+   Use Prisma middleware or hooks to auto-log:
+   - All database creates, updates, deletes
+   - Capture before/after states
+   - Track which fields changed
+
+4. Audit Log Viewer (/admin/audit-logs):
+   
+   Powerful search and filter interface:
+   
+   Filters:
+   - Date range
+   - Actor (specific user)
+   - Action type
+   - Resource type
+   - Resource ID
+   - Success/failure
+   - IP address
+   
+   Features:
+   - Full-text search across log entries
+   - Export to CSV/JSON
+   - Real-time log stream (WebSocket)
+   - Detailed log entry view
+   - Related logs (same session, same resource)
+   - Diff viewer for changes
+   
+   Quick Filters (preset):
+   - Failed logins (last 24h)
+   - Permission changes
+   - Data deletions
+   - Admin actions
+   - User by user (activity timeline)
+
+5. Audit Log Retention:
+   
+   - Hot storage: Last 90 days (fast queries)
+   - Cold storage: Archive older logs to S3/external storage
+   - Retention policy: Keep for 2 years minimum
+   - Anonymization for very old logs (GDPR compliance)
+
+SECURITY HARDENING:
+
+1. Authentication Security:
+   
+   Rate Limiting:
+   - Login: 5 attempts per 15 minutes per email
+   - Password reset: 3 requests per hour per email
+   - API endpoints: Role-based limits
+   
+   Account Lockout:
+   - Lock after 10 failed attempts
+   - Auto-unlock after 30 minutes
+   - Admin manual unlock available
+   - Notify user via email on lockout
+   
+   Session Security:
+   - Secure, HTTP-only cookies
+   - Session timeout: 24 hours idle
+   - Force logout on password change
+   - Track concurrent sessions
+   - Allow user to view/terminate sessions
+
+2. Input Validation:
+   
+   - Zod schemas for all inputs
+   - Server-side validation (never trust client)
+   - Sanitize HTML inputs
+   - File upload validation (type, size, content)
+   - SQL injection prevention (Prisma parameterized queries)
+   - XSS prevention (React's built-in escaping + DOMPurify for rich text)
+
+3. API Security:
+   
+   - CORS configuration (allowed origins)
+   - API rate limiting
+   - Request size limits
+   - Authentication on all API routes
+   - Authorization checks at resource level
+   - CSRF protection for state-changing operations
+
+4. Data Protection:
+   
+   - Encrypt sensitive data at rest (PII, passwords)
+   - Passwords: bcrypt with appropriate cost factor
+   - Mask sensitive data in logs (emails, names)
+   - Data anonymization for analytics
+   - Secure file storage (private URLs with expiration)
+
+5. Admin Security:
+   
+   - Separate admin authentication flow (optional MFA)
+   - Admin action confirmation for destructive operations
+   - Admin activity alerts to Super Admin
+   - Impersonation tracking and limitations
+   - IP allowlist for admin access (optional)
+
+6. Monitoring & Alerts:
+   
+   Create an AlertService:
+   
+   Alert triggers:
+   - Multiple failed logins from same IP
+   - Admin login from new IP
+   - Unusual data access patterns
+   - Mass deletion attempts
+   - Permission escalation attempts
+   - System errors spike
+   
+   Alert channels:
+   - In-app notification to Super Admin
+   - Email to security contact
+   - Optional: Slack webhook
+
+DEBUGGING TOOLS:
+
+1. Request Tracing:
+   
+   - Assign unique requestId to each request
+   - Pass through to all logs and audit entries
+   - Link related operations
+   
+   RequestLog:
+   - requestId
+   - method, path, queryParams
+   - userId
+   - requestBody (sanitized)
+   - responseStatus
+   - responseTime
+   - timestamp
+
+2. Error Tracking:
+   
+   ErrorLog:
+   - id
+   - requestId
+   - userId
+   - errorType
+   - errorMessage
+   - stackTrace
+   - context (JSON)
+   - timestamp
+   - resolved (boolean)
+   - resolvedAt, resolvedBy
+   
+   Error Dashboard (/admin/errors):
+   - Recent errors list
+   - Error grouping by type
+   - Frequency analysis
+   - Stack trace viewer
+   - Mark as resolved
+
+3. Debug Mode:
+   
+   For Super Admins:
+   - Enable verbose logging temporarily
+   - View request/response details
+   - Performance profiling
+   - Database query inspection
+   - Feature flag overrides
+
+COMPLIANCE FEATURES:
+
+1. Data Export (GDPR):
+   
+   /settings/export-data
+   - User can request full data export
+   - Generates downloadable JSON
+   - Includes all personal data, messages, documents
+   - Admin notification of export requests
+
+2. Data Deletion:
+   
+   /settings/delete-account
+   - User can request account deletion
+   - Grace period (30 days)
+   - Soft delete first, hard delete after grace period
+   - Anonymize rather than delete where needed (audit logs)
+   - Admin approval required
+
+3. Privacy Controls:
+   
+   - Profile visibility settings
+   - Communication preferences
+   - Data sharing consents
+   - Clear privacy policy acceptance tracking
