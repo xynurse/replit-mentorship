@@ -27,6 +27,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -90,6 +91,7 @@ export interface IStorage {
   // Matches
   createMatch(match: InsertMentorshipMatch): Promise<MentorshipMatch>;
   updateMatch(id: string, data: Partial<MentorshipMatch>): Promise<MentorshipMatch | undefined>;
+  getMatchesForUser(userId: string): Promise<(MentorshipMatch & { mentor?: Partial<User>; mentee?: Partial<User> })[]>;
   
   // Messaging
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -691,6 +693,60 @@ export class DatabaseStorage implements IStorage {
     }
     const [result] = await db.update(mentorshipMatches).set(cleanData).where(eq(mentorshipMatches.id, id)).returning();
     return result || undefined;
+  }
+
+  async getMatchesForUser(userId: string): Promise<(MentorshipMatch & { mentor?: Partial<User>; mentee?: Partial<User> })[]> {
+    const mentorUsers = alias(users, 'mentor_users');
+    const menteeUsers = alias(users, 'mentee_users');
+    const mentorMemberships = alias(cohortMemberships, 'mentor_memberships');
+    const menteeMemberships = alias(cohortMemberships, 'mentee_memberships');
+
+    // Select only needed columns - no sensitive data
+    const results = await db.select({
+      match: mentorshipMatches,
+      mentor: {
+        id: mentorUsers.id,
+        firstName: mentorUsers.firstName,
+        lastName: mentorUsers.lastName,
+        email: mentorUsers.email,
+        role: mentorUsers.role,
+        profileImage: mentorUsers.profileImage,
+        bio: mentorUsers.bio,
+        jobTitle: mentorUsers.jobTitle,
+        organizationName: mentorUsers.organizationName,
+        linkedInUrl: mentorUsers.linkedInUrl,
+      },
+      mentee: {
+        id: menteeUsers.id,
+        firstName: menteeUsers.firstName,
+        lastName: menteeUsers.lastName,
+        email: menteeUsers.email,
+        role: menteeUsers.role,
+        profileImage: menteeUsers.profileImage,
+        bio: menteeUsers.bio,
+        jobTitle: menteeUsers.jobTitle,
+        organizationName: menteeUsers.organizationName,
+        linkedInUrl: menteeUsers.linkedInUrl,
+      },
+    })
+      .from(mentorshipMatches)
+      .innerJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .innerJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .innerJoin(mentorUsers, eq(mentorMemberships.userId, mentorUsers.id))
+      .innerJoin(menteeUsers, eq(menteeMemberships.userId, menteeUsers.id))
+      .where(
+        or(
+          eq(mentorMemberships.userId, userId),
+          eq(menteeMemberships.userId, userId)
+        )
+      )
+      .orderBy(desc(mentorshipMatches.createdAt));
+
+    return results.map(r => ({
+      ...r.match,
+      mentor: r.mentor,
+      mentee: r.mentee,
+    }));
   }
 
   // Messaging Implementation

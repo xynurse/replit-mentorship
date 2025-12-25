@@ -568,6 +568,17 @@ export async function registerRoutes(
     }
   });
 
+  // Get current user's matches (mentor or mentee)
+  app.get("/api/matches/my", requireAuth, async (req, res, next) => {
+    try {
+      // Storage layer already selects only safe public fields
+      const matches = await storage.getMatchesForUser(req.user!.id);
+      res.json(matches);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Update match status
   app.patch("/api/matches/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {

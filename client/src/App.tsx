@@ -40,6 +40,9 @@ const NotificationsPage = lazy(() => import("@/pages/notifications"));
 const PrivacyPage = lazy(() => import("@/pages/privacy"));
 const SearchPage = lazy(() => import("@/pages/search"));
 const OnboardingPage = lazy(() => import("@/pages/onboarding"));
+const SettingsPage = lazy(() => import("@/pages/settings"));
+const ConnectionsPage = lazy(() => import("@/pages/connections"));
+const CalendarPage = lazy(() => import("@/pages/calendar"));
 
 function PageLoader() {
   return (
@@ -89,6 +92,9 @@ function Router() {
       <ProtectedRoute path="/search" component={SearchPage} />
       <ProtectedRoute path="/certificates" component={CertificatesPage} />
       <ProtectedRoute path="/onboarding" component={OnboardingPage} requireCompleteProfile={false} />
+      <ProtectedRoute path="/settings" component={SettingsPage} />
+      <ProtectedRoute path="/connections" component={ConnectionsPage} />
+      <ProtectedRoute path="/calendar" component={CalendarPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <LazyRoute component={NotFound} />
     </Switch>
