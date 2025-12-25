@@ -13,6 +13,7 @@ import {
   Shield,
   ClipboardList,
   ListTodo,
+  BarChart3,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -47,6 +48,7 @@ interface AdminLayoutProps {
 
 const adminMenuItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
+  { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
   { title: "Users", url: "/admin/users", icon: Users },
   { title: "Cohorts", url: "/admin/cohorts", icon: GraduationCap },
   { title: "Applications", url: "/admin/applications", icon: ClipboardList },

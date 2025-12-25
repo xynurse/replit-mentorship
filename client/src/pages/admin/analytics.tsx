@@ -196,7 +196,16 @@ export default function AnalyticsDashboard() {
   });
 
   const { data: trends, isLoading: isTrendsLoading } = useQuery<TrendData>({
-    queryKey: ["/api/analytics/trends", { days: trendDays }],
+    queryKey: ["/api/analytics/trends", trendDays],
+    queryFn: async () => {
+      const response = await fetch(`/api/analytics/trends?days=${trendDays}`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch trends");
+      }
+      return response.json();
+    },
   });
 
   const { data: trackAnalytics, isLoading: isTrackLoading } = useQuery<TrackAnalytics[]>({
@@ -391,7 +400,20 @@ export default function AnalyticsDashboard() {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
-            {dashboard && (
+            {isLoading ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader className="pb-2">
+                      <Skeleton className="h-4 w-24" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-8 w-16" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : dashboard ? (
               <>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   <KPICard
@@ -465,11 +487,24 @@ export default function AnalyticsDashboard() {
                   </Card>
                 </div>
               </>
-            )}
+            ) : null}
           </TabsContent>
 
           <TabsContent value="mentorship" className="space-y-6">
-            {dashboard && (
+            {isLoading ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader className="pb-2">
+                      <Skeleton className="h-4 w-24" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-8 w-16" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : dashboard ? (
               <>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <KPICard
@@ -556,11 +591,24 @@ export default function AnalyticsDashboard() {
                   </Card>
                 </div>
               </>
-            )}
+            ) : null}
           </TabsContent>
 
           <TabsContent value="productivity" className="space-y-6">
-            {dashboard && (
+            {isLoading ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader className="pb-2">
+                      <Skeleton className="h-4 w-24" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-8 w-16" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : dashboard ? (
               <>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <KPICard
@@ -670,7 +718,7 @@ export default function AnalyticsDashboard() {
                   </Card>
                 </div>
               </>
-            )}
+            ) : null}
           </TabsContent>
 
           <TabsContent value="trends" className="space-y-6">
