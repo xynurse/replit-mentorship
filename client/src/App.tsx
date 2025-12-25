@@ -30,6 +30,7 @@ import TasksPage from "@/pages/tasks";
 import GoalsPage from "@/pages/goals";
 import NotificationsPage from "@/pages/notifications";
 import PrivacyPage from "@/pages/privacy";
+import SearchPage from "@/pages/search";
 
 function Router() {
   return (
@@ -56,6 +57,7 @@ function Router() {
       <ProtectedRoute path="/goals" component={GoalsPage} />
       <ProtectedRoute path="/notifications" component={NotificationsPage} />
       <ProtectedRoute path="/privacy" component={PrivacyPage} />
+      <ProtectedRoute path="/search" component={SearchPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <Route component={NotFound} />
     </Switch>

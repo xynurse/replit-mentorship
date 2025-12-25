@@ -822,3 +822,144 @@ export const insertAccountDeletionRequestSchema = createInsertSchema(accountDele
 
 export type AccountDeletionRequest = typeof accountDeletionRequests.$inferSelect;
 export type InsertAccountDeletionRequest = z.infer<typeof insertAccountDeletionRequestSchema>;
+
+// Search History
+export const searchTypeEnum = pgEnum("search_type", ["USERS", "MESSAGES", "DOCUMENTS", "TASKS", "GOALS", "ALL"]);
+
+export const searchHistory = pgTable("search_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  query: text("query").notNull(),
+  searchType: searchTypeEnum("search_type").default("ALL"),
+  resultCount: integer("result_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSearchHistorySchema = createInsertSchema(searchHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SearchHistory = typeof searchHistory.$inferSelect;
+export type InsertSearchHistory = z.infer<typeof insertSearchHistorySchema>;
+
+// Saved Searches
+export const savedSearches = pgTable("saved_searches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  query: text("query").notNull(),
+  searchType: searchTypeEnum("search_type").default("ALL"),
+  filters: jsonb("filters"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSavedSearchSchema = createInsertSchema(savedSearches).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SavedSearch = typeof savedSearches.$inferSelect;
+export type InsertSavedSearch = z.infer<typeof insertSavedSearchSchema>;
+
+// Surveys
+export const surveyTypeEnum = pgEnum("survey_type", ["MID_PROGRAM", "END_PROGRAM", "MATCH_FEEDBACK", "CUSTOM"]);
+export const surveyStatusEnum = pgEnum("survey_status", ["DRAFT", "ACTIVE", "CLOSED", "ARCHIVED"]);
+
+export const surveys = pgTable("surveys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  type: surveyTypeEnum("type").default("CUSTOM"),
+  status: surveyStatusEnum("status").default("DRAFT"),
+  cohortId: varchar("cohort_id").references(() => cohorts.id),
+  questions: jsonb("questions").$type<SurveyQuestion[]>().default([]),
+  isAnonymous: boolean("is_anonymous").default(false),
+  dueDate: timestamp("due_date"),
+  createdById: varchar("created_by_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export interface SurveyQuestion {
+  id: string;
+  text: string;
+  type: "TEXT" | "TEXTAREA" | "SELECT" | "MULTISELECT" | "RATING" | "CHECKBOX" | "DATE";
+  required: boolean;
+  options?: string[];
+}
+
+export const insertSurveySchema = createInsertSchema(surveys).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Survey = typeof surveys.$inferSelect;
+export type InsertSurvey = z.infer<typeof insertSurveySchema>;
+
+// Survey Responses
+export const surveyResponses = pgTable("survey_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  surveyId: varchar("survey_id").notNull().references(() => surveys.id),
+  userId: varchar("user_id").references(() => users.id),
+  responses: jsonb("responses").$type<Record<string, unknown>>().default({}),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+});
+
+export const insertSurveyResponseSchema = createInsertSchema(surveyResponses).omit({
+  id: true,
+  submittedAt: true,
+});
+
+export type SurveyResponse = typeof surveyResponses.$inferSelect;
+export type InsertSurveyResponse = z.infer<typeof insertSurveyResponseSchema>;
+
+// Certificates
+export const certificateStatusEnum = pgEnum("certificate_status", ["PENDING", "GENERATED", "DELIVERED", "REVOKED"]);
+
+export const certificates = pgTable("certificates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  cohortId: varchar("cohort_id").references(() => cohorts.id),
+  certificateNumber: text("certificate_number").notNull().unique(),
+  status: certificateStatusEnum("status").default("PENDING"),
+  templateData: jsonb("template_data"),
+  pdfUrl: text("pdf_url"),
+  verificationUrl: text("verification_url"),
+  issuedAt: timestamp("issued_at"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCertificateSchema = createInsertSchema(certificates).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Certificate = typeof certificates.$inferSelect;
+export type InsertCertificate = z.infer<typeof insertCertificateSchema>;
+
+// Onboarding Progress
+export const onboardingProgress = pgTable("onboarding_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  completedSteps: text("completed_steps").array().default(sql`ARRAY[]::text[]`),
+  hasSeenWelcome: boolean("has_seen_welcome").default(false),
+  hasCompletedTour: boolean("has_completed_tour").default(false),
+  hasSetupProfile: boolean("has_setup_profile").default(false),
+  hasViewedFirstMatch: boolean("has_viewed_first_match").default(false),
+  hasCreatedFirstGoal: boolean("has_created_first_goal").default(false),
+  hasSentFirstMessage: boolean("has_sent_first_message").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertOnboardingProgressSchema = createInsertSchema(onboardingProgress).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type OnboardingProgress = typeof onboardingProgress.$inferSelect;
+export type InsertOnboardingProgress = z.infer<typeof insertOnboardingProgressSchema>;

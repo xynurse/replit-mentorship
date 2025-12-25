@@ -2132,6 +2132,280 @@ export async function registerRoutes(
     }
   });
 
+  // =====================
+  // Global Search Routes
+  // =====================
+
+  // Global search across all content types
+  app.get("/api/search", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const query = (req.query.q as string) || '';
+      const type = (req.query.type as string) || 'ALL';
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      if (!query || query.length < 2) {
+        return res.json({ users: [], messages: [], documents: [], tasks: [], goals: [], total: 0 });
+      }
+
+      const results: any = {
+        users: [],
+        messages: [],
+        documents: [],
+        tasks: [],
+        goals: [],
+        total: 0,
+      };
+
+      // Search users (admin can see all, others see limited)
+      if (type === 'ALL' || type === 'USERS') {
+        const allUsers = await storage.getAllUsers();
+        results.users = allUsers
+          .filter(u => 
+            u.firstName.toLowerCase().includes(query.toLowerCase()) ||
+            u.lastName.toLowerCase().includes(query.toLowerCase()) ||
+            u.email.toLowerCase().includes(query.toLowerCase()) ||
+            (u.organizationName && u.organizationName.toLowerCase().includes(query.toLowerCase()))
+          )
+          .slice(0, limit)
+          .map(u => ({
+            id: u.id,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            email: u.email,
+            role: u.role,
+            profileImage: u.profileImage,
+            organizationName: u.organizationName,
+          }));
+      }
+
+      // Search tasks
+      if (type === 'ALL' || type === 'TASKS') {
+        const allTasks = await storage.getTasks({ assignedToId: user.id });
+        results.tasks = allTasks
+          .filter((t: any) => 
+            t.title.toLowerCase().includes(query.toLowerCase()) ||
+            (t.description && t.description.toLowerCase().includes(query.toLowerCase()))
+          )
+          .slice(0, limit);
+      }
+
+      // Search goals
+      if (type === 'ALL' || type === 'GOALS') {
+        const allGoals = await storage.getGoals({ userId: user.id });
+        results.goals = allGoals
+          .filter((g: any) => 
+            g.title.toLowerCase().includes(query.toLowerCase()) ||
+            (g.description && g.description.toLowerCase().includes(query.toLowerCase()))
+          )
+          .slice(0, limit);
+      }
+
+      // Search documents (user's accessible documents)
+      if (type === 'ALL' || type === 'DOCUMENTS') {
+        const allDocuments = await storage.getDocuments({ uploadedById: user.id });
+        results.documents = allDocuments
+          .filter((d: any) => 
+            d.name.toLowerCase().includes(query.toLowerCase()) ||
+            (d.description && d.description.toLowerCase().includes(query.toLowerCase()))
+          )
+          .slice(0, limit);
+      }
+
+      results.total = results.users.length + results.tasks.length + 
+                      results.goals.length + results.documents.length;
+
+      // Save search history
+      await storage.createSearchHistory({
+        userId: user.id,
+        query,
+        searchType: type as any,
+        resultCount: results.total,
+      });
+
+      res.json(results);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get search history
+  app.get("/api/search/history", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const history = await storage.getSearchHistory(user.id, 10);
+      res.json(history);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Clear search history
+  app.delete("/api/search/history", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      await storage.clearSearchHistory(user.id);
+      res.json({ message: "Search history cleared" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Saved searches
+  app.get("/api/search/saved", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const saved = await storage.getSavedSearches(user.id);
+      res.json(saved);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/search/saved", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const saved = await storage.createSavedSearch({
+        userId: user.id,
+        name: req.body.name,
+        query: req.body.query,
+        searchType: req.body.searchType || 'ALL',
+        filters: req.body.filters,
+      });
+      res.status(201).json(saved);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/search/saved/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      await storage.deleteSavedSearch(req.params.id, user.id);
+      res.json({ message: "Saved search deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // =====================
+  // Survey Routes
+  // =====================
+
+  // Get all surveys (admin only)
+  app.get("/api/surveys", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const surveys = await storage.getSurveys();
+      res.json(surveys);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create survey
+  app.post("/api/surveys", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const survey = await storage.createSurvey({
+        ...req.body,
+        createdById: user.id,
+      });
+      res.status(201).json(survey);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get survey by ID
+  app.get("/api/surveys/:id", requireAuth, async (req, res, next) => {
+    try {
+      const survey = await storage.getSurvey(req.params.id);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+      res.json(survey);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update survey
+  app.patch("/api/surveys/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const survey = await storage.updateSurvey(req.params.id, req.body);
+      res.json(survey);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Submit survey response
+  app.post("/api/surveys/:id/responses", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const survey = await storage.getSurvey(req.params.id);
+      
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+      
+      if (survey.status !== 'ACTIVE') {
+        return res.status(400).json({ message: "Survey is not active" });
+      }
+
+      const response = await storage.createSurveyResponse({
+        surveyId: req.params.id,
+        userId: survey.isAnonymous ? null : user.id,
+        responses: req.body.responses,
+      });
+      
+      res.status(201).json(response);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get survey responses (admin only)
+  app.get("/api/surveys/:id/responses", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const responses = await storage.getSurveyResponses(req.params.id);
+      res.json(responses);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // =====================
+  // Onboarding Routes
+  // =====================
+
+  // Get onboarding progress
+  app.get("/api/onboarding", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      let progress = await storage.getOnboardingProgress(user.id);
+      
+      if (!progress) {
+        progress = await storage.createOnboardingProgress({ userId: user.id });
+      }
+      
+      res.json(progress);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update onboarding progress
+  app.patch("/api/onboarding", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const progress = await storage.updateOnboardingProgress(user.id, req.body);
+      res.json(progress);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return httpServer;
 }
 

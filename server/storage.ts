@@ -5,6 +5,7 @@ import {
   folders, documentVersions, taskComments, taskActivities, milestones, goalProgress,
   notifications, notificationPreferences,
   auditLogs, errorLogs, dataExportRequests, accountDeletionRequests,
+  searchHistory, savedSearches, surveys, surveyResponses, onboardingProgress,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -18,7 +19,10 @@ import {
   type Milestone, type InsertMilestone, type GoalProgress, type InsertGoalProgress,
   type Notification, type InsertNotification, type NotificationPreference, type InsertNotificationPreference,
   type AuditLog, type InsertAuditLog, type ErrorLog, type InsertErrorLog,
-  type DataExportRequest, type InsertDataExportRequest, type AccountDeletionRequest, type InsertAccountDeletionRequest
+  type DataExportRequest, type InsertDataExportRequest, type AccountDeletionRequest, type InsertAccountDeletionRequest,
+  type SearchHistory, type InsertSearchHistory, type SavedSearch, type InsertSavedSearch,
+  type Survey, type InsertSurvey, type SurveyResponse, type InsertSurveyResponse,
+  type OnboardingProgress, type InsertOnboardingProgress
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -247,6 +251,27 @@ export interface IStorage {
   getAccountDeletionRequestsByUser(userId: string): Promise<AccountDeletionRequest[]>;
   getPendingAccountDeletionRequests(): Promise<(AccountDeletionRequest & { user: User })[]>;
   updateAccountDeletionRequest(id: string, data: Partial<AccountDeletionRequest>): Promise<AccountDeletionRequest | undefined>;
+  
+  // Search
+  createSearchHistory(history: InsertSearchHistory): Promise<SearchHistory>;
+  getSearchHistory(userId: string, limit?: number): Promise<SearchHistory[]>;
+  clearSearchHistory(userId: string): Promise<void>;
+  createSavedSearch(search: InsertSavedSearch): Promise<SavedSearch>;
+  getSavedSearches(userId: string): Promise<SavedSearch[]>;
+  deleteSavedSearch(id: string, userId: string): Promise<void>;
+  
+  // Surveys
+  getSurveys(filters?: { status?: string; cohortId?: string }): Promise<Survey[]>;
+  getSurvey(id: string): Promise<Survey | undefined>;
+  createSurvey(survey: InsertSurvey): Promise<Survey>;
+  updateSurvey(id: string, data: Partial<Survey>): Promise<Survey | undefined>;
+  createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse>;
+  getSurveyResponses(surveyId: string): Promise<SurveyResponse[]>;
+  
+  // Onboarding
+  getOnboardingProgress(userId: string): Promise<OnboardingProgress | undefined>;
+  createOnboardingProgress(progress: InsertOnboardingProgress): Promise<OnboardingProgress>;
+  updateOnboardingProgress(userId: string, data: Partial<OnboardingProgress>): Promise<OnboardingProgress | undefined>;
   
   sessionStore: session.Store;
 }
@@ -1776,6 +1801,108 @@ export class DatabaseStorage implements IStorage {
       .where(eq(accountDeletionRequests.id, id))
       .returning();
     return request || undefined;
+  }
+
+  // Search History
+  async createSearchHistory(history: InsertSearchHistory): Promise<SearchHistory> {
+    const [result] = await db.insert(searchHistory).values(history).returning();
+    return result;
+  }
+
+  async getSearchHistory(userId: string, limit: number = 10): Promise<SearchHistory[]> {
+    return db.select().from(searchHistory)
+      .where(eq(searchHistory.userId, userId))
+      .orderBy(desc(searchHistory.createdAt))
+      .limit(limit);
+  }
+
+  async clearSearchHistory(userId: string): Promise<void> {
+    await db.delete(searchHistory).where(eq(searchHistory.userId, userId));
+  }
+
+  async createSavedSearch(search: InsertSavedSearch): Promise<SavedSearch> {
+    const [result] = await db.insert(savedSearches).values(search).returning();
+    return result;
+  }
+
+  async getSavedSearches(userId: string): Promise<SavedSearch[]> {
+    return db.select().from(savedSearches)
+      .where(eq(savedSearches.userId, userId))
+      .orderBy(desc(savedSearches.createdAt));
+  }
+
+  async deleteSavedSearch(id: string, userId: string): Promise<void> {
+    await db.delete(savedSearches).where(
+      and(eq(savedSearches.id, id), eq(savedSearches.userId, userId))
+    );
+  }
+
+  // Surveys
+  async getSurveys(filters?: { status?: string; cohortId?: string }): Promise<Survey[]> {
+    let query = db.select().from(surveys);
+    const conditions: any[] = [];
+    
+    if (filters?.status) {
+      conditions.push(eq(surveys.status, filters.status as any));
+    }
+    if (filters?.cohortId) {
+      conditions.push(eq(surveys.cohortId, filters.cohortId));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return query.orderBy(desc(surveys.createdAt));
+  }
+
+  async getSurvey(id: string): Promise<Survey | undefined> {
+    const [survey] = await db.select().from(surveys).where(eq(surveys.id, id));
+    return survey || undefined;
+  }
+
+  async createSurvey(survey: InsertSurvey): Promise<Survey> {
+    const [result] = await db.insert(surveys).values(survey).returning();
+    return result;
+  }
+
+  async updateSurvey(id: string, data: Partial<Survey>): Promise<Survey | undefined> {
+    const [survey] = await db.update(surveys)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(surveys.id, id))
+      .returning();
+    return survey || undefined;
+  }
+
+  async createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse> {
+    const [result] = await db.insert(surveyResponses).values(response).returning();
+    return result;
+  }
+
+  async getSurveyResponses(surveyId: string): Promise<SurveyResponse[]> {
+    return db.select().from(surveyResponses)
+      .where(eq(surveyResponses.surveyId, surveyId))
+      .orderBy(desc(surveyResponses.submittedAt));
+  }
+
+  // Onboarding
+  async getOnboardingProgress(userId: string): Promise<OnboardingProgress | undefined> {
+    const [progress] = await db.select().from(onboardingProgress)
+      .where(eq(onboardingProgress.userId, userId));
+    return progress || undefined;
+  }
+
+  async createOnboardingProgress(progress: InsertOnboardingProgress): Promise<OnboardingProgress> {
+    const [result] = await db.insert(onboardingProgress).values(progress).returning();
+    return result;
+  }
+
+  async updateOnboardingProgress(userId: string, data: Partial<OnboardingProgress>): Promise<OnboardingProgress | undefined> {
+    const [progress] = await db.update(onboardingProgress)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(onboardingProgress.userId, userId))
+      .returning();
+    return progress || undefined;
   }
 }
 
