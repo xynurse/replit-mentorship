@@ -55,11 +55,10 @@ interface DashboardLayoutProps {
 }
 
 const getNavItems = (role: UserRole) => {
-  const common = [
+  const baseItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Search", url: "/search", icon: Search },
     { title: "Tasks", url: "/tasks", icon: ListTodo },
-    { title: "Goals", url: "/goals", icon: Target },
     { title: "Messages", url: "/messages", icon: MessageSquare },
     { title: "Calendar", url: "/calendar", icon: Calendar },
     { title: "Documents", url: "/documents", icon: FileText },
@@ -71,12 +70,28 @@ const getNavItems = (role: UserRole) => {
   ];
 
   if (role === "SUPER_ADMIN" || role === "ADMIN") {
-    return [...common, ...adminItems];
+    return [
+      ...baseItems.slice(0, 3),
+      { title: "Goals", url: "/goals", icon: Target },
+      ...baseItems.slice(3),
+      ...adminItems
+    ];
   }
 
+  if (role === "MENTOR") {
+    return [
+      ...baseItems,
+      { title: "My Mentees", url: "/connections", icon: Users },
+      { title: "Mentee Goals", url: "/goals", icon: Target },
+    ];
+  }
+
+  // Mentee - has their own Goals
   return [
-    ...common,
-    { title: role === "MENTOR" ? "My Mentees" : "My Mentor", url: "/connections", icon: Users },
+    ...baseItems.slice(0, 3),
+    { title: "Goals", url: "/goals", icon: Target },
+    ...baseItems.slice(3),
+    { title: "My Mentor", url: "/connections", icon: Users },
   ];
 };
 

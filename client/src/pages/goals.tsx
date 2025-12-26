@@ -481,6 +481,7 @@ function GoalWizard({ isOpen, onClose, onSuccess }: GoalWizardProps) {
 export default function GoalsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMentor = user?.role === "MENTOR";
 
   const [showWizard, setShowWizard] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -539,17 +540,19 @@ export default function GoalsPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             <Target className="h-6 w-6" />
-            <h1 className="text-2xl font-semibold">Goals</h1>
+            <h1 className="text-2xl font-semibold">{isMentor ? "Mentee Goals" : "Goals"}</h1>
             {goals && (
               <Badge variant="secondary" className="ml-2" data-testid="text-goal-count">
                 {goals.length}
               </Badge>
             )}
           </div>
-          <Button onClick={() => setShowWizard(true)} data-testid="button-create-goal">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Create SMART Goal
-          </Button>
+          {!isMentor && (
+            <Button onClick={() => setShowWizard(true)} data-testid="button-create-goal">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Create SMART Goal
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -675,19 +678,23 @@ export default function GoalsPage() {
                           <Edit className="h-4 w-4 mr-2" />
                           View Details
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm("Are you sure you want to delete this goal?")) {
-                              deleteGoalMutation.mutate(goal.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
+                        {!isMentor && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm("Are you sure you want to delete this goal?")) {
+                                  deleteGoalMutation.mutate(goal.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -720,16 +727,20 @@ export default function GoalsPage() {
             <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <CardTitle className="mb-2">No goals found</CardTitle>
             <CardDescription>
-              Create your first SMART goal to start tracking your professional development
+              {isMentor 
+                ? "Your mentees haven't created any goals yet. Goals will appear here once they are set." 
+                : "Create your first SMART goal to start tracking your professional development"}
             </CardDescription>
-            <Button
-              className="mt-4"
-              onClick={() => setShowWizard(true)}
-              data-testid="button-create-first-goal"
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              Create SMART Goal
-            </Button>
+            {!isMentor && (
+              <Button
+                className="mt-4"
+                onClick={() => setShowWizard(true)}
+                data-testid="button-create-first-goal"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Create SMART Goal
+              </Button>
+            )}
           </Card>
         )}
       </div>

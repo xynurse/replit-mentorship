@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { 
   Users, 
   Calendar, 
@@ -7,7 +8,8 @@ import {
   ArrowRight,
   CheckCircle,
   UserPlus,
-  FileText
+  FileText,
+  Target
 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -17,14 +19,48 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { MentorshipMatch, Task, Goal, User, Notification } from "@shared/schema";
+
+type PublicUserInfo = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'profileImage' | 'bio' | 'jobTitle' | 'organizationName' | 'linkedInUrl'>;
+
+interface ConnectionWithUser extends MentorshipMatch {
+  mentor?: PublicUserInfo;
+  mentee?: PublicUserInfo;
+}
 
 export default function HomePage() {
   const { user } = useAuth();
+
+  const { data: matches = [], isLoading: loadingMatches } = useQuery<ConnectionWithUser[]>({
+    queryKey: ["/api/matches/my"],
+  });
+
+  const { data: tasks = [], isLoading: loadingTasks } = useQuery<Task[]>({
+    queryKey: ["/api/tasks"],
+  });
+
+  const { data: goals = [], isLoading: loadingGoals } = useQuery<Goal[]>({
+    queryKey: ["/api/goals"],
+  });
+
+  const { data: notifications = [], isLoading: loadingNotifications } = useQuery<Notification[]>({
+    queryKey: ["/api/notifications"],
+  });
 
   if (!user) return null;
 
   const isMentor = user.role === "MENTOR";
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
+
+  const activeMatches = matches.filter(m => m.status === "ACTIVE");
+  const upcomingTasks = tasks.filter(t => t.status !== "COMPLETED" && t.dueDate && new Date(t.dueDate) > new Date());
+  const completedTasks = tasks.filter(t => t.status === "COMPLETED");
+  const completedGoals = goals.filter(g => g.status === "COMPLETED");
+  const inProgressGoals = goals.filter(g => g.status === "IN_PROGRESS");
+  const unreadNotifications = notifications.filter(n => !n.isRead);
+
+  const isLoading = loadingMatches || loadingTasks || loadingGoals || loadingNotifications;
 
   return (
     <DashboardLayout>
@@ -39,38 +75,54 @@ export default function HomePage() {
             </p>
           </div>
           {!isAdmin && (
-            <Button data-testid="button-schedule">
-              <Calendar className="mr-2 h-4 w-4" />
-              Schedule session
-            </Button>
+            <Link href="/calendar">
+              <Button data-testid="button-schedule">
+                <Calendar className="mr-2 h-4 w-4" />
+                Schedule session
+              </Button>
+            </Link>
           )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title={isMentor ? "Active Mentees" : "Sessions Completed"}
-            value={isMentor ? "3" : "8"}
-            change="+2 this month"
-            icon={<Users className="h-5 w-5" />}
-          />
-          <StatCard
-            title="Upcoming Sessions"
-            value="2"
-            change="Next: Tomorrow"
-            icon={<Calendar className="h-5 w-5" />}
-          />
-          <StatCard
-            title="Unread Messages"
-            value="5"
-            change="3 new today"
-            icon={<MessageSquare className="h-5 w-5" />}
-          />
-          <StatCard
-            title="Hours This Month"
-            value="12"
-            change="+4 from last month"
-            icon={<Clock className="h-5 w-5" />}
-          />
+          {isLoading ? (
+            <>
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i}>
+                  <CardContent className="pt-6">
+                    <Skeleton className="h-16 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          ) : (
+            <>
+              <StatCard
+                title={isMentor ? "Active Mentees" : "Active Connections"}
+                value={String(activeMatches.length)}
+                change={activeMatches.length > 0 ? "Active matches" : "No matches yet"}
+                icon={<Users className="h-5 w-5" />}
+              />
+              <StatCard
+                title="Upcoming Tasks"
+                value={String(upcomingTasks.length)}
+                change={upcomingTasks.length > 0 ? "Tasks pending" : "All caught up"}
+                icon={<Calendar className="h-5 w-5" />}
+              />
+              <StatCard
+                title="Unread Messages"
+                value={String(unreadNotifications.length)}
+                change={unreadNotifications.length > 0 ? "New notifications" : "No new messages"}
+                icon={<MessageSquare className="h-5 w-5" />}
+              />
+              <StatCard
+                title="Goals Progress"
+                value={`${completedGoals.length}/${goals.length}`}
+                change={inProgressGoals.length > 0 ? `${inProgressGoals.length} in progress` : "Set your goals"}
+                icon={<Target className="h-5 w-5" />}
+              />
+            </>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -78,33 +130,53 @@ export default function HomePage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                 <div>
-                  <CardTitle className="text-lg">Upcoming Sessions</CardTitle>
-                  <CardDescription>Your scheduled mentorship sessions</CardDescription>
+                  <CardTitle className="text-lg">Upcoming Tasks</CardTitle>
+                  <CardDescription>Tasks that need your attention</CardDescription>
                 </div>
                 <Button variant="ghost" size="sm" asChild>
-                  <Link href="/calendar">
+                  <Link href="/tasks">
                     View all
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <SessionCard
-                    name={isMentor ? "Maria Santos" : "Dr. James Wilson"}
-                    role={isMentor ? "Mentee" : "Mentor"}
-                    date="Tomorrow"
-                    time="2:00 PM - 3:00 PM"
-                    topic="Career Development Planning"
-                  />
-                  <SessionCard
-                    name={isMentor ? "Carlos Rodriguez" : "Dr. Sarah Chen"}
-                    role={isMentor ? "Mentee" : "Mentor"}
-                    date="Dec 28, 2025"
-                    time="10:00 AM - 11:00 AM"
-                    topic="Clinical Skills Review"
-                  />
-                </div>
+                {loadingTasks ? (
+                  <div className="space-y-4">
+                    {[1, 2].map((i) => (
+                      <Skeleton key={i} className="h-16 w-full" />
+                    ))}
+                  </div>
+                ) : upcomingTasks.length > 0 ? (
+                  <div className="space-y-4">
+                    {upcomingTasks.slice(0, 3).map((task) => (
+                      <div key={task.id} className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${task.priority === "HIGH" || task.priority === "URGENT" ? "bg-destructive" : "bg-primary"}`} />
+                          <div>
+                            <p className="font-medium text-sm">{task.title}</p>
+                            {task.dueDate && (
+                              <p className="text-xs text-muted-foreground">
+                                Due: {new Date(task.dueDate).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {(task.status || "TODO").replace("_", " ")}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No upcoming tasks</p>
+                    <Link href="/tasks">
+                      <Button variant="ghost" size="sm" className="mt-2">Create a task</Button>
+                    </Link>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -116,32 +188,30 @@ export default function HomePage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <ActivityItem
-                    icon={<CheckCircle className="h-4 w-4 text-primary" />}
-                    title="Session completed"
-                    description="Goal-setting session with Dr. Chen"
-                    time="2 hours ago"
-                  />
-                  <ActivityItem
-                    icon={<MessageSquare className="h-4 w-4 text-primary" />}
-                    title="New message"
-                    description="You have a new message from Maria Santos"
-                    time="5 hours ago"
-                  />
-                  <ActivityItem
-                    icon={<FileText className="h-4 w-4 text-primary" />}
-                    title="Document shared"
-                    description="Career roadmap template was shared with you"
-                    time="Yesterday"
-                  />
-                  <ActivityItem
-                    icon={<UserPlus className="h-4 w-4 text-primary" />}
-                    title="New connection"
-                    description="You were matched with a new mentee"
-                    time="3 days ago"
-                  />
-                </div>
+                {loadingNotifications ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : notifications.length > 0 ? (
+                  <div className="space-y-4">
+                    {notifications.slice(0, 4).map((notification) => (
+                      <ActivityItem
+                        key={notification.id}
+                        icon={getNotificationIcon(notification.type)}
+                        title={notification.title}
+                        description={notification.message}
+                        time={formatTimeAgo(new Date(notification.createdAt!))}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No recent activity</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -150,30 +220,46 @@ export default function HomePage() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Your Progress</CardTitle>
-                <CardDescription>Mentorship program completion</CardDescription>
+                <CardDescription>Mentorship program overview</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Profile Completion</span>
-                    <span className="text-sm text-muted-foreground">85%</span>
+                {isLoading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-8 w-full" />
+                    ))}
                   </div>
-                  <Progress value={85} className="h-2" />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Sessions Attended</span>
-                    <span className="text-sm text-muted-foreground">8/12</span>
-                  </div>
-                  <Progress value={67} className="h-2" />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Goals Achieved</span>
-                    <span className="text-sm text-muted-foreground">3/5</span>
-                  </div>
-                  <Progress value={60} className="h-2" />
-                </div>
+                ) : (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Tasks Completed</span>
+                        <span className="text-sm text-muted-foreground">
+                          {completedTasks.length}/{tasks.length}
+                        </span>
+                      </div>
+                      <Progress value={tasks.length > 0 ? (completedTasks.length / tasks.length) * 100 : 0} className="h-2" />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Goals Achieved</span>
+                        <span className="text-sm text-muted-foreground">
+                          {completedGoals.length}/{goals.length}
+                        </span>
+                      </div>
+                      <Progress value={goals.length > 0 ? (completedGoals.length / goals.length) * 100 : 0} className="h-2" />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Active Connections</span>
+                        <span className="text-sm text-muted-foreground">
+                          {activeMatches.length}
+                        </span>
+                      </div>
+                      <Progress value={activeMatches.length > 0 ? 100 : 0} className="h-2" />
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -191,7 +277,7 @@ export default function HomePage() {
                 <Button variant="outline" className="w-full justify-start" asChild>
                   <Link href="/calendar">
                     <Calendar className="mr-2 h-4 w-4" />
-                    Schedule session
+                    View calendar
                   </Link>
                 </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
@@ -210,24 +296,49 @@ export default function HomePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isMentor ? (
+                {loadingMatches ? (
                   <div className="space-y-3">
-                    <MenteeCard name="Maria Santos" specialty="Pediatric Nursing" status="Active" />
-                    <MenteeCard name="Carlos Rodriguez" specialty="Emergency Care" status="Active" />
-                    <MenteeCard name="Ana Silva" specialty="ICU Nursing" status="Pending" />
+                    {[1, 2].map((i) => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : activeMatches.length > 0 ? (
+                  <div className="space-y-3">
+                    {activeMatches.slice(0, 3).map((match) => {
+                      const connectedUser = isMentor ? match.mentee : match.mentor;
+                      if (!connectedUser) return null;
+                      const initials = `${connectedUser.firstName?.[0] || ""}${connectedUser.lastName?.[0] || ""}`.toUpperCase();
+                      
+                      return (
+                        <div key={match.id} className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={connectedUser.profileImage || undefined} />
+                            <AvatarFallback>{initials}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">
+                              {connectedUser.firstName} {connectedUser.lastName}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {connectedUser.jobTitle || connectedUser.role}
+                            </p>
+                          </div>
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href="/messages">Message</Link>
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-12 w-12">
-                      <AvatarFallback>JW</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="font-medium">Dr. James Wilson</p>
-                      <p className="text-sm text-muted-foreground">Nurse Practitioner, 15 years</p>
-                    </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="/messages">Message</Link>
-                    </Button>
+                  <div className="text-center py-4 text-muted-foreground">
+                    <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">
+                      {isMentor ? "No mentees matched yet" : "No mentor matched yet"}
+                    </p>
+                    <Link href="/connections">
+                      <Button variant="ghost" size="sm" className="mt-2">View connections</Button>
+                    </Link>
                   </div>
                 )}
               </CardContent>
@@ -253,7 +364,7 @@ function StatCard({
   return (
     <Card>
       <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm text-muted-foreground">{title}</p>
             <p className="text-2xl font-semibold mt-1">{value}</p>
@@ -271,41 +382,6 @@ function StatCard({
   );
 }
 
-function SessionCard({
-  name,
-  role,
-  date,
-  time,
-  topic,
-}: {
-  name: string;
-  role: string;
-  date: string;
-  time: string;
-  topic: string;
-}) {
-  const initials = name.split(" ").map((n) => n[0]).join("");
-
-  return (
-    <div className="flex items-center gap-4 p-4 rounded-md border">
-      <Avatar>
-        <AvatarFallback>{initials}</AvatarFallback>
-      </Avatar>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="font-medium truncate">{name}</p>
-          <Badge variant="secondary" className="text-xs">{role}</Badge>
-        </div>
-        <p className="text-sm text-muted-foreground">{topic}</p>
-      </div>
-      <div className="text-right text-sm">
-        <p className="font-medium">{date}</p>
-        <p className="text-muted-foreground">{time}</p>
-      </div>
-    </div>
-  );
-}
-
 function ActivityItem({
   icon,
   title,
@@ -319,44 +395,45 @@ function ActivityItem({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 p-1.5 rounded-full bg-primary/10">
+      <div className="p-2 rounded-md bg-primary/10 shrink-0">
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm">{title}</p>
-        <p className="text-sm text-muted-foreground truncate">{description}</p>
+        <p className="text-sm font-medium truncate">{title}</p>
+        <p className="text-xs text-muted-foreground truncate">{description}</p>
       </div>
-      <span className="text-xs text-muted-foreground whitespace-nowrap">{time}</span>
+      <span className="text-xs text-muted-foreground shrink-0">{time}</span>
     </div>
   );
 }
 
-function MenteeCard({
-  name,
-  specialty,
-  status,
-}: {
-  name: string;
-  specialty: string;
-  status: "Active" | "Pending";
-}) {
-  const initials = name.split(" ").map((n) => n[0]).join("");
+function getNotificationIcon(type: string) {
+  switch (type) {
+    case "TASK_COMPLETED":
+    case "GOAL_APPROVED":
+      return <CheckCircle className="h-4 w-4 text-primary" />;
+    case "NEW_MESSAGE":
+      return <MessageSquare className="h-4 w-4 text-primary" />;
+    case "DOCUMENT_SHARED":
+      return <FileText className="h-4 w-4 text-primary" />;
+    case "MATCH_CONFIRMED":
+    case "MATCH_PROPOSED":
+      return <UserPlus className="h-4 w-4 text-primary" />;
+    default:
+      return <Clock className="h-4 w-4 text-primary" />;
+  }
+}
 
-  return (
-    <div className="flex items-center gap-3">
-      <Avatar className="h-10 w-10">
-        <AvatarFallback className="text-sm">{initials}</AvatarFallback>
-      </Avatar>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate">{name}</p>
-        <p className="text-xs text-muted-foreground">{specialty}</p>
-      </div>
-      <Badge 
-        variant={status === "Active" ? "default" : "secondary"}
-        className="text-xs"
-      >
-        {status}
-      </Badge>
-    </div>
-  );
+function formatTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
 }

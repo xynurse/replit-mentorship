@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
@@ -1797,6 +1797,72 @@ export async function registerRoutes(
       await storage.updateGoal(req.params.id, { progress: req.body.newProgress });
       
       res.status(201).json(progressRecord);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Meeting Routes
+  app.get("/api/meetings", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const meetings = await storage.getMeetingsForUser(user.id);
+      res.json(meetings);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/meetings/:id", requireAuth, async (req, res, next) => {
+    try {
+      const meeting = await storage.getMeeting(req.params.id);
+      if (!meeting) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      res.json(meeting);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/meetings", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const validatedData = insertMeetingLogSchema.parse({
+        ...req.body,
+        createdById: user.id,
+      });
+      
+      const meeting = await storage.createMeeting(validatedData);
+      res.status(201).json(meeting);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/meetings/:id", requireAuth, async (req, res, next) => {
+    try {
+      const meeting = await storage.getMeeting(req.params.id);
+      if (!meeting) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      const updated = await storage.updateMeeting(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/meetings/:id", requireAuth, async (req, res, next) => {
+    try {
+      const meeting = await storage.getMeeting(req.params.id);
+      if (!meeting) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      await storage.deleteMeeting(req.params.id);
+      res.status(204).send();
     } catch (error) {
       next(error);
     }

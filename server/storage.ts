@@ -62,6 +62,11 @@ export interface IStorage {
   getTasksByAssignee(userId: string): Promise<Task[]>;
   getOverdueTasks(): Promise<Task[]>;
   getMeetingsThisWeek(): Promise<MeetingLog[]>;
+  getMeetingsForUser(userId: string): Promise<MeetingLog[]>;
+  getMeeting(id: string): Promise<MeetingLog | undefined>;
+  createMeeting(meeting: InsertMeetingLog): Promise<MeetingLog>;
+  updateMeeting(id: string, data: Partial<MeetingLog>): Promise<MeetingLog | undefined>;
+  deleteMeeting(id: string): Promise<void>;
   getAdminDashboardStats(): Promise<{ totalMentors: number; totalMentees: number; activeMatches: number; pendingApplications: number; upcomingMeetings: number; overdueTasks: number }>;
   
   // Application Questions
@@ -512,6 +517,54 @@ export class DatabaseStorage implements IStorage {
         sql`${meetingLogs.scheduledDate} <= ${endOfWeek}`
       )
     );
+  }
+
+  async getMeetingsForUser(userId: string): Promise<MeetingLog[]> {
+    // Get matches where user is mentor or mentee, then get meetings for those matches
+    const mentorMemberships = alias(cohortMemberships, 'mentor_memberships');
+    const menteeMemberships = alias(cohortMemberships, 'mentee_memberships');
+
+    const userMatches = await db.select({
+      matchId: mentorshipMatches.id,
+    })
+      .from(mentorshipMatches)
+      .innerJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .innerJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .where(
+        or(
+          eq(mentorMemberships.userId, userId),
+          eq(menteeMemberships.userId, userId)
+        )
+      );
+
+    const matchIds = userMatches.map(m => m.matchId);
+    if (matchIds.length === 0) return [];
+
+    return db.select().from(meetingLogs)
+      .where(inArray(meetingLogs.matchId, matchIds))
+      .orderBy(desc(meetingLogs.scheduledDate));
+  }
+
+  async getMeeting(id: string): Promise<MeetingLog | undefined> {
+    const [meeting] = await db.select().from(meetingLogs).where(eq(meetingLogs.id, id));
+    return meeting || undefined;
+  }
+
+  async createMeeting(meeting: InsertMeetingLog): Promise<MeetingLog> {
+    const [result] = await db.insert(meetingLogs).values(meeting).returning();
+    return result;
+  }
+
+  async updateMeeting(id: string, data: Partial<MeetingLog>): Promise<MeetingLog | undefined> {
+    const [meeting] = await db.update(meetingLogs)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(meetingLogs.id, id))
+      .returning();
+    return meeting || undefined;
+  }
+
+  async deleteMeeting(id: string): Promise<void> {
+    await db.delete(meetingLogs).where(eq(meetingLogs.id, id));
   }
 
   async getAdminDashboardStats(): Promise<{ totalMentors: number; totalMentees: number; activeMatches: number; pendingApplications: number; upcomingMeetings: number; overdueTasks: number }> {
