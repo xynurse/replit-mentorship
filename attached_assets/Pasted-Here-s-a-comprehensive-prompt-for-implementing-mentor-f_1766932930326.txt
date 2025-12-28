@@ -1,0 +1,180 @@
+Here's a comprehensive prompt for implementing mentor fields in the mentorship platform:
+
+---
+
+## Prompt: Mentor Data Fields Implementation for Mentorship Platform
+
+### Context
+I'm building a mentorship management platform for the SONSIEL 2026 Mentorship Program. I need to implement a comprehensive mentor profile system that captures all data collected during the application survey and enables effective matching, tracking, and management.
+
+### Required Mentor Data Fields
+
+Please implement the following fields for the Mentor profile/model:
+
+#### **Core Identity Fields**
+- `email` (string, required, unique) - Primary contact and login identifier
+- `name` (string, required) - Full legal name
+- `preferredName` (string, optional) - How they want to be addressed
+- `pronouns` (string, optional) - Gender pronouns (e.g., "she/her", "he/him", "they/them")
+
+#### **Professional & Geographic Information**
+- `region` (string/enum, required) - Geographic region where they primarily work
+  - Options: North America, South America, Europe, Asia, Africa, Oceania, Other
+- `languages` (array of strings, required) - Languages spoken fluently
+  - Support for multiple selections
+
+#### **Mentorship Track & Expertise**
+- `mentoringTracks` (array of enums, required) - SONSIEL tracks they can mentor in
+  - Options: Scientist, Innovator, Entrepreneur, Intrapreneur, Leader
+  - Allow multiple selections
+- `expertiseDescription` (text, required) - Detailed description of expertise and experience relevant to mentoring
+- `skillsToShare` (text, required) - Specific skills or knowledge they hope to share with mentees
+
+#### **Goals & Preferences**
+- `mentoringGoals` (text, required) - Their goals as a mentor in this program
+- `preferredMeetingFrequency` (string/enum, required) - How often they prefer to meet
+  - Options: Weekly, Bi-weekly, Monthly, Flexible
+- `preferredMeetingFormat` (string/enum, required) - Meeting format preference
+  - Options: Virtual, In-person, Hybrid, Flexible
+
+#### **Additional Information**
+- `additionalNotes` (text, optional) - Any other information about mentoring preferences or availability
+- `applicationTimestamp` (datetime, required) - When they submitted their application
+
+#### **System/Admin Fields**
+- `id` (UUID, primary key)
+- `role` (enum) - Set to "MENTOR"
+- `status` (enum) - Application/participation status
+  - Options: Pending, Approved, Active, Inactive, Completed
+- `createdAt` (datetime)
+- `updatedAt` (datetime)
+- `cohortYear` (integer) - e.g., 2026
+- `assignedMentees` (relation/array) - References to matched mentee profiles
+- `maxMentees` (integer, default: 2) - Maximum number of mentees they can mentor
+
+### Implementation Requirements
+
+#### **1. Database Schema**
+- Create a `Mentor` table/model with all fields above
+- Implement appropriate data types (string, text, enum, array, datetime)
+- Set up proper indexes on frequently queried fields (email, status, mentoringTracks)
+- Establish foreign key relationships for mentee assignments
+
+#### **2. Bulk Import Functionality**
+- Create a CSV/Excel import function that maps survey data to mentor fields
+- Handle the following column mappings from survey data:
+  ```
+  Survey Column → Database Field
+  "Email Address" → email
+  "Name" → name
+  "What is your preferred name?" → preferredName
+  "What are your preferred pronouns?" → pronouns
+  "Please select the geographic region where you primarily work" → region
+  "In which SONSIEL track(s) would you like to mentor?" → mentoringTracks
+  "What languages do you speak fluently?" → languages
+  "Please describe your expertise and experience relevant to mentoring" → expertiseDescription
+  "What are your goals as a mentor in this program?" → mentoringGoals
+  "What specific skills or knowledge do you hope to share with your mentee(s)?" → skillsToShare
+  "What is your preferred meeting frequency?" → preferredMeetingFrequency
+  "What is your preferred meeting format?" → preferredMeetingFormat
+  "Is there anything else you'd like us to know about your mentoring preferences or availability?" → additionalNotes
+  "Timestamp" → applicationTimestamp
+  ```
+- Support both comma-separated and array formats for multi-select fields (mentoringTracks, languages)
+- Implement validation and error handling for required fields
+- Provide import preview before committing to database
+- Generate import report showing successes, errors, and warnings
+
+#### **3. Admin Dashboard Views**
+Create the following views for mentor management:
+
+**A. Mentor List View**
+- Searchable/filterable table showing:
+  - Name (preferredName)
+  - Email
+  - Mentoring Tracks (badges/tags)
+  - Languages
+  - Region
+  - Status
+  - Number of assigned mentees / max capacity
+  - Actions (View, Edit, Assign Mentee)
+- Filter options: Track, Region, Language, Status, Availability (has capacity)
+- Sorting options for all columns
+- Bulk actions: Export, Update Status, Send Communications
+
+**B. Mentor Detail View**
+- Comprehensive profile showing all fields
+- Organized in sections:
+  - Personal Information
+  - Professional Background & Expertise
+  - Mentoring Preferences & Goals
+  - Current Assignments (list of mentees with links)
+  - Activity Log
+- Edit capability for all fields
+- Assignment management interface
+
+**C. Mentor Assignment Dashboard**
+- Visual representation of mentor capacity
+- Quick view of mentors by track with availability status
+- Drag-and-drop or click-to-assign mentee matching interface
+- Display compatibility indicators based on:
+  - Track alignment
+  - Language match
+  - Regional proximity (if relevant)
+  - Meeting preference compatibility
+
+#### **4. Mentor-Facing Views**
+**Profile Management**
+- Allow mentors to view and update their own profile
+- Mark certain fields as read-only (email, name, cohortYear)
+- Allow updates to: preferredName, pronouns, languages, additionalNotes, preferredMeetingFrequency, preferredMeetingFormat
+
+**My Mentees Dashboard**
+- List of assigned mentees with contact information
+- Quick access to mentee profiles
+- Communication tools (if applicable)
+
+#### **5. Search & Matching Functionality**
+Implement search capabilities for matching algorithm:
+- Search mentors by track(s)
+- Filter by language(s)
+- Filter by region
+- Filter by availability (has capacity for more mentees)
+- Full-text search across expertiseDescription and skillsToShare
+- Return relevance scores for matching
+
+#### **6. Validation Rules**
+- Email must be valid format and unique
+- Name must be at least 2 characters
+- At least one mentoring track must be selected
+- At least one language must be selected
+- Region must be selected
+- All required text fields must have minimum character counts (e.g., expertiseDescription min 50 chars)
+- preferredMeetingFrequency and preferredMeetingFormat must be from allowed enum values
+
+#### **7. Export Functionality**
+- Export mentor list to CSV/Excel with all fields
+- Export filtered subsets based on current filters
+- Include calculated fields (number of mentees, capacity status)
+
+### Technical Preferences
+- Use TypeScript for type safety
+- Implement with Prisma ORM (or specify your preferred ORM)
+- Use React for frontend components
+- Implement responsive design for mobile access
+- Follow accessibility standards (WCAG 2.1 AA)
+
+### Success Criteria
+- All 15 mentor survey fields are captured and stored
+- Bulk import successfully processes survey data with 100% accuracy
+- Admin can easily view, filter, search, and manage mentors
+- Matching algorithm can efficiently query mentors based on criteria
+- Mentors can access and update their own profiles
+- System maintains data integrity and validation throughout
+
+---
+
+Would you like me to create similar prompts for:
+1. Mentee fields implementation
+2. The matching algorithm specifications
+3. Communication/tracking features?
