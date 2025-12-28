@@ -368,6 +368,210 @@ export async function registerRoutes(
     res.send(csv);
   });
 
+  // ============ MENTOR PROFILES ============
+  
+  // Admin: Get all mentor profiles with filters
+  app.get("/api/admin/mentor-profiles", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const filters = {
+        status: req.query.status as string | undefined,
+        region: req.query.region as string | undefined,
+        track: req.query.track as string | undefined,
+        language: req.query.language as string | undefined,
+        cohortYear: req.query.cohortYear ? parseInt(req.query.cohortYear as string) : undefined,
+        hasCapacity: req.query.hasCapacity === "true",
+        search: req.query.search as string | undefined,
+      };
+      
+      const profiles = await storage.getMentorProfiles(filters);
+      res.json(profiles);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Get single mentor profile by user ID
+  app.get("/api/admin/mentor-profiles/:userId", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const profile = await storage.getMentorProfile(req.params.userId);
+      if (!profile) {
+        return res.status(404).json({ message: "Mentor profile not found" });
+      }
+      
+      const user = await storage.getUser(req.params.userId);
+      res.json({ ...profile, user });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Create mentor profile for a user
+  app.post("/api/admin/mentor-profiles", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { userId, ...profileData } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+
+      // Check if user exists and is a mentor
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      if (user.role !== "MENTOR") {
+        return res.status(400).json({ message: "User must have MENTOR role" });
+      }
+
+      // Check if profile already exists
+      const existingProfile = await storage.getMentorProfile(userId);
+      if (existingProfile) {
+        return res.status(400).json({ message: "Mentor profile already exists for this user" });
+      }
+
+      const profile = await storage.createMentorProfile({
+        userId,
+        ...profileData,
+      });
+
+      res.status(201).json(profile);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Update mentor profile
+  app.patch("/api/admin/mentor-profiles/:userId", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const profile = await storage.updateMentorProfile(req.params.userId, req.body);
+      if (!profile) {
+        return res.status(404).json({ message: "Mentor profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Delete mentor profile
+  app.delete("/api/admin/mentor-profiles/:userId", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      await storage.deleteMentorProfile(req.params.userId);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Get mentors with available capacity
+  app.get("/api/admin/mentor-profiles/with-capacity", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const cohortYear = req.query.cohortYear ? parseInt(req.query.cohortYear as string) : undefined;
+      const mentors = await storage.getMentorsWithCapacity(cohortYear);
+      res.json(mentors);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Export mentor profiles as CSV
+  app.get("/api/admin/mentor-profiles/export", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const filters = {
+        status: req.query.status as string | undefined,
+        region: req.query.region as string | undefined,
+        track: req.query.track as string | undefined,
+        cohortYear: req.query.cohortYear ? parseInt(req.query.cohortYear as string) : undefined,
+      };
+      
+      const profiles = await storage.getMentorProfiles(filters);
+      
+      const headers = [
+        "Email", "Name", "Preferred Name", "Pronouns", "Region", "Languages",
+        "Mentoring Tracks", "Expertise Description", "Skills to Share",
+        "Mentoring Goals", "Meeting Frequency", "Meeting Format",
+        "Additional Notes", "Status", "Cohort Year", "Max Mentees",
+        "Current Mentees", "Organization", "Job Title"
+      ];
+      
+      const rows = profiles.map(p => [
+        p.user.email,
+        `${p.user.firstName} ${p.user.lastName}`,
+        p.preferredName || "",
+        p.pronouns || "",
+        p.region || "",
+        (p.languages || []).join("; "),
+        (p.mentoringTracks || []).join("; "),
+        (p.expertiseDescription || "").replace(/"/g, '""'),
+        (p.skillsToShare || "").replace(/"/g, '""'),
+        (p.mentoringGoals || "").replace(/"/g, '""'),
+        p.preferredMeetingFrequency || "",
+        p.preferredMeetingFormat || "",
+        (p.additionalNotes || "").replace(/"/g, '""'),
+        p.status || "",
+        p.cohortYear?.toString() || "",
+        p.maxMentees?.toString() || "2",
+        p.currentMenteeCount?.toString() || "0",
+        p.user.organizationName || "",
+        p.user.jobTitle || ""
+      ]);
+
+      const csv = [
+        headers.join(","),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+      ].join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=mentor-profiles-export.csv");
+      res.send(csv);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Mentor: Get own profile
+  app.get("/api/mentor/profile", requireRole("MENTOR"), async (req, res, next) => {
+    try {
+      const profile = await storage.getMentorProfile(req.user!.id);
+      if (!profile) {
+        return res.status(404).json({ message: "Mentor profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Mentor: Update own profile (limited fields)
+  app.patch("/api/mentor/profile", requireRole("MENTOR"), async (req, res, next) => {
+    try {
+      const allowedFields = [
+        "preferredName",
+        "pronouns",
+        "languages",
+        "additionalNotes",
+        "preferredMeetingFrequency",
+        "preferredMeetingFormat",
+      ];
+
+      const updates: Record<string, unknown> = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      }
+
+      const profile = await storage.updateMentorProfile(req.user!.id, updates);
+      if (!profile) {
+        return res.status(404).json({ message: "Mentor profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/profile", requireAuth, async (req, res) => {
     const { password: _, ...safeUser } = req.user!;
     res.json(safeUser);
