@@ -6,6 +6,7 @@ import {
   notifications, notificationPreferences,
   auditLogs, errorLogs, dataExportRequests, accountDeletionRequests,
   searchHistory, savedSearches, surveys, surveyResponses, onboardingProgress, certificates,
+  mentorProfiles,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -23,7 +24,8 @@ import {
   type SearchHistory, type InsertSearchHistory, type SavedSearch, type InsertSavedSearch,
   type Survey, type InsertSurvey, type SurveyResponse, type InsertSurveyResponse,
   type OnboardingProgress, type InsertOnboardingProgress,
-  type Certificate, type InsertCertificate
+  type Certificate, type InsertCertificate,
+  type MentorProfile, type InsertMentorProfile
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -287,6 +289,24 @@ export interface IStorage {
   getCertificateByNumber(certificateNumber: string): Promise<Certificate | undefined>;
   createCertificate(certificate: InsertCertificate): Promise<Certificate>;
   updateCertificate(id: string, data: Partial<Certificate>): Promise<Certificate | undefined>;
+  
+  // Mentor Profiles
+  getMentorProfile(userId: string): Promise<MentorProfile | undefined>;
+  getMentorProfileById(id: string): Promise<MentorProfile | undefined>;
+  getMentorProfiles(filters?: { 
+    status?: string; 
+    region?: string; 
+    track?: string; 
+    language?: string;
+    cohortYear?: number;
+    hasCapacity?: boolean;
+    search?: string;
+  }): Promise<(MentorProfile & { user: User })[]>;
+  createMentorProfile(profile: InsertMentorProfile): Promise<MentorProfile>;
+  updateMentorProfile(userId: string, data: Partial<MentorProfile>): Promise<MentorProfile | undefined>;
+  deleteMentorProfile(userId: string): Promise<void>;
+  updateMentorMenteeCount(userId: string, count: number): Promise<void>;
+  getMentorsWithCapacity(cohortYear?: number): Promise<(MentorProfile & { user: User })[]>;
   
   sessionStore: session.Store;
 }
@@ -2057,6 +2077,120 @@ export class DatabaseStorage implements IStorage {
       .where(eq(certificates.id, id))
       .returning();
     return cert || undefined;
+  }
+
+  // Mentor Profiles
+  async getMentorProfile(userId: string): Promise<MentorProfile | undefined> {
+    const [profile] = await db.select().from(mentorProfiles).where(eq(mentorProfiles.userId, userId));
+    return profile || undefined;
+  }
+
+  async getMentorProfileById(id: string): Promise<MentorProfile | undefined> {
+    const [profile] = await db.select().from(mentorProfiles).where(eq(mentorProfiles.id, id));
+    return profile || undefined;
+  }
+
+  async getMentorProfiles(filters?: { 
+    status?: string; 
+    region?: string; 
+    track?: string; 
+    language?: string;
+    cohortYear?: number;
+    hasCapacity?: boolean;
+    search?: string;
+  }): Promise<(MentorProfile & { user: User })[]> {
+    const conditions = [];
+    
+    if (filters?.status) {
+      conditions.push(eq(mentorProfiles.status, filters.status as any));
+    }
+    if (filters?.region) {
+      conditions.push(eq(mentorProfiles.region, filters.region as any));
+    }
+    if (filters?.track) {
+      conditions.push(sql`${filters.track} = ANY(${mentorProfiles.mentoringTracks})`);
+    }
+    if (filters?.language) {
+      conditions.push(sql`${filters.language} = ANY(${mentorProfiles.languages})`);
+    }
+    if (filters?.cohortYear) {
+      conditions.push(eq(mentorProfiles.cohortYear, filters.cohortYear));
+    }
+    if (filters?.hasCapacity) {
+      conditions.push(sql`${mentorProfiles.currentMenteeCount} < ${mentorProfiles.maxMentees}`);
+    }
+    if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
+      conditions.push(
+        or(
+          like(users.firstName, searchTerm),
+          like(users.lastName, searchTerm),
+          like(users.email, searchTerm),
+          like(mentorProfiles.preferredName, searchTerm),
+          like(mentorProfiles.expertiseDescription, searchTerm)
+        )
+      );
+    }
+
+    const query = db
+      .select()
+      .from(mentorProfiles)
+      .innerJoin(users, eq(mentorProfiles.userId, users.id));
+
+    const results = conditions.length > 0 
+      ? await query.where(and(...conditions)).orderBy(desc(mentorProfiles.createdAt))
+      : await query.orderBy(desc(mentorProfiles.createdAt));
+
+    return results.map(r => ({
+      ...r.mentor_profiles,
+      user: r.users
+    }));
+  }
+
+  async createMentorProfile(profile: InsertMentorProfile): Promise<MentorProfile> {
+    const [result] = await db.insert(mentorProfiles).values(profile).returning();
+    return result;
+  }
+
+  async updateMentorProfile(userId: string, data: Partial<MentorProfile>): Promise<MentorProfile | undefined> {
+    const [profile] = await db.update(mentorProfiles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(mentorProfiles.userId, userId))
+      .returning();
+    return profile || undefined;
+  }
+
+  async deleteMentorProfile(userId: string): Promise<void> {
+    await db.delete(mentorProfiles).where(eq(mentorProfiles.userId, userId));
+  }
+
+  async updateMentorMenteeCount(userId: string, count: number): Promise<void> {
+    await db.update(mentorProfiles)
+      .set({ currentMenteeCount: count, updatedAt: new Date() })
+      .where(eq(mentorProfiles.userId, userId));
+  }
+
+  async getMentorsWithCapacity(cohortYear?: number): Promise<(MentorProfile & { user: User })[]> {
+    const conditions = [
+      sql`${mentorProfiles.currentMenteeCount} < ${mentorProfiles.maxMentees}`,
+      eq(mentorProfiles.status, 'ACTIVE')
+    ];
+    
+    if (cohortYear) {
+      conditions.push(eq(mentorProfiles.cohortYear, cohortYear));
+    }
+
+    const results = await db
+      .select()
+      .from(mentorProfiles)
+      .innerJoin(users, eq(mentorProfiles.userId, users.id))
+      .where(and(...conditions))
+      .orderBy(asc(mentorProfiles.currentMenteeCount));
+
+    return results.map(r => ({
+      ...r.mentor_profiles,
+      user: r.users
+    }));
   }
 }
 
