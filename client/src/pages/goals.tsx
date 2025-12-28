@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -535,12 +536,13 @@ export default function GoalsPage() {
     : 0;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="sticky top-0 z-10 bg-background border-b p-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2">
-            <Target className="h-6 w-6" />
-            <h1 className="text-2xl font-semibold">{isMentor ? "Mentee Goals" : "Goals"}</h1>
+    <DashboardLayout>
+      <div className="flex flex-col h-full">
+        <div className="sticky top-0 z-10 bg-background border-b p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="h-6 w-6" />
+              <h1 className="text-2xl font-semibold">{isMentor ? "Mentee Goals" : "Goals"}</h1>
             {goals && (
               <Badge variant="secondary" className="ml-2" data-testid="text-goal-count">
                 {goals.length}
@@ -887,6 +889,7 @@ export default function GoalsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -307,11 +308,12 @@ export default function DocumentsPage() {
   const isLoading = docsLoading || foldersLoading;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="sticky top-0 z-10 bg-background border-b p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Document Library</h1>
+    <DashboardLayout>
+      <div className="flex flex-col h-full">
+        <div className="sticky top-0 z-10 bg-background border-b p-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold" data-testid="text-page-title">Document Library</h1>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
@@ -785,7 +787,8 @@ export default function DocumentsPage() {
             </div>
           </>
         )}
+        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

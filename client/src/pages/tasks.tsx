@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,7 +127,7 @@ const taskFormSchema = z.object({
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
   category: z.enum(["ADMIN_TASK", "MENTOR_TASK", "SELF_TASK", "GOAL_TASK"]).default("SELF_TASK"),
   dueDate: z.string().optional(),
-  estimatedHours: z.coerce.number().optional(),
+  estimatedHours: z.union([z.coerce.number().positive(), z.literal("")]).optional().transform(val => val === "" ? undefined : val),
 });
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
@@ -396,12 +397,13 @@ export default function TasksPage() {
   ].filter(Boolean).length;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="sticky top-0 z-10 bg-background border-b p-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2">
-            <ListTodo className="h-6 w-6" />
-            <h1 className="text-2xl font-semibold">Tasks</h1>
+    <DashboardLayout>
+      <div className="flex flex-col h-full">
+        <div className="sticky top-0 z-10 bg-background border-b p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2">
+              <ListTodo className="h-6 w-6" />
+              <h1 className="text-2xl font-semibold">Tasks</h1>
             {tasks && (
               <Badge variant="secondary" className="ml-2" data-testid="text-task-count">
                 {tasks.length}
@@ -956,6 +958,7 @@ export default function TasksPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
