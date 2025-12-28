@@ -572,6 +572,154 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Bulk import mentor profiles from survey CSV
+  app.post("/api/admin/mentor-profiles/bulk-import", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { profiles: profilesData, fieldMapping } = req.body;
+      
+      if (!Array.isArray(profilesData) || profilesData.length === 0) {
+        return res.status(400).json({ message: "No profile data provided" });
+      }
+
+      const defaultMapping = {
+        email: "email",
+        preferredName: "preferred_name",
+        pronouns: "pronouns",
+        region: "region",
+        languages: "languages",
+        mentoringTracks: "mentoring_tracks",
+        expertiseDescription: "expertise_description",
+        skillsToShare: "skills_to_share",
+        mentoringGoals: "mentoring_goals",
+        preferredMeetingFrequency: "meeting_frequency",
+        preferredMeetingFormat: "meeting_format",
+        additionalNotes: "additional_notes",
+        maxMentees: "max_mentees",
+        cohortYear: "cohort_year",
+      };
+
+      const mapping = { ...defaultMapping, ...fieldMapping };
+      
+      const results = {
+        successful: [] as any[],
+        failed: [] as { row: number; email: string; error: string }[],
+      };
+
+      for (let i = 0; i < profilesData.length; i++) {
+        const data = profilesData[i];
+        const email = data[mapping.email];
+
+        try {
+          if (!email) {
+            throw new Error("Email is required");
+          }
+
+          // Find user by email
+          const user = await storage.getUserByEmail(email);
+          if (!user) {
+            throw new Error(`User not found with email: ${email}`);
+          }
+
+          if (user.role !== "MENTOR") {
+            throw new Error(`User ${email} is not a mentor`);
+          }
+
+          // Check if profile already exists
+          const existingProfile = await storage.getMentorProfile(user.id);
+          
+          // Parse arrays from CSV (semicolon-separated)
+          const parseArrayField = (value: string | undefined): string[] => {
+            if (!value) return [];
+            return value.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+          };
+
+          const profileData = {
+            userId: user.id,
+            preferredName: data[mapping.preferredName] || null,
+            pronouns: data[mapping.pronouns] || null,
+            region: data[mapping.region] || null,
+            languages: parseArrayField(data[mapping.languages]),
+            mentoringTracks: parseArrayField(data[mapping.mentoringTracks]),
+            expertiseDescription: data[mapping.expertiseDescription] || null,
+            skillsToShare: data[mapping.skillsToShare] || null,
+            mentoringGoals: data[mapping.mentoringGoals] || null,
+            preferredMeetingFrequency: data[mapping.preferredMeetingFrequency] || null,
+            preferredMeetingFormat: data[mapping.preferredMeetingFormat] || null,
+            additionalNotes: data[mapping.additionalNotes] || null,
+            maxMentees: data[mapping.maxMentees] ? parseInt(data[mapping.maxMentees]) : 2,
+            cohortYear: data[mapping.cohortYear] ? parseInt(data[mapping.cohortYear]) : new Date().getFullYear(),
+            status: "ACTIVE" as const,
+          };
+
+          let profile;
+          if (existingProfile) {
+            profile = await storage.updateMentorProfile(user.id, profileData);
+          } else {
+            profile = await storage.createMentorProfile(profileData);
+          }
+
+          results.successful.push({ email, userId: user.id, profile });
+        } catch (error: any) {
+          results.failed.push({
+            row: i + 1,
+            email: email || "unknown",
+            error: error.message || "Unknown error",
+          });
+        }
+      }
+
+      res.json({
+        message: `Imported ${results.successful.length} profiles, ${results.failed.length} failed`,
+        successful: results.successful,
+        failed: results.failed,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Download CSV template for mentor profile bulk import
+  app.get("/api/admin/mentor-profiles/bulk-import/template", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
+    const headers = [
+      "email",
+      "preferred_name",
+      "pronouns",
+      "region",
+      "languages",
+      "mentoring_tracks",
+      "expertise_description",
+      "skills_to_share",
+      "mentoring_goals",
+      "meeting_frequency",
+      "meeting_format",
+      "additional_notes",
+      "max_mentees",
+      "cohort_year"
+    ];
+    
+    const exampleRow = [
+      "mentor@example.com",
+      "Dr. Smith",
+      "she/her",
+      "NORTHEAST",
+      "English; Spanish",
+      "CLINICAL_PRACTICE; LEADERSHIP",
+      "20 years experience in critical care nursing",
+      "Clinical decision making; Team leadership",
+      "Help mentees develop clinical confidence",
+      "BIWEEKLY",
+      "VIDEO_CALL",
+      "Available evenings",
+      "2",
+      "2025"
+    ];
+
+    const csv = [headers.join(","), exampleRow.join(",")].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=mentor-profile-import-template.csv");
+    res.send(csv);
+  });
+
   app.get("/api/profile", requireAuth, async (req, res) => {
     const { password: _, ...safeUser } = req.user!;
     res.json(safeUser);
