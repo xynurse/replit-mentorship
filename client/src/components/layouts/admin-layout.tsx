@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   MessageSquare,
   Award,
+  UserCog,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -54,6 +55,7 @@ const adminMenuItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
   { title: "Users", url: "/admin/users", icon: Users },
+  { title: "Mentor Profiles", url: "/admin/mentor-profiles", icon: UserCog },
   { title: "Cohorts", url: "/admin/cohorts", icon: GraduationCap },
   { title: "Applications", url: "/admin/applications", icon: ClipboardList },
   { title: "Task Analytics", url: "/admin/tasks", icon: ListTodo },
