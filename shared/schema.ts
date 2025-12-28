@@ -167,6 +167,102 @@ export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type CompleteProfileInput = z.infer<typeof completeProfileSchema>;
 
+// Mentor Profile Enums
+export const mentorRegionEnum = pgEnum("mentor_region", [
+  "NORTH_AMERICA",
+  "SOUTH_AMERICA",
+  "EUROPE",
+  "ASIA",
+  "AFRICA",
+  "OCEANIA",
+  "OTHER"
+]);
+
+export const mentoringTrackEnum = pgEnum("mentoring_track", [
+  "SCIENTIST",
+  "INNOVATOR",
+  "ENTREPRENEUR",
+  "INTRAPRENEUR",
+  "LEADER"
+]);
+
+export const meetingFrequencyEnum = pgEnum("meeting_frequency", [
+  "WEEKLY",
+  "BIWEEKLY",
+  "MONTHLY",
+  "FLEXIBLE"
+]);
+
+export const mentorMeetingFormatEnum = pgEnum("mentor_meeting_format", [
+  "VIRTUAL",
+  "IN_PERSON",
+  "HYBRID",
+  "FLEXIBLE"
+]);
+
+export const mentorStatusEnum = pgEnum("mentor_status", [
+  "PENDING",
+  "APPROVED",
+  "ACTIVE",
+  "INACTIVE",
+  "COMPLETED"
+]);
+
+// Mentor Profiles Table
+export const mentorProfiles = pgTable("mentor_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  
+  // Core Identity
+  preferredName: text("preferred_name"),
+  pronouns: text("pronouns"),
+  
+  // Professional & Geographic
+  region: mentorRegionEnum("region"),
+  languages: text("languages").array().default(sql`ARRAY['English']::text[]`),
+  
+  // Mentorship Track & Expertise
+  mentoringTracks: text("mentoring_tracks").array().default(sql`ARRAY[]::text[]`),
+  expertiseDescription: text("expertise_description"),
+  skillsToShare: text("skills_to_share"),
+  
+  // Goals & Preferences
+  mentoringGoals: text("mentoring_goals"),
+  preferredMeetingFrequency: meetingFrequencyEnum("preferred_meeting_frequency"),
+  preferredMeetingFormat: mentorMeetingFormatEnum("preferred_meeting_format"),
+  additionalNotes: text("additional_notes"),
+  
+  // Admin/System Fields
+  status: mentorStatusEnum("status").default("PENDING"),
+  cohortYear: integer("cohort_year"),
+  maxMentees: integer("max_mentees").default(2),
+  currentMenteeCount: integer("current_mentee_count").default(0),
+  applicationTimestamp: timestamp("application_timestamp"),
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMentorProfileSchema = createInsertSchema(mentorProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  currentMenteeCount: true,
+});
+
+export const updateMentorProfileSchema = insertMentorProfileSchema.partial().omit({
+  userId: true,
+});
+
+export type InsertMentorProfile = z.infer<typeof insertMentorProfileSchema>;
+export type MentorProfile = typeof mentorProfiles.$inferSelect;
+export type MentorRegion = "NORTH_AMERICA" | "SOUTH_AMERICA" | "EUROPE" | "ASIA" | "AFRICA" | "OCEANIA" | "OTHER";
+export type MentoringTrack = "SCIENTIST" | "INNOVATOR" | "ENTREPRENEUR" | "INTRAPRENEUR" | "LEADER";
+export type MeetingFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "FLEXIBLE";
+export type MentorMeetingFormat = "VIRTUAL" | "IN_PERSON" | "HYBRID" | "FLEXIBLE";
+export type MentorStatus = "PENDING" | "APPROVED" | "ACTIVE" | "INACTIVE" | "COMPLETED";
+
 export const tracks = pgTable("tracks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
