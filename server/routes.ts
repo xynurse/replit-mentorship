@@ -184,6 +184,190 @@ export async function registerRoutes(
     }
   });
 
+  // Admin create user endpoint
+  app.post("/api/admin/users", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { email, password, firstName, lastName, role, organizationName, jobTitle } = req.body;
+      
+      // Validate required fields
+      if (!email || !password || !firstName || !lastName || !role) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      // Validate role is in allowed enum values
+      const validRoles = ["SUPER_ADMIN", "ADMIN", "MENTOR", "MENTEE"];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Must be one of: " + validRoles.join(", ") });
+      }
+
+      // Only SUPER_ADMIN can create ADMIN or SUPER_ADMIN users
+      const currentUser = req.user as any;
+      if ((role === "SUPER_ADMIN" || role === "ADMIN") && currentUser.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ message: "Only Super Admins can create admin accounts" });
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: "Invalid email format" });
+      }
+
+      // Validate password strength
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      // Import hashPassword from auth module
+      const { hashPassword } = await import("./auth");
+      const hashedPassword = await hashPassword(password);
+
+      const user = await storage.createUser({
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role,
+        organizationName: organizationName || null,
+        jobTitle: jobTitle || null,
+        isActive: true,
+        isEmailVerified: false,
+        isProfileComplete: false,
+      });
+
+      const { password: _, ...safeUser } = user;
+      res.status(201).json(safeUser);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin update user role
+  app.patch("/api/admin/users/:id/role", requireRole("SUPER_ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { role } = req.body;
+      
+      if (!role || !["SUPER_ADMIN", "ADMIN", "MENTOR", "MENTEE"].includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+
+      const updatedUser = await storage.updateUser(id, { role });
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const { password: _, ...safeUser } = updatedUser;
+      res.json(safeUser);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin bulk import users from CSV
+  app.post("/api/admin/users/bulk-import", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { users: usersData } = req.body;
+      
+      if (!Array.isArray(usersData) || usersData.length === 0) {
+        return res.status(400).json({ message: "No users data provided" });
+      }
+
+      const { hashPassword } = await import("./auth");
+      const results = {
+        successful: [] as any[],
+        failed: [] as Array<{ row: number; email: string; error: string }>,
+      };
+
+      for (let i = 0; i < usersData.length; i++) {
+        const userData = usersData[i];
+        try {
+          const { firstName, lastName, email, role, organizationName, jobTitle, phone } = userData;
+          
+          // Validate required fields
+          if (!firstName || !lastName || !email || !role) {
+            results.failed.push({
+              row: i + 1,
+              email: email || "unknown",
+              error: "Missing required fields (firstName, lastName, email, role)"
+            });
+            continue;
+          }
+
+          // Validate role
+          if (!["MENTOR", "MENTEE"].includes(role)) {
+            results.failed.push({
+              row: i + 1,
+              email,
+              error: "Invalid role. Must be MENTOR or MENTEE"
+            });
+            continue;
+          }
+
+          // Check if email exists
+          const existingUser = await storage.getUserByEmail(email);
+          if (existingUser) {
+            results.failed.push({
+              row: i + 1,
+              email,
+              error: "Email already registered"
+            });
+            continue;
+          }
+
+          // Generate temporary password
+          const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase();
+          const hashedPassword = await hashPassword(tempPassword);
+
+          const user = await storage.createUser({
+            email,
+            password: hashedPassword,
+            firstName,
+            lastName,
+            role,
+            organizationName: organizationName || null,
+            jobTitle: jobTitle || null,
+            phone: phone || null,
+            isActive: true,
+            isEmailVerified: false,
+            isProfileComplete: false,
+          });
+
+          const { password: _, ...safeUser } = user;
+          results.successful.push({ ...safeUser, tempPassword });
+        } catch (error: any) {
+          results.failed.push({
+            row: i + 1,
+            email: userData.email || "unknown",
+            error: error.message || "Unknown error"
+          });
+        }
+      }
+
+      res.json({
+        message: `Imported ${results.successful.length} users, ${results.failed.length} failed`,
+        successful: results.successful,
+        failed: results.failed,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Download CSV template for bulk import
+  app.get("/api/admin/users/bulk-import/template", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
+    const csv = "firstName,lastName,email,role,organizationName,jobTitle,phone\nJohn,Doe,john.doe@example.com,MENTOR,Healthcare Inc,Nurse Practitioner,+1234567890\nJane,Smith,jane.smith@example.com,MENTEE,Hospital System,Resident,,";
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=user-import-template.csv");
+    res.send(csv);
+  });
+
   app.get("/api/profile", requireAuth, async (req, res) => {
     const { password: _, ...safeUser } = req.user!;
     res.json(safeUser);

@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -19,8 +21,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield } from "lucide-react";
+import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield, Plus, Upload } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import type { User } from "@shared/schema";
@@ -44,13 +48,121 @@ const roleColors: Record<string, string> = {
 
 export default function AdminUsers() {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedUser, setSelectedUser] = useState<SafeUser | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [importResults, setImportResults] = useState<{
+    successful: any[];
+    failed: Array<{ row: number; email: string; error: string }>;
+  } | null>(null);
+  const [newUser, setNewUser] = useState({
+    email: "",
+    password: "",
+    firstName: "",
+    lastName: "",
+    role: "MENTEE",
+    organizationName: "",
+    jobTitle: "",
+  });
 
   const { data: users = [], isLoading } = useQuery<SafeUser[]>({
     queryKey: ["/api/users", { role: roleFilter !== "all" ? roleFilter : undefined, isActive: statusFilter !== "all" ? statusFilter : undefined }],
   });
+
+  const createUserMutation = useMutation({
+    mutationFn: async (data: typeof newUser) => {
+      const response = await apiRequest("POST", "/api/admin/users", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setShowCreateDialog(false);
+      setNewUser({
+        email: "",
+        password: "",
+        firstName: "",
+        lastName: "",
+        role: "MENTEE",
+        organizationName: "",
+        jobTitle: "",
+      });
+      toast({ title: "User created successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create user", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleCreateUser = () => {
+    if (!newUser.email || !newUser.password || !newUser.firstName || !newUser.lastName) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+    createUserMutation.mutate(newUser);
+  };
+
+  const bulkImportMutation = useMutation({
+    mutationFn: async (users: any[]) => {
+      const response = await apiRequest("POST", "/api/admin/users/bulk-import", { users });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setImportResults(data);
+      toast({
+        title: `Import completed`,
+        description: `${data.successful.length} users imported, ${data.failed.length} failed`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Import failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const parseCSV = (csvText: string) => {
+    const lines = csvText.trim().split("\n");
+    if (lines.length < 2) return [];
+    
+    const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
+    const users = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(",").map(v => v.trim().replace(/"/g, ""));
+      const user: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        user[header] = values[index] || "";
+      });
+      if (user.email) {
+        users.push(user);
+      }
+    }
+    return users;
+  };
+
+  const handleBulkImport = async () => {
+    if (!csvFile) {
+      toast({ title: "Please select a CSV file", variant: "destructive" });
+      return;
+    }
+
+    const text = await csvFile.text();
+    const users = parseCSV(text);
+    
+    if (users.length === 0) {
+      toast({ title: "No valid users found in CSV", variant: "destructive" });
+      return;
+    }
+
+    bulkImportMutation.mutate(users);
+  };
+
+  const handleDownloadTemplate = () => {
+    window.open("/api/admin/users/bulk-import/template", "_blank");
+  };
 
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ userId, activate }: { userId: string; activate: boolean }) => {
@@ -201,7 +313,7 @@ export default function AdminUsers() {
                 <CardTitle>All Users</CardTitle>
                 <CardDescription>{users.length} users total</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
                   <SelectTrigger className="w-32" data-testid="select-role-filter">
                     <SelectValue placeholder="Role" />
@@ -224,6 +336,14 @@ export default function AdminUsers() {
                     <SelectItem value="false">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button variant="outline" onClick={() => setShowBulkImportDialog(true)} data-testid="button-bulk-import">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Bulk Import
+                </Button>
+                <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-user">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create User
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -300,6 +420,230 @@ export default function AdminUsers() {
                   </div>
                 )}
               </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+              <DialogDescription>Add a new user to the platform</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name *</Label>
+                  <Input
+                    id="firstName"
+                    value={newUser.firstName}
+                    onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
+                    placeholder="John"
+                    data-testid="input-first-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name *</Label>
+                  <Input
+                    id="lastName"
+                    value={newUser.lastName}
+                    onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
+                    placeholder="Doe"
+                    data-testid="input-last-name"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  placeholder="john.doe@example.com"
+                  data-testid="input-email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Temporary Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  placeholder="Enter a secure password"
+                  data-testid="input-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">Role *</Label>
+                <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
+                  <SelectTrigger data-testid="select-role">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MENTEE">Mentee</SelectItem>
+                    <SelectItem value="MENTOR">Mentor</SelectItem>
+                    {currentUser?.role === "SUPER_ADMIN" && (
+                      <>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                        <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="organizationName">Organization</Label>
+                <Input
+                  id="organizationName"
+                  value={newUser.organizationName}
+                  onChange={(e) => setNewUser({ ...newUser, organizationName: e.target.value })}
+                  placeholder="Healthcare Organization"
+                  data-testid="input-organization"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="jobTitle">Job Title</Label>
+                <Input
+                  id="jobTitle"
+                  value={newUser.jobTitle}
+                  onChange={(e) => setNewUser({ ...newUser, jobTitle: e.target.value })}
+                  placeholder="Nurse Practitioner"
+                  data-testid="input-job-title"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateDialog(false)} data-testid="button-cancel">
+                Cancel
+              </Button>
+              <Button onClick={handleCreateUser} disabled={createUserMutation.isPending} data-testid="button-save-user">
+                {createUserMutation.isPending ? "Creating..." : "Create User"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showBulkImportDialog} onOpenChange={(open) => {
+          setShowBulkImportDialog(open);
+          if (!open) {
+            setCsvFile(null);
+            setImportResults(null);
+          }
+        }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Bulk Import Users</DialogTitle>
+              <DialogDescription>Import multiple users from a CSV file</DialogDescription>
+            </DialogHeader>
+            {importResults ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="font-medium">Import Results</p>
+                  <p className="text-sm text-muted-foreground">
+                    {importResults.successful.length} users imported successfully
+                  </p>
+                  {importResults.failed.length > 0 && (
+                    <p className="text-sm text-destructive">
+                      {importResults.failed.length} users failed
+                    </p>
+                  )}
+                </div>
+                {importResults.successful.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Successfully Imported Users:</p>
+                    <p className="text-xs text-muted-foreground">Save these temporary passwords - they are only shown once!</p>
+                    <div className="max-h-48 overflow-y-auto space-y-2">
+                      {importResults.successful.map((user: any, idx: number) => (
+                        <div key={idx} className="text-xs p-2 bg-muted rounded flex justify-between gap-2">
+                          <span>{user.email}</span>
+                          <code className="bg-background px-1 rounded">{user.tempPassword}</code>
+                        </div>
+                      ))}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        const text = importResults.successful.map((u: any) => `${u.email},${u.tempPassword}`).join("\n");
+                        const blob = new Blob([`email,tempPassword\n${text}`], { type: "text/csv" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "imported-users-credentials.csv";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      Download Credentials CSV
+                    </Button>
+                  </div>
+                )}
+                {importResults.failed.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    <p className="text-sm font-medium">Failed Imports:</p>
+                    {importResults.failed.map((fail, idx) => (
+                      <div key={idx} className="text-xs p-2 bg-destructive/10 rounded">
+                        <p>Row {fail.row}: {fail.email}</p>
+                        <p className="text-destructive">{fail.error}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <DialogFooter>
+                  <Button onClick={() => {
+                    setShowBulkImportDialog(false);
+                    setCsvFile(null);
+                    setImportResults(null);
+                  }}>
+                    Done
+                  </Button>
+                </DialogFooter>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                    <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {csvFile ? csvFile.name : "Select a CSV file to upload"}
+                    </p>
+                    <Input
+                      type="file"
+                      accept=".csv"
+                      className="max-w-xs mx-auto"
+                      onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                      data-testid="input-csv-file"
+                    />
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p className="font-medium mb-2">CSV Format Requirements:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Required columns: firstName, lastName, email, role</li>
+                      <li>Optional columns: organizationName, jobTitle, phone</li>
+                      <li>Role values: MENTOR, MENTEE</li>
+                      <li>Temporary passwords will be auto-generated</li>
+                    </ul>
+                  </div>
+                  <Button variant="outline" className="w-full" onClick={handleDownloadTemplate} data-testid="button-download-template">
+                    Download CSV Template
+                  </Button>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowBulkImportDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleBulkImport} 
+                    disabled={!csvFile || bulkImportMutation.isPending}
+                    data-testid="button-import"
+                  >
+                    {bulkImportMutation.isPending ? "Importing..." : "Import Users"}
+                  </Button>
+                </DialogFooter>
+              </>
             )}
           </DialogContent>
         </Dialog>

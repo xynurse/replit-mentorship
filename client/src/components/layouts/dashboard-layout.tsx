@@ -46,6 +46,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@shared/schema";
@@ -123,6 +124,24 @@ function getRoleLabel(role: UserRole) {
   }
 }
 
+function NavLink({ href, children, isActive }: { href: string; children: React.ReactNode; isActive: boolean }) {
+  const { setOpenMobile, isMobile } = useSidebar();
+  
+  const handleClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
+  return (
+    <SidebarMenuButton asChild isActive={isActive} onClick={handleClick}>
+      <Link href={href}>
+        {children}
+      </Link>
+    </SidebarMenuButton>
+  );
+}
+
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
@@ -162,12 +181,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     const isActive = location === item.url;
                     return (
                       <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild isActive={isActive}>
-                          <Link href={item.url}>
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
+                        <NavLink href={item.url} isActive={isActive}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </NavLink>
                       </SidebarMenuItem>
                     );
                   })}
@@ -179,12 +196,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <SidebarFooter className="p-4">
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/settings"}>
-                  <Link href="/settings">
-                    <Settings className="h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                </SidebarMenuButton>
+                <NavLink href="/settings" isActive={location === "/settings"}>
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </NavLink>
               </SidebarMenuItem>
             </SidebarMenu>
 

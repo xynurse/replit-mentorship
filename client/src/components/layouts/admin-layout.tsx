@@ -65,6 +65,24 @@ const adminMenuItems = [
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
+function AdminNavLink({ href, children, isActive, testId }: { href: string; children: React.ReactNode; isActive: boolean; testId?: string }) {
+  const { setOpenMobile, isMobile } = useSidebar();
+  
+  const handleClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
+  return (
+    <SidebarMenuButton asChild isActive={isActive} onClick={handleClick} data-testid={testId}>
+      <Link href={href}>
+        {children}
+      </Link>
+    </SidebarMenuButton>
+  );
+}
+
 function AdminSidebar() {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
@@ -96,16 +114,14 @@ function AdminSidebar() {
                   (item.url !== "/admin" && location.startsWith(item.url));
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
+                    <AdminNavLink 
+                      href={item.url} 
                       isActive={isActive}
-                      data-testid={`nav-${item.title.toLowerCase()}`}
+                      testId={`nav-${item.title.toLowerCase()}`}
                     >
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </AdminNavLink>
                   </SidebarMenuItem>
                 );
               })}

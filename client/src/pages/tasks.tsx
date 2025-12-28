@@ -318,10 +318,15 @@ export default function TasksPage() {
 
   const createTaskMutation = useMutation({
     mutationFn: async (data: TaskFormValues) => {
-      return apiRequest("POST", "/api/tasks", {
-        ...data,
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      const response = await apiRequest("POST", "/api/tasks", {
+        title: data.title,
+        description: data.description || undefined,
+        priority: data.priority,
+        category: data.category,
+        dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : undefined,
+        estimatedHours: data.estimatedHours || undefined,
       });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
@@ -329,8 +334,8 @@ export default function TasksPage() {
       form.reset();
       toast({ title: "Task created successfully" });
     },
-    onError: () => {
-      toast({ title: "Failed to create task", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Failed to create task", description: error.message, variant: "destructive" });
     },
   });
 
