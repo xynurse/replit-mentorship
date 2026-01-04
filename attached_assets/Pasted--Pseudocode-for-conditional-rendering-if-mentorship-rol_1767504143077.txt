@@ -1,0 +1,117 @@
+// Pseudocode for conditional rendering
+if (mentorship_role === 'seeking_mentor' || mentorship_role === 'both') {
+  showMenteeProfileSection();
+  showMenteeInterestRatings();
+  showMenteeLogistics(); // includes monthly_hours_available (platform-only)
+}
+
+if (mentorship_role === 'providing_mentorship' || mentorship_role === 'both') {
+  showMentorProfileSection();
+  showMentorComfortRatings();
+  showMentorLogistics(); // includes preferred_methods, monthly_hours_available, availability_notes (platform-only)
+}
+```
+
+#### Platform-Only Fields UI
+These fields are NOT imported via CSV and must be collected through the platform interface:
+
+**For Mentees:**
+- Monthly hours available (dropdown: 1-2, 3-4, 5-10, 10-15)
+
+**For Mentors:**
+- Preferred mentorship methods (multi-select: 1:1, Group, Virtual, In-Person)
+- Monthly hours available (dropdown: 1-2, 3-4, 5-10, 10-15)
+- Availability notes (text field for days/times)
+
+---
+
+### Admin Features
+
+#### Bulk Import Interface
+1. CSV file upload with drag-and-drop
+2. Column mapping preview (show first 5 rows)
+3. Validation errors displayed before import
+4. Import progress indicator
+5. Summary report after import (success count, error count, skipped rows)
+6. Clear indication of which fields will need to be completed by users in-platform
+
+#### CSV Validation Rules
+- Email must be unique and valid format
+- Required fields: first_name, last_name, email, preferred_language, is_sonsiel_member, mentorship_role
+- Rating values must be 0, 1, 2, or empty
+- Enum values must match expected options (case-insensitive)
+- Multi-select fields parsed by comma separation
+- Boolean fields accept: yes/no, true/false, 1/0
+
+#### Post-Import User Flow
+After bulk import, users with incomplete profiles should be prompted to complete platform-only fields:
+1. Send email invitation to complete profile
+2. Dashboard indicator showing "Profile X% complete"
+3. Guided wizard to collect missing platform-only fields
+4. Block matching until required platform-only fields are complete
+
+#### Export Functionality
+- Export all members to CSV
+- Export filtered results (mentors only, mentees only, by expertise area)
+- Export matching pairs (future feature)
+- Export includes all fields (both CSV-imported and platform-only)
+
+---
+
+### API Endpoints Structure
+```
+# Authentication
+POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/logout
+POST   /api/auth/forgot-password
+POST   /api/auth/reset-password
+
+# User Profile
+GET    /api/users/me
+PUT    /api/users/me
+GET    /api/users/:id (admin only)
+GET    /api/users/me/completion-status
+
+# Professional Profile
+GET    /api/profile/professional
+PUT    /api/profile/professional
+
+# Mentorship Role
+GET    /api/profile/role
+PUT    /api/profile/role
+
+# Mentee Profile
+GET    /api/profile/mentee
+PUT    /api/profile/mentee
+PUT    /api/profile/mentee/interests (update ratings only)
+
+# Mentor Profile
+GET    /api/profile/mentor
+PUT    /api/profile/mentor
+PUT    /api/profile/mentor/comfort (update ratings only)
+
+# Bulk Import (Admin)
+POST   /api/admin/import/csv
+POST   /api/admin/import/validate (dry-run validation)
+GET    /api/admin/import/template (download blank CSV template)
+GET    /api/admin/export/members
+GET    /api/admin/export/members?role=mentor
+GET    /api/admin/export/members?role=mentee
+
+# Member Directory
+GET    /api/members (with filters: role, expertise, language, career_stage)
+GET    /api/members/:id
+GET    /api/members/mentors (list available mentors)
+GET    /api/members/mentees (list mentees seeking mentors)
+
+# Profile Completion
+GET    /api/profile/completion-status
+GET    /api/admin/incomplete-profiles
+
+# Future: Matching
+GET    /api/matching/suggestions (for current user)
+POST   /api/matching/request/:mentor_id
+GET    /api/matching/requests (pending requests)
+PUT    /api/matching/requests/:id/accept
+PUT    /api/matching/requests/:id/decline
