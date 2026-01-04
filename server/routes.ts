@@ -762,6 +762,121 @@ export async function registerRoutes(
     }
   });
 
+  // Extended profile setup - saves all profile data in one request
+  app.post("/api/profile/setup", requireAuth, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      const { 
+        userUpdates,
+        professionalProfile,
+        mentorshipRole,
+        menteeProfile,
+        mentorProfileExtended
+      } = req.body;
+
+      // Update user fields if provided
+      if (userUpdates) {
+        await storage.updateUser(userId, {
+          ...userUpdates,
+          isProfileComplete: true,
+        });
+      }
+
+      // Save professional profile
+      if (professionalProfile) {
+        const existing = await storage.getProfessionalProfile(userId);
+        if (existing) {
+          await storage.updateProfessionalProfile(userId, professionalProfile);
+        } else {
+          await storage.createProfessionalProfile({ userId, ...professionalProfile });
+        }
+      }
+
+      // Save mentorship role
+      if (mentorshipRole) {
+        const existing = await storage.getMentorshipRole(userId);
+        if (existing) {
+          await storage.updateMentorshipRole(userId, { mentorshipRole });
+        } else {
+          await storage.createMentorshipRole({ userId, mentorshipRole });
+        }
+      }
+
+      // Save mentee profile if seeking mentor or both
+      if (menteeProfile && (mentorshipRole === 'seeking_mentor' || mentorshipRole === 'both')) {
+        const existing = await storage.getMenteeProfile(userId);
+        if (existing) {
+          await storage.updateMenteeProfile(userId, menteeProfile);
+        } else {
+          await storage.createMenteeProfile({ userId, ...menteeProfile });
+        }
+      }
+
+      // Save extended mentor profile if providing mentorship or both
+      if (mentorProfileExtended && (mentorshipRole === 'providing_mentorship' || mentorshipRole === 'both')) {
+        const existing = await storage.getMentorProfileExtended(userId);
+        if (existing) {
+          await storage.updateMentorProfileExtended(userId, mentorProfileExtended);
+        } else {
+          await storage.createMentorProfileExtended({ userId, ...mentorProfileExtended });
+        }
+      }
+
+      // Update onboarding progress
+      const onboarding = await storage.getOnboardingProgress(userId);
+      if (onboarding) {
+        await storage.updateOnboardingProgress(userId, { hasSetupProfile: true });
+      } else {
+        await storage.createOnboardingProgress({ 
+          userId, 
+          hasSetupProfile: true,
+          hasSeenWelcome: true,
+        });
+      }
+
+      // Fetch updated user
+      const updatedUser = await storage.getUser(userId);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const { password: _, ...safeUser } = updatedUser;
+      res.json({ 
+        success: true, 
+        user: safeUser,
+        message: "Profile setup completed successfully" 
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get complete profile data
+  app.get("/api/profile/complete", requireAuth, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      
+      const [professionalProfile, mentorshipRole, menteeProfile, mentorProfileExtended] = await Promise.all([
+        storage.getProfessionalProfile(userId),
+        storage.getMentorshipRole(userId),
+        storage.getMenteeProfile(userId),
+        storage.getMentorProfileExtended(userId),
+      ]);
+
+      const { password: _, ...safeUser } = req.user!;
+      
+      res.json({
+        user: safeUser,
+        professionalProfile,
+        mentorshipRole: mentorshipRole?.mentorshipRole || null,
+        menteeProfile,
+        mentorProfileExtended,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/tracks", requireAuth, async (req, res, next) => {
     try {
       const tracks = await storage.getAllTracks();

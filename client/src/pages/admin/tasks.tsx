@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -173,6 +174,7 @@ export default function AdminTasksPage() {
   const blockedTasks = tasks.filter((t) => t.status === "BLOCKED");
 
   return (
+    <AdminLayout>
     <div className="flex flex-col h-full">
       <div className="sticky top-0 z-10 bg-background border-b p-4">
         <div className="flex items-center gap-2 mb-4">
@@ -470,6 +472,7 @@ export default function AdminTasksPage() {
         </Tabs>
       </div>
     </div>
+    </AdminLayout>
   );
 }
 

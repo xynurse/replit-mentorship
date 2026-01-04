@@ -70,6 +70,27 @@ export const emailFrequencyEnum = pgEnum("email_frequency", ["INSTANT", "DAILY_D
 
 export const userRoleEnum = pgEnum("user_role", ["SUPER_ADMIN", "ADMIN", "MENTOR", "MENTEE"]);
 
+// Mentorship role choice enum
+export const mentorshipRoleChoiceEnum = pgEnum("mentorship_role_choice", ["seeking_mentor", "providing_mentorship", "both"]);
+
+// Career stage enum for mentee profiles
+export const careerStageEnum = pgEnum("career_stage", ["student", "early_career", "mid_career", "senior"]);
+
+// Monthly hours available enum
+export const monthlyHoursEnum = pgEnum("monthly_hours", ["1-2", "3-4", "5-10", "10-15"]);
+
+// Preferred duration enum
+export const preferredDurationEnum = pgEnum("preferred_duration", ["3_months", "6_months", "1_year", "1_year_plus", "reevaluate", "ongoing"]);
+
+// Willing to pay enum
+export const willingToPayEnum = pgEnum("willing_to_pay", ["yes", "no", "maybe"]);
+
+// Expertise areas enum
+export const expertiseAreaEnum = pgEnum("expertise_area", ["Science", "Innovation", "Entrepreneurship", "Leadership"]);
+
+// Education level enum  
+export const educationLevelEnum = pgEnum("education_level", ["Bachelor", "Master", "DNP", "PhD"]);
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
@@ -87,6 +108,8 @@ export const users = pgTable("users", {
   organizationName: text("organization_name"),
   jobTitle: text("job_title"),
   yearsOfExperience: integer("years_of_experience"),
+  isSonsielMember: boolean("is_sonsiel_member").default(false),
+  interestedInMembership: boolean("interested_in_membership"),
   isActive: boolean("is_active").default(true),
   isVerified: boolean("is_verified").default(false),
   isProfileComplete: boolean("is_profile_complete").default(false),
@@ -262,6 +285,189 @@ export type MentoringTrack = "SCIENTIST" | "INNOVATOR" | "ENTREPRENEUR" | "INTRA
 export type MeetingFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "FLEXIBLE";
 export type MentorMeetingFormat = "VIRTUAL" | "IN_PERSON" | "HYBRID" | "FLEXIBLE";
 export type MentorStatus = "PENDING" | "APPROVED" | "ACTIVE" | "INACTIVE" | "COMPLETED";
+
+// Professional Profile Table (shared between mentors and mentees)
+export const professionalProfiles = pgTable("professional_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  positionTitle: text("position_title"),
+  organization: text("organization"),
+  expertiseAreas: text("expertise_areas").array().default(sql`ARRAY[]::text[]`),
+  highestEducation: text("highest_education").array().default(sql`ARRAY[]::text[]`),
+  yearsInHealthcare: text("years_in_healthcare"),
+  yearsInInnovation: text("years_in_innovation"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProfessionalProfileSchema = createInsertSchema(professionalProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProfessionalProfile = z.infer<typeof insertProfessionalProfileSchema>;
+export type ProfessionalProfile = typeof professionalProfiles.$inferSelect;
+
+// Mentorship Role Selection Table
+export const mentorshipRoles = pgTable("mentorship_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  mentorshipRole: mentorshipRoleChoiceEnum("mentorship_role").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMentorshipRoleSchema = createInsertSchema(mentorshipRoles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertMentorshipRole = z.infer<typeof insertMentorshipRoleSchema>;
+export type MentorshipRole = typeof mentorshipRoles.$inferSelect;
+
+// Mentee Profile Table
+export const menteeProfiles = pgTable("mentee_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  
+  // Career Context
+  careerStage: careerStageEnum("career_stage"),
+  shortTermGoals: text("short_term_goals"),
+  longTermVision: text("long_term_vision"),
+  currentProjectOrIdea: text("current_project_or_idea"),
+  
+  // Mentorship History
+  previouslyBeenMentored: boolean("previously_been_mentored"),
+  pastSuccesses: text("past_successes"),
+  pastChallenges: text("past_challenges"),
+  
+  // What They're Seeking
+  hopingToGain: text("hoping_to_gain").array().default(sql`ARRAY[]::text[]`),
+  specificSkillsSeeking: text("specific_skills_seeking"),
+  primaryMotivations: text("primary_motivations"),
+  preferredMentorCharacteristics: text("preferred_mentor_characteristics"),
+  
+  // 11 Interest Ratings (0 = not interested, 1 = somewhat, 2 = very interested)
+  interestScienceResearch: integer("interest_science_research").default(0),
+  interestProductDevelopment: integer("interest_product_development").default(0),
+  interestInnovation: integer("interest_innovation").default(0),
+  interestBusinessStrategy: integer("interest_business_strategy").default(0),
+  interestEntrepreneurship: integer("interest_entrepreneurship").default(0),
+  interestIntrapreneurship: integer("interest_intrapreneurship").default(0),
+  interestLeadership: integer("interest_leadership").default(0),
+  interestNetworking: integer("interest_networking").default(0),
+  interestProfessionalDevelopment: integer("interest_professional_development").default(0),
+  interestDigitalTech: integer("interest_digital_tech").default(0),
+  interestEthicalSocial: integer("interest_ethical_social").default(0),
+  
+  // Logistics
+  monthlyHoursAvailable: monthlyHoursEnum("monthly_hours_available"),
+  availabilityNotes: text("availability_notes"),
+  timezone: text("timezone"),
+  preferredDuration: preferredDurationEnum("preferred_duration"),
+  preferredMethods: text("preferred_methods").array().default(sql`ARRAY[]::text[]`),
+  preferredCommunicationTools: text("preferred_communication_tools").array().default(sql`ARRAY[]::text[]`),
+  
+  // Resources & Structure
+  resourcesNeeded: text("resources_needed"),
+  programSuggestions: text("program_suggestions"),
+  effectiveStructures: text("effective_structures"),
+  willingToPay: willingToPayEnum("willing_to_pay"),
+  
+  // Optional
+  linkedinUrl: text("linkedin_url"),
+  referralSource: text("referral_source"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMenteeProfileSchema = createInsertSchema(menteeProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateMenteeProfileSchema = insertMenteeProfileSchema.partial().omit({
+  userId: true,
+});
+
+export type InsertMenteeProfile = z.infer<typeof insertMenteeProfileSchema>;
+export type MenteeProfile = typeof menteeProfiles.$inferSelect;
+
+// Extended Mentor Profile Table (new fields based on design)
+export const mentorProfilesExtended = pgTable("mentor_profiles_extended", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  
+  // Capacity & Preferences
+  maxMentees: integer("max_mentees").default(2),
+  preferredMenteeStages: text("preferred_mentee_stages").array().default(sql`ARRAY[]::text[]`),
+  openToMentoringOutsideExpertise: boolean("open_to_mentoring_outside_expertise").default(false),
+  
+  // Experience & Credentials
+  previouslyServedAsMentor: boolean("previously_served_as_mentor"),
+  mentorshipExperienceDescription: text("mentorship_experience_description"),
+  certificationsTraining: text("certifications_training"),
+  notableAchievements: text("notable_achievements"),
+  industriesExperience: text("industries_experience").array().default(sql`ARRAY[]::text[]`),
+  
+  // What They Offer
+  skillsToShare: text("skills_to_share"),
+  primaryMotivations: text("primary_motivations"),
+  
+  // Past Experience
+  pastSuccesses: text("past_successes"),
+  pastChallenges: text("past_challenges"),
+  
+  // 11 Comfort Ratings (0 = not comfortable, 1 = somewhat, 2 = very comfortable)
+  comfortScienceResearch: integer("comfort_science_research").default(0),
+  comfortProductDevelopment: integer("comfort_product_development").default(0),
+  comfortInnovation: integer("comfort_innovation").default(0),
+  comfortBusinessStrategy: integer("comfort_business_strategy").default(0),
+  comfortEntrepreneurship: integer("comfort_entrepreneurship").default(0),
+  comfortIntrapreneurship: integer("comfort_intrapreneurship").default(0),
+  comfortLeadership: integer("comfort_leadership").default(0),
+  comfortNetworking: integer("comfort_networking").default(0),
+  comfortProfessionalDevelopment: integer("comfort_professional_development").default(0),
+  comfortDigitalTech: integer("comfort_digital_tech").default(0),
+  comfortEthicalSocial: integer("comfort_ethical_social").default(0),
+  
+  // Logistics
+  monthlyHoursAvailable: monthlyHoursEnum("monthly_hours_available"),
+  preferredMethods: text("preferred_methods").array().default(sql`ARRAY[]::text[]`),
+  availabilityNotes: text("availability_notes"),
+  timezone: text("timezone"),
+  preferredDuration: preferredDurationEnum("preferred_duration"),
+  preferredCommunicationTools: text("preferred_communication_tools").array().default(sql`ARRAY[]::text[]`),
+  languagesSpoken: text("languages_spoken").array().default(sql`ARRAY['english']::text[]`),
+  
+  // Resources & Structure
+  resourcesNeeded: text("resources_needed"),
+  programSuggestions: text("program_suggestions"),
+  effectiveStructures: text("effective_structures"),
+  
+  // Optional
+  linkedinUrl: text("linkedin_url"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMentorProfileExtendedSchema = createInsertSchema(mentorProfilesExtended).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateMentorProfileExtendedSchema = insertMentorProfileExtendedSchema.partial().omit({
+  userId: true,
+});
+
+export type InsertMentorProfileExtended = z.infer<typeof insertMentorProfileExtendedSchema>;
+export type MentorProfileExtended = typeof mentorProfilesExtended.$inferSelect;
 
 export const tracks = pgTable("tracks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

@@ -6,7 +6,7 @@ import {
   notifications, notificationPreferences,
   auditLogs, errorLogs, dataExportRequests, accountDeletionRequests,
   searchHistory, savedSearches, surveys, surveyResponses, onboardingProgress, certificates,
-  mentorProfiles,
+  mentorProfiles, professionalProfiles, mentorshipRoles, menteeProfiles, mentorProfilesExtended,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -25,7 +25,11 @@ import {
   type Survey, type InsertSurvey, type SurveyResponse, type InsertSurveyResponse,
   type OnboardingProgress, type InsertOnboardingProgress,
   type Certificate, type InsertCertificate,
-  type MentorProfile, type InsertMentorProfile
+  type MentorProfile, type InsertMentorProfile,
+  type ProfessionalProfile, type InsertProfessionalProfile,
+  type MentorshipRole, type InsertMentorshipRole,
+  type MenteeProfile, type InsertMenteeProfile,
+  type MentorProfileExtended, type InsertMentorProfileExtended
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -307,6 +311,40 @@ export interface IStorage {
   deleteMentorProfile(userId: string): Promise<void>;
   updateMentorMenteeCount(userId: string, count: number): Promise<void>;
   getMentorsWithCapacity(cohortYear?: number): Promise<(MentorProfile & { user: User })[]>;
+  
+  // Professional Profiles
+  getProfessionalProfile(userId: string): Promise<ProfessionalProfile | undefined>;
+  createProfessionalProfile(profile: InsertProfessionalProfile): Promise<ProfessionalProfile>;
+  updateProfessionalProfile(userId: string, data: Partial<ProfessionalProfile>): Promise<ProfessionalProfile | undefined>;
+  deleteProfessionalProfile(userId: string): Promise<void>;
+  
+  // Mentorship Roles
+  getMentorshipRole(userId: string): Promise<MentorshipRole | undefined>;
+  createMentorshipRole(role: InsertMentorshipRole): Promise<MentorshipRole>;
+  updateMentorshipRole(userId: string, data: Partial<MentorshipRole>): Promise<MentorshipRole | undefined>;
+  deleteMentorshipRole(userId: string): Promise<void>;
+  
+  // Mentee Profiles
+  getMenteeProfile(userId: string): Promise<MenteeProfile | undefined>;
+  getMenteeProfileById(id: string): Promise<MenteeProfile | undefined>;
+  getMenteeProfiles(filters?: { 
+    careerStage?: string;
+    search?: string;
+  }): Promise<(MenteeProfile & { user: User })[]>;
+  createMenteeProfile(profile: InsertMenteeProfile): Promise<MenteeProfile>;
+  updateMenteeProfile(userId: string, data: Partial<MenteeProfile>): Promise<MenteeProfile | undefined>;
+  deleteMenteeProfile(userId: string): Promise<void>;
+  
+  // Extended Mentor Profiles
+  getMentorProfileExtended(userId: string): Promise<MentorProfileExtended | undefined>;
+  getMentorProfileExtendedById(id: string): Promise<MentorProfileExtended | undefined>;
+  getMentorProfilesExtended(filters?: { 
+    search?: string;
+    hasCapacity?: boolean;
+  }): Promise<(MentorProfileExtended & { user: User })[]>;
+  createMentorProfileExtended(profile: InsertMentorProfileExtended): Promise<MentorProfileExtended>;
+  updateMentorProfileExtended(userId: string, data: Partial<MentorProfileExtended>): Promise<MentorProfileExtended | undefined>;
+  deleteMentorProfileExtended(userId: string): Promise<void>;
   
   sessionStore: session.Store;
 }
@@ -2191,6 +2229,182 @@ export class DatabaseStorage implements IStorage {
       ...r.mentor_profiles,
       user: r.users
     }));
+  }
+
+  // Professional Profiles
+  async getProfessionalProfile(userId: string): Promise<ProfessionalProfile | undefined> {
+    const [profile] = await db.select().from(professionalProfiles).where(eq(professionalProfiles.userId, userId));
+    return profile || undefined;
+  }
+
+  async createProfessionalProfile(profile: InsertProfessionalProfile): Promise<ProfessionalProfile> {
+    const [result] = await db.insert(professionalProfiles).values(profile).returning();
+    return result;
+  }
+
+  async updateProfessionalProfile(userId: string, data: Partial<ProfessionalProfile>): Promise<ProfessionalProfile | undefined> {
+    const [profile] = await db.update(professionalProfiles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(professionalProfiles.userId, userId))
+      .returning();
+    return profile || undefined;
+  }
+
+  async deleteProfessionalProfile(userId: string): Promise<void> {
+    await db.delete(professionalProfiles).where(eq(professionalProfiles.userId, userId));
+  }
+
+  // Mentorship Roles
+  async getMentorshipRole(userId: string): Promise<MentorshipRole | undefined> {
+    const [role] = await db.select().from(mentorshipRoles).where(eq(mentorshipRoles.userId, userId));
+    return role || undefined;
+  }
+
+  async createMentorshipRole(role: InsertMentorshipRole): Promise<MentorshipRole> {
+    const [result] = await db.insert(mentorshipRoles).values(role).returning();
+    return result;
+  }
+
+  async updateMentorshipRole(userId: string, data: Partial<MentorshipRole>): Promise<MentorshipRole | undefined> {
+    const [role] = await db.update(mentorshipRoles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(mentorshipRoles.userId, userId))
+      .returning();
+    return role || undefined;
+  }
+
+  async deleteMentorshipRole(userId: string): Promise<void> {
+    await db.delete(mentorshipRoles).where(eq(mentorshipRoles.userId, userId));
+  }
+
+  // Mentee Profiles
+  async getMenteeProfile(userId: string): Promise<MenteeProfile | undefined> {
+    const [profile] = await db.select().from(menteeProfiles).where(eq(menteeProfiles.userId, userId));
+    return profile || undefined;
+  }
+
+  async getMenteeProfileById(id: string): Promise<MenteeProfile | undefined> {
+    const [profile] = await db.select().from(menteeProfiles).where(eq(menteeProfiles.id, id));
+    return profile || undefined;
+  }
+
+  async getMenteeProfiles(filters?: { 
+    careerStage?: string;
+    search?: string;
+  }): Promise<(MenteeProfile & { user: User })[]> {
+    const conditions = [];
+    
+    if (filters?.careerStage) {
+      conditions.push(eq(menteeProfiles.careerStage, filters.careerStage as any));
+    }
+    if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
+      conditions.push(
+        or(
+          like(users.firstName, searchTerm),
+          like(users.lastName, searchTerm),
+          like(users.email, searchTerm),
+          like(menteeProfiles.shortTermGoals, searchTerm),
+          like(menteeProfiles.longTermVision, searchTerm)
+        )
+      );
+    }
+
+    const query = db
+      .select()
+      .from(menteeProfiles)
+      .innerJoin(users, eq(menteeProfiles.userId, users.id));
+
+    const results = conditions.length > 0 
+      ? await query.where(and(...conditions)).orderBy(desc(menteeProfiles.createdAt))
+      : await query.orderBy(desc(menteeProfiles.createdAt));
+
+    return results.map(r => ({
+      ...r.mentee_profiles,
+      user: r.users
+    }));
+  }
+
+  async createMenteeProfile(profile: InsertMenteeProfile): Promise<MenteeProfile> {
+    const [result] = await db.insert(menteeProfiles).values(profile).returning();
+    return result;
+  }
+
+  async updateMenteeProfile(userId: string, data: Partial<MenteeProfile>): Promise<MenteeProfile | undefined> {
+    const [profile] = await db.update(menteeProfiles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(menteeProfiles.userId, userId))
+      .returning();
+    return profile || undefined;
+  }
+
+  async deleteMenteeProfile(userId: string): Promise<void> {
+    await db.delete(menteeProfiles).where(eq(menteeProfiles.userId, userId));
+  }
+
+  // Extended Mentor Profiles
+  async getMentorProfileExtended(userId: string): Promise<MentorProfileExtended | undefined> {
+    const [profile] = await db.select().from(mentorProfilesExtended).where(eq(mentorProfilesExtended.userId, userId));
+    return profile || undefined;
+  }
+
+  async getMentorProfileExtendedById(id: string): Promise<MentorProfileExtended | undefined> {
+    const [profile] = await db.select().from(mentorProfilesExtended).where(eq(mentorProfilesExtended.id, id));
+    return profile || undefined;
+  }
+
+  async getMentorProfilesExtended(filters?: { 
+    search?: string;
+    hasCapacity?: boolean;
+  }): Promise<(MentorProfileExtended & { user: User })[]> {
+    const conditions = [];
+    
+    if (filters?.hasCapacity) {
+      conditions.push(sql`${mentorProfilesExtended.maxMentees} > 0`);
+    }
+    if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
+      conditions.push(
+        or(
+          like(users.firstName, searchTerm),
+          like(users.lastName, searchTerm),
+          like(users.email, searchTerm),
+          like(mentorProfilesExtended.skillsToShare, searchTerm),
+          like(mentorProfilesExtended.mentorshipExperienceDescription, searchTerm)
+        )
+      );
+    }
+
+    const query = db
+      .select()
+      .from(mentorProfilesExtended)
+      .innerJoin(users, eq(mentorProfilesExtended.userId, users.id));
+
+    const results = conditions.length > 0 
+      ? await query.where(and(...conditions)).orderBy(desc(mentorProfilesExtended.createdAt))
+      : await query.orderBy(desc(mentorProfilesExtended.createdAt));
+
+    return results.map(r => ({
+      ...r.mentor_profiles_extended,
+      user: r.users
+    }));
+  }
+
+  async createMentorProfileExtended(profile: InsertMentorProfileExtended): Promise<MentorProfileExtended> {
+    const [result] = await db.insert(mentorProfilesExtended).values(profile).returning();
+    return result;
+  }
+
+  async updateMentorProfileExtended(userId: string, data: Partial<MentorProfileExtended>): Promise<MentorProfileExtended | undefined> {
+    const [profile] = await db.update(mentorProfilesExtended)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(mentorProfilesExtended.userId, userId))
+      .returning();
+    return profile || undefined;
+  }
+
+  async deleteMentorProfileExtended(userId: string): Promise<void> {
+    await db.delete(mentorProfilesExtended).where(eq(mentorProfilesExtended.userId, userId));
   }
 }
 

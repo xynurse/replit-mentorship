@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -147,27 +148,30 @@ export default function AdminCertificatesPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-10 w-10 rounded-md" />
-            <div>
-              <Skeleton className="h-6 w-48" />
-              <Skeleton className="h-4 w-64 mt-1" />
+      <AdminLayout>
+        <div className="p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-md" />
+              <div>
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-64 mt-1" />
+              </div>
             </div>
+            <Skeleton className="h-9 w-32" />
           </div>
-          <Skeleton className="h-9 w-32" />
+          <Card>
+            <CardContent className="pt-6">
+              <Skeleton className="h-96" />
+            </CardContent>
+          </Card>
         </div>
-        <Card>
-          <CardContent className="pt-6">
-            <Skeleton className="h-96" />
-          </CardContent>
-        </Card>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
+    <AdminLayout>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
@@ -359,5 +363,6 @@ export default function AdminCertificatesPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </AdminLayout>
   );
 }

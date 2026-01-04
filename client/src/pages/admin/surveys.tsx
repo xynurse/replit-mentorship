@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { DashboardLayout } from "@/components/layouts/dashboard-layout";
+import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -177,16 +177,16 @@ export default function AdminSurveys() {
 
   if (!user || (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN")) {
     return (
-      <DashboardLayout>
+      <AdminLayout>
         <div className="flex items-center justify-center h-96">
           <p className="text-muted-foreground">You do not have access to this page.</p>
         </div>
-      </DashboardLayout>
+      </AdminLayout>
     );
   }
 
   return (
-    <DashboardLayout>
+    <AdminLayout>
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -597,6 +597,6 @@ export default function AdminSurveys() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+    </AdminLayout>
   );
 }
