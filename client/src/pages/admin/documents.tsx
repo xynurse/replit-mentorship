@@ -3,8 +3,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -38,6 +41,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { ObjectUploader } from "@/components/ObjectUploader";
 import type { Document, User } from "@shared/schema";
 import {
   Search,
@@ -55,6 +59,8 @@ import {
   Globe,
   Lock,
   FolderIcon,
+  Upload,
+  Plus,
 } from "lucide-react";
 
 function getFileIcon(mimeType?: string | null, fileType?: string | null) {
@@ -101,6 +107,21 @@ export default function AdminDocuments() {
   const [visibilityFilter, setVisibilityFilter] = useState<string>("");
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadedFileInfo, setUploadedFileInfo] = useState<{
+    objectPath: string;
+    name: string;
+    size: number;
+    mimeType: string;
+  } | null>(null);
+  const [pendingObjectPath, setPendingObjectPath] = useState<string | null>(null);
+  const [newDocument, setNewDocument] = useState({
+    name: "",
+    description: "",
+    category: "RESOURCE",
+    visibility: "PUBLIC",
+    isTemplate: false,
+  });
 
   const { data: documents, isLoading } = useQuery<Document[]>({
     queryKey: ["/api/admin/documents", categoryFilter, visibilityFilter, searchQuery],
@@ -129,6 +150,58 @@ export default function AdminDocuments() {
       toast({ title: "Failed to delete document", variant: "destructive" });
     },
   });
+
+  const createDocumentMutation = useMutation({
+    mutationFn: async (data: {
+      name: string;
+      description: string;
+      category: string;
+      visibility: string;
+      isTemplate: boolean;
+      fileUrl: string;
+      fileSize: number;
+      mimeType: string;
+    }) => {
+      return apiRequest("POST", "/api/documents", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/documents"] });
+      toast({ title: "Document created successfully" });
+      setShowUploadDialog(false);
+      setUploadedFileInfo(null);
+      setNewDocument({
+        name: "",
+        description: "",
+        category: "RESOURCE",
+        visibility: "PUBLIC",
+        isTemplate: false,
+      });
+    },
+    onError: () => {
+      toast({ title: "Failed to create document", variant: "destructive" });
+    },
+  });
+
+  const handleCreateDocument = () => {
+    if (!uploadedFileInfo) {
+      toast({ title: "Please upload a file first", variant: "destructive" });
+      return;
+    }
+    if (!newDocument.name.trim()) {
+      toast({ title: "Please enter a document name", variant: "destructive" });
+      return;
+    }
+    createDocumentMutation.mutate({
+      name: newDocument.name,
+      description: newDocument.description,
+      category: newDocument.category,
+      visibility: newDocument.visibility,
+      isTemplate: newDocument.isTemplate,
+      fileUrl: uploadedFileInfo.objectPath,
+      fileSize: uploadedFileInfo.size,
+      mimeType: uploadedFileInfo.mimeType,
+    });
+  };
 
   const downloadDocument = async (doc: Document) => {
     try {
@@ -190,6 +263,10 @@ export default function AdminDocuments() {
                 <CardTitle>All Documents</CardTitle>
                 <CardDescription>View and manage all documents on the platform</CardDescription>
               </div>
+              <Button onClick={() => setShowUploadDialog(true)} data-testid="button-upload-document">
+                <Plus className="h-4 w-4 mr-2" />
+                Upload Document
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -366,6 +443,195 @@ export default function AdminDocuments() {
               data-testid="button-confirm-delete"
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showUploadDialog} onOpenChange={(open) => {
+        setShowUploadDialog(open);
+        if (!open) {
+          setUploadedFileInfo(null);
+          setPendingObjectPath(null);
+          setNewDocument({
+            name: "",
+            description: "",
+            category: "RESOURCE",
+            visibility: "PUBLIC",
+            isTemplate: false,
+          });
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload Document</DialogTitle>
+            <DialogDescription>
+              Upload a new document to the platform. Choose visibility settings to control access.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>File</Label>
+              {uploadedFileInfo ? (
+                <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/50">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{uploadedFileInfo.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatFileSize(uploadedFileInfo.size)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setUploadedFileInfo(null)}
+                    data-testid="button-remove-file"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <ObjectUploader
+                  maxNumberOfFiles={1}
+                  maxFileSize={52428800}
+                  onGetUploadParameters={async (file) => {
+                    try {
+                      const res = await fetch("/api/uploads/request-url", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({
+                          name: file.name,
+                          size: file.size,
+                          contentType: file.type,
+                        }),
+                      });
+                      if (!res.ok) {
+                        throw new Error("Failed to get upload URL");
+                      }
+                      const data = await res.json();
+                      setPendingObjectPath(data.objectPath);
+                      return {
+                        method: "PUT" as const,
+                        url: data.uploadURL,
+                        headers: { "Content-Type": file.type || "application/octet-stream" },
+                      };
+                    } catch (error) {
+                      toast({ title: "Failed to prepare upload", variant: "destructive" });
+                      throw error;
+                    }
+                  }}
+                  onComplete={(result) => {
+                    const file = result.successful?.[0];
+                    if (file && pendingObjectPath) {
+                      setUploadedFileInfo({
+                        objectPath: pendingObjectPath,
+                        name: file.name,
+                        size: file.size,
+                        mimeType: file.type || "application/octet-stream",
+                      });
+                      if (!newDocument.name) {
+                        setNewDocument(prev => ({ ...prev, name: file.name.replace(/\.[^/.]+$/, "") }));
+                      }
+                      toast({ title: "File uploaded successfully" });
+                      setPendingObjectPath(null);
+                    }
+                  }}
+                  buttonClassName="w-full"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Select File to Upload
+                </ObjectUploader>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="doc-name">Document Name *</Label>
+              <Input
+                id="doc-name"
+                value={newDocument.name}
+                onChange={(e) => setNewDocument(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Enter document name"
+                data-testid="input-doc-name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="doc-description">Description</Label>
+              <Textarea
+                id="doc-description"
+                value={newDocument.description}
+                onChange={(e) => setNewDocument(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Brief description of the document"
+                className="resize-none"
+                data-testid="input-doc-description"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select
+                  value={newDocument.category}
+                  onValueChange={(v) => setNewDocument(prev => ({ ...prev, category: v }))}
+                >
+                  <SelectTrigger data-testid="select-doc-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TEMPLATE">Template</SelectItem>
+                    <SelectItem value="AGREEMENT">Agreement</SelectItem>
+                    <SelectItem value="RESOURCE">Resource</SelectItem>
+                    <SelectItem value="SUBMISSION">Submission</SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Visibility</Label>
+                <Select
+                  value={newDocument.visibility}
+                  onValueChange={(v) => setNewDocument(prev => ({ ...prev, visibility: v }))}
+                >
+                  <SelectTrigger data-testid="select-doc-visibility">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PUBLIC">Public</SelectItem>
+                    <SelectItem value="COHORT">Cohort Only</SelectItem>
+                    <SelectItem value="PRIVATE">Private</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="is-template"
+                checked={newDocument.isTemplate}
+                onCheckedChange={(checked) => setNewDocument(prev => ({ ...prev, isTemplate: !!checked }))}
+                data-testid="checkbox-is-template"
+              />
+              <Label htmlFor="is-template" className="cursor-pointer">
+                Mark as template document
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUploadDialog(false)}
+              data-testid="button-cancel-upload"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateDocument}
+              disabled={createDocumentMutation.isPending || !uploadedFileInfo}
+              data-testid="button-create-document"
+            >
+              {createDocumentMutation.isPending ? "Creating..." : "Create Document"}
             </Button>
           </DialogFooter>
         </DialogContent>

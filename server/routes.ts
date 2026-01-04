@@ -572,7 +572,7 @@ export async function registerRoutes(
     }
   });
 
-  // Admin: Bulk import mentor profiles from survey CSV
+  // Admin: Bulk import mentor profiles from survey CSV (uses mentorProfilesExtended table)
   app.post("/api/admin/mentor-profiles/bulk-import", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
       const { profiles: profilesData, fieldMapping } = req.body;
@@ -583,19 +583,33 @@ export async function registerRoutes(
 
       const defaultMapping = {
         email: "email",
-        preferredName: "preferred_name",
-        pronouns: "pronouns",
-        region: "region",
-        languages: "languages",
-        mentoringTracks: "mentoring_tracks",
-        expertiseDescription: "expertise_description",
-        skillsToShare: "skills_to_share",
-        mentoringGoals: "mentoring_goals",
-        preferredMeetingFrequency: "meeting_frequency",
-        preferredMeetingFormat: "meeting_format",
-        additionalNotes: "additional_notes",
         maxMentees: "max_mentees",
-        cohortYear: "cohort_year",
+        preferredMenteeStages: "preferred_mentee_stages",
+        openToMentoringOutsideExpertise: "open_to_mentoring_outside_expertise",
+        previouslyServedAsMentor: "previously_served_as_mentor",
+        mentorshipExperienceDescription: "mentorship_experience_description",
+        certificationsTraining: "certifications_training",
+        notableAchievements: "notable_achievements",
+        industriesExperience: "industries_experience",
+        skillsToShare: "skills_to_share",
+        primaryMotivations: "primary_motivations",
+        comfortScienceResearch: "comfort_science_research",
+        comfortProductDevelopment: "comfort_product_development",
+        comfortInnovation: "comfort_innovation",
+        comfortBusinessStrategy: "comfort_business_strategy",
+        comfortEntrepreneurship: "comfort_entrepreneurship",
+        comfortIntrapreneurship: "comfort_intrapreneurship",
+        comfortLeadership: "comfort_leadership",
+        comfortNetworking: "comfort_networking",
+        comfortProfessionalDevelopment: "comfort_professional_development",
+        comfortDigitalTech: "comfort_digital_tech",
+        comfortEthicalSocial: "comfort_ethical_social",
+        monthlyHoursAvailable: "monthly_hours_available",
+        availabilityNotes: "availability_notes",
+        timezone: "timezone",
+        preferredDuration: "preferred_duration",
+        preferredCommunicationTools: "preferred_communication_tools",
+        languagesSpoken: "languages_spoken",
       };
 
       const mapping = { ...defaultMapping, ...fieldMapping };
@@ -603,6 +617,25 @@ export async function registerRoutes(
       const results = {
         successful: [] as any[],
         failed: [] as { row: number; email: string; error: string }[],
+      };
+
+      const parseArrayField = (value: string | undefined): string[] => {
+        if (!value) return [];
+        return value.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+      };
+
+      const parseBoolean = (value: string | undefined): boolean | undefined => {
+        if (value === undefined || value === null || value === '') return undefined;
+        const lower = String(value).toLowerCase().trim();
+        if (lower === 'true' || lower === 'yes' || lower === '1') return true;
+        if (lower === 'false' || lower === 'no' || lower === '0') return false;
+        return undefined;
+      };
+
+      const parseInteger = (value: string | undefined, defaultVal: number = 0): number => {
+        if (value === undefined || value === null || value === '') return defaultVal;
+        const parsed = parseInt(String(value), 10);
+        return isNaN(parsed) ? defaultVal : parsed;
       };
 
       for (let i = 0; i < profilesData.length; i++) {
@@ -614,7 +647,6 @@ export async function registerRoutes(
             throw new Error("Email is required");
           }
 
-          // Find user by email
           const user = await storage.getUserByEmail(email);
           if (!user) {
             throw new Error(`User not found with email: ${email}`);
@@ -624,38 +656,44 @@ export async function registerRoutes(
             throw new Error(`User ${email} is not a mentor`);
           }
 
-          // Check if profile already exists
-          const existingProfile = await storage.getMentorProfile(user.id);
+          const existingProfile = await storage.getMentorProfileExtended(user.id);
           
-          // Parse arrays from CSV (semicolon-separated)
-          const parseArrayField = (value: string | undefined): string[] => {
-            if (!value) return [];
-            return value.split(/[;,]/).map(s => s.trim()).filter(Boolean);
-          };
-
-          const profileData = {
+          const profileData: any = {
             userId: user.id,
-            preferredName: data[mapping.preferredName] || null,
-            pronouns: data[mapping.pronouns] || null,
-            region: data[mapping.region] || null,
-            languages: parseArrayField(data[mapping.languages]),
-            mentoringTracks: parseArrayField(data[mapping.mentoringTracks]),
-            expertiseDescription: data[mapping.expertiseDescription] || null,
+            maxMentees: parseInteger(data[mapping.maxMentees], 2),
+            preferredMenteeStages: parseArrayField(data[mapping.preferredMenteeStages]),
+            openToMentoringOutsideExpertise: parseBoolean(data[mapping.openToMentoringOutsideExpertise]) ?? false,
+            previouslyServedAsMentor: parseBoolean(data[mapping.previouslyServedAsMentor]),
+            mentorshipExperienceDescription: data[mapping.mentorshipExperienceDescription] || null,
+            certificationsTraining: data[mapping.certificationsTraining] || null,
+            notableAchievements: data[mapping.notableAchievements] || null,
+            industriesExperience: parseArrayField(data[mapping.industriesExperience]),
             skillsToShare: data[mapping.skillsToShare] || null,
-            mentoringGoals: data[mapping.mentoringGoals] || null,
-            preferredMeetingFrequency: data[mapping.preferredMeetingFrequency] || null,
-            preferredMeetingFormat: data[mapping.preferredMeetingFormat] || null,
-            additionalNotes: data[mapping.additionalNotes] || null,
-            maxMentees: data[mapping.maxMentees] ? parseInt(data[mapping.maxMentees]) : 2,
-            cohortYear: data[mapping.cohortYear] ? parseInt(data[mapping.cohortYear]) : new Date().getFullYear(),
-            status: "ACTIVE" as const,
+            primaryMotivations: data[mapping.primaryMotivations] || null,
+            comfortScienceResearch: parseInteger(data[mapping.comfortScienceResearch], 0),
+            comfortProductDevelopment: parseInteger(data[mapping.comfortProductDevelopment], 0),
+            comfortInnovation: parseInteger(data[mapping.comfortInnovation], 0),
+            comfortBusinessStrategy: parseInteger(data[mapping.comfortBusinessStrategy], 0),
+            comfortEntrepreneurship: parseInteger(data[mapping.comfortEntrepreneurship], 0),
+            comfortIntrapreneurship: parseInteger(data[mapping.comfortIntrapreneurship], 0),
+            comfortLeadership: parseInteger(data[mapping.comfortLeadership], 0),
+            comfortNetworking: parseInteger(data[mapping.comfortNetworking], 0),
+            comfortProfessionalDevelopment: parseInteger(data[mapping.comfortProfessionalDevelopment], 0),
+            comfortDigitalTech: parseInteger(data[mapping.comfortDigitalTech], 0),
+            comfortEthicalSocial: parseInteger(data[mapping.comfortEthicalSocial], 0),
+            monthlyHoursAvailable: data[mapping.monthlyHoursAvailable] || null,
+            availabilityNotes: data[mapping.availabilityNotes] || null,
+            timezone: data[mapping.timezone] || null,
+            preferredDuration: data[mapping.preferredDuration] || null,
+            preferredCommunicationTools: parseArrayField(data[mapping.preferredCommunicationTools]),
+            languagesSpoken: parseArrayField(data[mapping.languagesSpoken]),
           };
 
           let profile;
           if (existingProfile) {
-            profile = await storage.updateMentorProfile(user.id, profileData);
+            profile = await storage.updateMentorProfileExtended(user.id, profileData);
           } else {
-            profile = await storage.createMentorProfile(profileData);
+            profile = await storage.createMentorProfileExtended(profileData);
           }
 
           results.successful.push({ email, userId: user.id, profile });
@@ -678,46 +716,392 @@ export async function registerRoutes(
     }
   });
 
-  // Download CSV template for mentor profile bulk import
+  // Download CSV template for mentor profile bulk import (mentorProfilesExtended)
   app.get("/api/admin/mentor-profiles/bulk-import/template", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
     const headers = [
       "email",
-      "preferred_name",
-      "pronouns",
-      "region",
-      "languages",
-      "mentoring_tracks",
-      "expertise_description",
-      "skills_to_share",
-      "mentoring_goals",
-      "meeting_frequency",
-      "meeting_format",
-      "additional_notes",
       "max_mentees",
-      "cohort_year"
+      "preferred_mentee_stages",
+      "open_to_mentoring_outside_expertise",
+      "previously_served_as_mentor",
+      "mentorship_experience_description",
+      "certifications_training",
+      "notable_achievements",
+      "industries_experience",
+      "skills_to_share",
+      "primary_motivations",
+      "comfort_science_research",
+      "comfort_product_development",
+      "comfort_innovation",
+      "comfort_business_strategy",
+      "comfort_entrepreneurship",
+      "comfort_intrapreneurship",
+      "comfort_leadership",
+      "comfort_networking",
+      "comfort_professional_development",
+      "comfort_digital_tech",
+      "comfort_ethical_social",
+      "monthly_hours_available",
+      "availability_notes",
+      "timezone",
+      "preferred_duration",
+      "preferred_communication_tools",
+      "languages_spoken"
     ];
     
     const exampleRow = [
       "mentor@example.com",
-      "Dr. Smith",
-      "she/her",
-      "NORTHEAST",
-      "English; Spanish",
-      "CLINICAL_PRACTICE; LEADERSHIP",
-      "20 years experience in critical care nursing",
-      "Clinical decision making; Team leadership",
-      "Help mentees develop clinical confidence",
-      "BIWEEKLY",
-      "VIDEO_CALL",
-      "Available evenings",
       "2",
-      "2025"
+      "early_career,mid_career",
+      "true",
+      "true",
+      "10 years mentoring experience in healthcare",
+      "Leadership certification, PMP",
+      "Led successful startup, published researcher",
+      "Healthcare,Technology,Research",
+      "Strategic planning, Career development",
+      "Give back to the community",
+      "2",
+      "1",
+      "2",
+      "2",
+      "1",
+      "1",
+      "2",
+      "2",
+      "2",
+      "1",
+      "2",
+      "3-4",
+      "Available evenings and weekends",
+      "America/New_York",
+      "6_months",
+      "Zoom,Google Meet",
+      "English,Spanish"
     ];
 
     const csv = [headers.join(","), exampleRow.join(",")].join("\n");
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=mentor-profile-import-template.csv");
     res.send(csv);
+  });
+
+  // Admin: Bulk import mentee profiles from survey CSV
+  app.post("/api/admin/mentee-profiles/bulk-import", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { profiles: profilesData, fieldMapping } = req.body;
+      
+      if (!Array.isArray(profilesData) || profilesData.length === 0) {
+        return res.status(400).json({ message: "No profile data provided" });
+      }
+
+      const defaultMapping = {
+        email: "email",
+        careerStage: "career_stage",
+        shortTermGoals: "short_term_goals",
+        longTermVision: "long_term_vision",
+        currentProjectOrIdea: "current_project_or_idea",
+        previouslyBeenMentored: "previously_been_mentored",
+        interestScienceResearch: "interest_science_research",
+        interestProductDevelopment: "interest_product_development",
+        interestInnovation: "interest_innovation",
+        interestBusinessStrategy: "interest_business_strategy",
+        interestEntrepreneurship: "interest_entrepreneurship",
+        interestIntrapreneurship: "interest_intrapreneurship",
+        interestLeadership: "interest_leadership",
+        interestNetworking: "interest_networking",
+        interestProfessionalDevelopment: "interest_professional_development",
+        interestDigitalTech: "interest_digital_tech",
+        interestEthicalSocial: "interest_ethical_social",
+        monthlyHoursAvailable: "monthly_hours_available",
+        timezone: "timezone",
+        preferredDuration: "preferred_duration",
+        preferredCommunicationTools: "preferred_communication_tools",
+      };
+
+      const mapping = { ...defaultMapping, ...fieldMapping };
+      
+      const results = {
+        successful: [] as any[],
+        failed: [] as { row: number; email: string; error: string }[],
+      };
+
+      const parseArrayField = (value: string | undefined): string[] => {
+        if (!value) return [];
+        return value.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+      };
+
+      const parseBoolean = (value: string | undefined): boolean | undefined => {
+        if (value === undefined || value === null || value === '') return undefined;
+        const lower = String(value).toLowerCase().trim();
+        if (lower === 'true' || lower === 'yes' || lower === '1') return true;
+        if (lower === 'false' || lower === 'no' || lower === '0') return false;
+        return undefined;
+      };
+
+      const parseInteger = (value: string | undefined, defaultVal: number = 0): number => {
+        if (value === undefined || value === null || value === '') return defaultVal;
+        const parsed = parseInt(String(value), 10);
+        return isNaN(parsed) ? defaultVal : parsed;
+      };
+
+      for (let i = 0; i < profilesData.length; i++) {
+        const data = profilesData[i];
+        const email = data[mapping.email];
+
+        try {
+          if (!email) {
+            throw new Error("Email is required");
+          }
+
+          const user = await storage.getUserByEmail(email);
+          if (!user) {
+            throw new Error(`User not found with email: ${email}`);
+          }
+
+          if (user.role !== "MENTEE") {
+            throw new Error(`User ${email} is not a mentee`);
+          }
+
+          const existingProfile = await storage.getMenteeProfile(user.id);
+          
+          const profileData: any = {
+            userId: user.id,
+            careerStage: data[mapping.careerStage] || null,
+            shortTermGoals: data[mapping.shortTermGoals] || null,
+            longTermVision: data[mapping.longTermVision] || null,
+            currentProjectOrIdea: data[mapping.currentProjectOrIdea] || null,
+            previouslyBeenMentored: parseBoolean(data[mapping.previouslyBeenMentored]),
+            interestScienceResearch: parseInteger(data[mapping.interestScienceResearch], 0),
+            interestProductDevelopment: parseInteger(data[mapping.interestProductDevelopment], 0),
+            interestInnovation: parseInteger(data[mapping.interestInnovation], 0),
+            interestBusinessStrategy: parseInteger(data[mapping.interestBusinessStrategy], 0),
+            interestEntrepreneurship: parseInteger(data[mapping.interestEntrepreneurship], 0),
+            interestIntrapreneurship: parseInteger(data[mapping.interestIntrapreneurship], 0),
+            interestLeadership: parseInteger(data[mapping.interestLeadership], 0),
+            interestNetworking: parseInteger(data[mapping.interestNetworking], 0),
+            interestProfessionalDevelopment: parseInteger(data[mapping.interestProfessionalDevelopment], 0),
+            interestDigitalTech: parseInteger(data[mapping.interestDigitalTech], 0),
+            interestEthicalSocial: parseInteger(data[mapping.interestEthicalSocial], 0),
+            monthlyHoursAvailable: data[mapping.monthlyHoursAvailable] || null,
+            timezone: data[mapping.timezone] || null,
+            preferredDuration: data[mapping.preferredDuration] || null,
+            preferredCommunicationTools: parseArrayField(data[mapping.preferredCommunicationTools]),
+          };
+
+          let profile;
+          if (existingProfile) {
+            profile = await storage.updateMenteeProfile(user.id, profileData);
+          } else {
+            profile = await storage.createMenteeProfile(profileData);
+          }
+
+          results.successful.push({ email, userId: user.id, profile });
+        } catch (error: any) {
+          results.failed.push({
+            row: i + 1,
+            email: email || "unknown",
+            error: error.message || "Unknown error",
+          });
+        }
+      }
+
+      res.json({
+        message: `Imported ${results.successful.length} profiles, ${results.failed.length} failed`,
+        successful: results.successful,
+        failed: results.failed,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Download CSV template for mentee profile bulk import
+  app.get("/api/admin/mentee-profiles/bulk-import/template", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
+    const headers = [
+      "email",
+      "career_stage",
+      "short_term_goals",
+      "long_term_vision",
+      "current_project_or_idea",
+      "previously_been_mentored",
+      "interest_science_research",
+      "interest_product_development",
+      "interest_innovation",
+      "interest_business_strategy",
+      "interest_entrepreneurship",
+      "interest_intrapreneurship",
+      "interest_leadership",
+      "interest_networking",
+      "interest_professional_development",
+      "interest_digital_tech",
+      "interest_ethical_social",
+      "monthly_hours_available",
+      "timezone",
+      "preferred_duration",
+      "preferred_communication_tools"
+    ];
+    
+    const exampleRow = [
+      "mentee@example.com",
+      "early_career",
+      "Get promoted to senior position",
+      "Become a healthcare innovation leader",
+      "Developing a new patient care workflow",
+      "false",
+      "2",
+      "1",
+      "2",
+      "1",
+      "2",
+      "1",
+      "2",
+      "2",
+      "2",
+      "1",
+      "2",
+      "3-4",
+      "America/New_York",
+      "6_months",
+      "Zoom,Google Meet"
+    ];
+
+    const csv = [headers.join(","), exampleRow.join(",")].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=mentee-profile-import-template.csv");
+    res.send(csv);
+  });
+
+  // ============ MENTEE PROFILES CRUD ============
+  
+  // Admin: Export mentee profiles as CSV (must be before :userId route)
+  app.get("/api/admin/mentee-profiles/export", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const filters = {
+        careerStage: req.query.careerStage as string | undefined,
+      };
+      
+      const profiles = await storage.getMenteeProfiles(filters);
+      
+      const headers = [
+        "Email", "Name", "Career Stage", "Short Term Goals", "Long Term Vision",
+        "Current Project", "Previously Mentored", "Timezone",
+        "Monthly Hours", "Preferred Duration", "Organization", "Job Title"
+      ];
+      
+      const rows = profiles.map(p => [
+        p.user.email,
+        `${p.user.firstName} ${p.user.lastName}`,
+        p.careerStage || "",
+        (p.shortTermGoals || "").replace(/"/g, '""'),
+        (p.longTermVision || "").replace(/"/g, '""'),
+        (p.currentProjectOrIdea || "").replace(/"/g, '""'),
+        p.previouslyBeenMentored ? "Yes" : "No",
+        p.timezone || "",
+        p.monthlyHoursAvailable || "",
+        p.preferredDuration || "",
+        p.user.organizationName || "",
+        p.user.jobTitle || ""
+      ]);
+
+      const csv = [
+        headers.join(","),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+      ].join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=mentee-profiles-export.csv");
+      res.send(csv);
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Admin: Get all mentee profiles with filters
+  app.get("/api/admin/mentee-profiles", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const filters = {
+        careerStage: req.query.careerStage as string | undefined,
+        search: req.query.search as string | undefined,
+      };
+      
+      const profiles = await storage.getMenteeProfiles(filters);
+      res.json(profiles);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Get single mentee profile by user ID
+  app.get("/api/admin/mentee-profiles/:userId", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const profile = await storage.getMenteeProfile(req.params.userId);
+      if (!profile) {
+        return res.status(404).json({ message: "Mentee profile not found" });
+      }
+      
+      const user = await storage.getUser(req.params.userId);
+      res.json({ ...profile, user });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Create mentee profile for a user
+  app.post("/api/admin/mentee-profiles", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { userId, ...profileData } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      if (user.role !== "MENTEE") {
+        return res.status(400).json({ message: "User must have MENTEE role" });
+      }
+
+      const existingProfile = await storage.getMenteeProfile(userId);
+      if (existingProfile) {
+        return res.status(400).json({ message: "Mentee profile already exists for this user" });
+      }
+
+      const profile = await storage.createMenteeProfile({
+        userId,
+        ...profileData,
+      });
+
+      res.status(201).json(profile);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Update mentee profile
+  app.patch("/api/admin/mentee-profiles/:userId", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const profile = await storage.updateMenteeProfile(req.params.userId, req.body);
+      if (!profile) {
+        return res.status(404).json({ message: "Mentee profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Delete mentee profile
+  app.delete("/api/admin/mentee-profiles/:userId", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      await storage.deleteMenteeProfile(req.params.userId);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.get("/api/profile", requireAuth, async (req, res) => {
