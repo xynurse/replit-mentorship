@@ -139,16 +139,22 @@ export default function AdminMentorProfiles() {
 
   const createUserMutation = useMutation({
     mutationFn: async (data: typeof newUser) => {
-      const response = await apiRequest("POST", "/api/admin/users", { ...data, role: "MENTOR" });
-      return response.json();
+      try {
+        const response = await apiRequest("POST", "/api/admin/users", { ...data, role: "MENTOR" });
+        return await response.json();
+      } catch (error: any) {
+        throw new Error(error.message || "Failed to create mentor");
+      }
     },
     onSuccess: (user) => {
-      refetchMentors();
-      setShowCreateUserDialog(false);
-      setNewUser({ email: "", password: "", firstName: "", lastName: "", organizationName: "", jobTitle: "" });
-      setNewProfile({ ...newProfile, userId: user.id });
-      setShowCreateDialog(true);
-      toast({ title: "Mentor user created! Now add their profile details." });
+      if (user && user.id) {
+        refetchMentors();
+        setShowCreateUserDialog(false);
+        setNewUser({ email: "", password: "", firstName: "", lastName: "", organizationName: "", jobTitle: "" });
+        setNewProfile({ ...newProfile, userId: user.id });
+        setShowCreateDialog(true);
+        toast({ title: "Mentor user created! Now add their profile details." });
+      }
     },
     onError: (error: Error) => {
       toast({ title: "Failed to create mentor", description: error.message, variant: "destructive" });
@@ -157,12 +163,18 @@ export default function AdminMentorProfiles() {
 
   const bulkPasswordResetMutation = useMutation({
     mutationFn: async ({ userIds, setPassword }: { userIds: string[]; setPassword: boolean }) => {
-      const response = await apiRequest("POST", "/api/admin/users/bulk-password-reset", { userIds, setPassword });
-      return response.json();
+      try {
+        const response = await apiRequest("POST", "/api/admin/users/bulk-password-reset", { userIds, setPassword });
+        return await response.json();
+      } catch (error: any) {
+        throw new Error(error.message || "Password reset failed");
+      }
     },
     onSuccess: (data) => {
-      setPasswordResetResults(data);
-      toast({ title: `Password reset for ${data.successful.length} mentors` });
+      if (data && data.successful) {
+        setPasswordResetResults(data);
+        toast({ title: `Password reset for ${data.successful.length} mentors` });
+      }
     },
     onError: (error: Error) => {
       toast({ title: "Password reset failed", description: error.message, variant: "destructive" });
@@ -171,15 +183,20 @@ export default function AdminMentorProfiles() {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ userId, activate }: { userId: string; activate: boolean }) => {
-      return apiRequest("PATCH", `/api/users/${userId}/${activate ? 'activate' : 'deactivate'}`);
+      try {
+        await apiRequest("PATCH", `/api/users/${userId}/${activate ? 'activate' : 'deactivate'}`);
+        return { success: true };
+      } catch (error: any) {
+        throw new Error(error.message || "Failed to update status");
+      }
     },
     onSuccess: () => {
       refetch();
       refetchMentors();
       toast({ title: "Mentor status updated" });
     },
-    onError: () => {
-      toast({ title: "Failed to update status", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
     },
   });
 
