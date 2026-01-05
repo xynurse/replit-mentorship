@@ -25,7 +25,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, Eye, Download, Upload, Plus, Search, Users, UserCheck, RefreshCw, X } from "lucide-react";
+import { MoreHorizontal, Eye, Download, Upload, Plus, Search, Users, UserCheck, RefreshCw, X, KeyRound, Mail, UserX } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,6 +72,18 @@ export default function AdminMentorProfiles() {
     successful: any[];
     failed: Array<{ row: number; email: string; error: string }>;
   } | null>(null);
+  const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
+  const [showPasswordResetDialog, setShowPasswordResetDialog] = useState(false);
+  const [passwordResetResults, setPasswordResetResults] = useState<any | null>(null);
+  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
+  const [newUser, setNewUser] = useState({
+    email: "",
+    password: "",
+    firstName: "",
+    lastName: "",
+    organizationName: "",
+    jobTitle: "",
+  });
 
   const [newProfile, setNewProfile] = useState({
     userId: "",
@@ -115,8 +128,59 @@ export default function AdminMentorProfiles() {
     queryKey: ["/api/tracks"],
   });
 
-  const { data: mentors = [] } = useQuery<(User & { password?: string })[]>({
-    queryKey: ["/api/users", { role: "MENTOR" }],
+  const { data: mentors = [], refetch: refetchMentors } = useQuery<(User & { password?: string })[]>({
+    queryKey: ["/api/users", "role=MENTOR"],
+    queryFn: async () => {
+      const response = await fetch("/api/users?role=MENTOR", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch mentors");
+      return response.json();
+    },
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: async (data: typeof newUser) => {
+      const response = await apiRequest("POST", "/api/admin/users", { ...data, role: "MENTOR" });
+      return response.json();
+    },
+    onSuccess: (user) => {
+      refetchMentors();
+      setShowCreateUserDialog(false);
+      setNewUser({ email: "", password: "", firstName: "", lastName: "", organizationName: "", jobTitle: "" });
+      setNewProfile({ ...newProfile, userId: user.id });
+      setShowCreateDialog(true);
+      toast({ title: "Mentor user created! Now add their profile details." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create mentor", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const bulkPasswordResetMutation = useMutation({
+    mutationFn: async ({ userIds, setPassword }: { userIds: string[]; setPassword: boolean }) => {
+      const response = await apiRequest("POST", "/api/admin/users/bulk-password-reset", { userIds, setPassword });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setPasswordResetResults(data);
+      toast({ title: `Password reset for ${data.successful.length} mentors` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Password reset failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ userId, activate }: { userId: string; activate: boolean }) => {
+      return apiRequest("PATCH", `/api/users/${userId}/${activate ? 'activate' : 'deactivate'}`);
+    },
+    onSuccess: () => {
+      refetch();
+      refetchMentors();
+      toast({ title: "Mentor status updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update status", variant: "destructive" });
+    },
   });
 
   const createProfileMutation = useMutation({
@@ -282,7 +346,30 @@ export default function AdminMentorProfiles() {
     m => !profiles.some(p => p.userId === m.id)
   );
 
+  const selectedUserIds = profiles
+    .filter(p => selectedProfileIds.includes(p.id))
+    .map(p => p.userId);
+
   const columns: Column<MentorProfileWithUser>[] = [
+    {
+      key: "select",
+      header: "",
+      className: "w-12",
+      render: (profile) => (
+        <Checkbox 
+          checked={selectedProfileIds.includes(profile.id)}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              setSelectedProfileIds([...selectedProfileIds, profile.id]);
+            } else {
+              setSelectedProfileIds(selectedProfileIds.filter(id => id !== profile.id));
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          data-testid={`checkbox-select-${profile.id}`}
+        />
+      ),
+    },
     {
       key: "mentor",
       header: "Mentor",
@@ -378,6 +465,22 @@ export default function AdminMentorProfiles() {
               <Eye className="mr-2 h-4 w-4" />
               View Details
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => toggleActiveMutation.mutate({ userId: profile.userId, activate: !profile.user.isActive })}
+            >
+              {profile.user.isActive ? (
+                <>
+                  <UserX className="mr-2 h-4 w-4" />
+                  Deactivate
+                </>
+              ) : (
+                <>
+                  <UserCheck className="mr-2 h-4 w-4" />
+                  Activate
+                </>
+              )}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -396,6 +499,12 @@ export default function AdminMentorProfiles() {
             <p className="text-muted-foreground">Manage mentor profiles, capacity, and expertise</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {selectedProfileIds.length > 0 && (
+              <Button variant="outline" onClick={() => setShowPasswordResetDialog(true)} data-testid="button-bulk-password-reset">
+                <KeyRound className="h-4 w-4 mr-2" />
+                Reset Passwords ({selectedProfileIds.length})
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setShowImportDialog(true)} data-testid="button-import">
               <Upload className="mr-2 h-4 w-4" />
               Import
@@ -403,6 +512,10 @@ export default function AdminMentorProfiles() {
             <Button variant="outline" onClick={handleExport} data-testid="button-export">
               <Download className="mr-2 h-4 w-4" />
               Export
+            </Button>
+            <Button variant="outline" onClick={() => setShowCreateUserDialog(true)} data-testid="button-create-mentor">
+              <Plus className="mr-2 h-4 w-4" />
+              New Mentor
             </Button>
             <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-profile">
               <Plus className="mr-2 h-4 w-4" />
@@ -768,6 +881,190 @@ export default function AdminMentorProfiles() {
               {importMutation.isPending ? "Importing..." : "Import"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New Mentor</DialogTitle>
+            <DialogDescription>Create a new mentor user account. You can add their profile details in the next step.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input
+                  id="firstName"
+                  value={newUser.firstName}
+                  onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
+                  data-testid="input-first-name"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input
+                  id="lastName"
+                  value={newUser.lastName}
+                  onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
+                  data-testid="input-last-name"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                data-testid="input-email"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">Temporary Password *</Label>
+              <Input
+                id="password"
+                type="password"
+                value={newUser.password}
+                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                data-testid="input-password"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="organizationName">Organization</Label>
+              <Input
+                id="organizationName"
+                value={newUser.organizationName}
+                onChange={(e) => setNewUser({ ...newUser, organizationName: e.target.value })}
+                data-testid="input-organization"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="jobTitle">Job Title</Label>
+              <Input
+                id="jobTitle"
+                value={newUser.jobTitle}
+                onChange={(e) => setNewUser({ ...newUser, jobTitle: e.target.value })}
+                data-testid="input-job-title"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateUserDialog(false)}>Cancel</Button>
+            <Button 
+              onClick={() => createUserMutation.mutate(newUser)} 
+              disabled={createUserMutation.isPending || !newUser.email || !newUser.password || !newUser.firstName || !newUser.lastName}
+              data-testid="button-submit-user"
+            >
+              {createUserMutation.isPending ? "Creating..." : "Create & Continue"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPasswordResetDialog} onOpenChange={(open) => {
+        setShowPasswordResetDialog(open);
+        if (!open) {
+          setPasswordResetResults(null);
+          setSelectedProfileIds([]);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bulk Password Reset</DialogTitle>
+            <DialogDescription>
+              Reset passwords for {selectedProfileIds.length} selected mentor{selectedProfileIds.length !== 1 ? "s" : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {passwordResetResults ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="font-medium">Reset Results</p>
+                <p className="text-sm text-muted-foreground">
+                  {passwordResetResults.successful.length} passwords reset successfully
+                </p>
+                {passwordResetResults.failed.length > 0 && (
+                  <p className="text-sm text-destructive">
+                    {passwordResetResults.failed.length} failed
+                  </p>
+                )}
+              </div>
+              {passwordResetResults.successful.length > 0 && passwordResetResults.successful[0].tempPassword && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">New Temporary Passwords:</p>
+                  <p className="text-xs text-muted-foreground">Save these passwords - they are only shown once!</p>
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {passwordResetResults.successful.map((user: any, idx: number) => (
+                      <div key={idx} className="text-xs p-2 bg-muted rounded flex justify-between gap-2">
+                        <span>{user.email}</span>
+                        <code className="bg-background px-1 rounded">{user.tempPassword}</code>
+                      </div>
+                    ))}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      const text = passwordResetResults.successful.map((u: any) => `${u.email},${u.tempPassword}`).join("\n");
+                      const blob = new Blob([`email,tempPassword\n${text}`], { type: "text/csv" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "reset-passwords.csv";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    data-testid="button-download-reset-passwords"
+                  >
+                    Download Passwords CSV
+                  </Button>
+                </div>
+              )}
+              <DialogFooter>
+                <Button onClick={() => setShowPasswordResetDialog(false)} data-testid="button-done">
+                  Done
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Choose how to reset passwords for the selected mentors:
+              </p>
+              <div className="space-y-3">
+                <Button 
+                  className="w-full justify-start" 
+                  variant="outline"
+                  onClick={() => bulkPasswordResetMutation.mutate({ userIds: selectedUserIds, setPassword: true })}
+                  disabled={bulkPasswordResetMutation.isPending}
+                  data-testid="button-generate-temp-passwords"
+                >
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Generate temporary passwords
+                </Button>
+                <Button 
+                  className="w-full justify-start" 
+                  variant="outline"
+                  onClick={() => bulkPasswordResetMutation.mutate({ userIds: selectedUserIds, setPassword: false })}
+                  disabled={bulkPasswordResetMutation.isPending}
+                  data-testid="button-generate-reset-tokens"
+                >
+                  <Mail className="mr-2 h-4 w-4" />
+                  Generate reset tokens (for email)
+                </Button>
+              </div>
+              {bulkPasswordResetMutation.isPending && (
+                <p className="text-sm text-center text-muted-foreground">Processing...</p>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowPasswordResetDialog(false)} data-testid="button-cancel">
+                  Cancel
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </AdminLayout>
