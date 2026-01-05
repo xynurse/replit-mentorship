@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Users, Calendar, MoreHorizontal, Edit, Eye, Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,6 +70,7 @@ const statusColors: Record<string, string> = {
 
 export default function AdminCohorts() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
 
@@ -173,11 +175,11 @@ export default function AdminCohorts() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/admin/cohorts/${cohort.id}`)} data-testid={`button-view-${cohort.id}`}>
                           <Eye className="mr-2 h-4 w-4" />
                           View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/admin/cohorts/${cohort.id}?edit=true`)} data-testid={`button-edit-${cohort.id}`}>
                           <Edit className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
