@@ -273,7 +273,7 @@ export async function registerRoutes(
   // Admin bulk import users from CSV
   app.post("/api/admin/users/bulk-import", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
-      const { users: usersData } = req.body;
+      const { users: usersData, defaultPassword } = req.body;
       
       if (!Array.isArray(usersData) || usersData.length === 0) {
         return res.status(400).json({ message: "No users data provided" });
@@ -288,7 +288,7 @@ export async function registerRoutes(
       for (let i = 0; i < usersData.length; i++) {
         const userData = usersData[i];
         try {
-          const { firstName, lastName, email, role, organizationName, jobTitle, phone } = userData;
+          const { firstName, lastName, email, role, organizationName, jobTitle, phone, password: csvPassword } = userData;
           
           // Validate required fields
           if (!firstName || !lastName || !email || !role) {
@@ -321,8 +321,8 @@ export async function registerRoutes(
             continue;
           }
 
-          // Generate temporary password
-          const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase();
+          // Use password from CSV, default password, or generate temporary password
+          const tempPassword = csvPassword || defaultPassword || (Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase());
           const hashedPassword = await hashPassword(tempPassword);
 
           const user = await storage.createUser({
@@ -335,12 +335,12 @@ export async function registerRoutes(
             jobTitle: jobTitle || null,
             phone: phone || null,
             isActive: true,
-            isEmailVerified: false,
+            isVerified: false,
             isProfileComplete: false,
           });
 
           const { password: _, ...safeUser } = user;
-          results.successful.push({ ...safeUser, tempPassword });
+          results.successful.push({ ...safeUser, tempPassword, passwordSource: csvPassword ? 'csv' : (defaultPassword ? 'default' : 'generated') });
         } catch (error: any) {
           results.failed.push({
             row: i + 1,
@@ -362,10 +362,71 @@ export async function registerRoutes(
 
   // Download CSV template for bulk import
   app.get("/api/admin/users/bulk-import/template", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
-    const csv = "firstName,lastName,email,role,organizationName,jobTitle,phone\nJohn,Doe,john.doe@example.com,MENTOR,Healthcare Inc,Nurse Practitioner,+1234567890\nJane,Smith,jane.smith@example.com,MENTEE,Hospital System,Resident,,";
+    const csv = "firstName,lastName,email,role,password,organizationName,jobTitle,phone\nJohn,Doe,john.doe@example.com,MENTOR,,Healthcare Inc,Nurse Practitioner,+1234567890\nJane,Smith,jane.smith@example.com,MENTEE,WelcomeUser123!,Hospital System,Resident,,";
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=user-import-template.csv");
     res.send(csv);
+  });
+
+  // Bulk password reset - generates reset tokens for multiple users
+  app.post("/api/admin/users/bulk-password-reset", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const bulkResetSchema = z.object({
+        userIds: z.array(z.string().uuid()).min(1, "At least one user ID required"),
+        setPassword: z.boolean().optional().default(false),
+      });
+      
+      const parseResult = bulkResetSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid request", errors: parseResult.error.flatten() });
+      }
+      
+      const { userIds, setPassword } = parseResult.data;
+
+      const { hashPassword } = await import("./auth");
+      const results = {
+        successful: [] as { userId: string; email: string; tempPassword?: string }[],
+        failed: [] as { userId: string; error: string }[],
+      };
+
+      for (const userId of userIds) {
+        try {
+          const user = await storage.getUser(userId);
+          if (!user) {
+            results.failed.push({ userId, error: "User not found" });
+            continue;
+          }
+
+          if (setPassword) {
+            // Set a new temporary password directly
+            const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase();
+            const hashedPassword = await hashPassword(tempPassword);
+            await storage.updateUser(userId, { password: hashedPassword });
+            results.successful.push({ userId, email: user.email, tempPassword });
+          } else {
+            // Generate reset token (user will receive email to reset)
+            const crypto = await import("crypto");
+            const token = crypto.randomBytes(32).toString("hex");
+            const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+            await storage.updateUser(userId, { 
+              passwordResetToken: token, 
+              passwordResetExpires: expires 
+            });
+            results.successful.push({ userId, email: user.email });
+          }
+        } catch (error: any) {
+          results.failed.push({ userId, error: error.message || "Unknown error" });
+        }
+      }
+
+      res.json({
+        message: `Password reset initiated for ${results.successful.length} users, ${results.failed.length} failed`,
+        successful: results.successful,
+        failed: results.failed,
+      });
+    } catch (error) {
+      next(error);
+    }
   });
 
   // ============ MENTOR PROFILES ============
@@ -1293,7 +1354,17 @@ export async function registerRoutes(
 
   app.post("/api/cohorts", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
-      const validation = insertCohortSchema.safeParse(req.body);
+      const body = { ...req.body };
+      if (body.startDate && typeof body.startDate === 'string') {
+        body.startDate = new Date(body.startDate);
+      }
+      if (body.endDate && typeof body.endDate === 'string') {
+        body.endDate = new Date(body.endDate);
+      }
+      if (body.applicationDeadline && typeof body.applicationDeadline === 'string') {
+        body.applicationDeadline = new Date(body.applicationDeadline);
+      }
+      const validation = insertCohortSchema.safeParse(body);
       if (!validation.success) {
         return res.status(400).json({ message: "Invalid cohort data", errors: validation.error.flatten() });
       }
@@ -1306,7 +1377,17 @@ export async function registerRoutes(
 
   app.patch("/api/cohorts/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
-      const cohort = await storage.updateCohort(req.params.id, req.body);
+      const body = { ...req.body };
+      if (body.startDate && typeof body.startDate === 'string') {
+        body.startDate = new Date(body.startDate);
+      }
+      if (body.endDate && typeof body.endDate === 'string') {
+        body.endDate = new Date(body.endDate);
+      }
+      if (body.applicationDeadline && typeof body.applicationDeadline === 'string') {
+        body.applicationDeadline = new Date(body.applicationDeadline);
+      }
+      const cohort = await storage.updateCohort(req.params.id, body);
       if (!cohort) {
         return res.status(404).json({ message: "Cohort not found" });
       }

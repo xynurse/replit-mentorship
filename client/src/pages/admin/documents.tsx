@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Button } from "@/components/ui/button";
@@ -114,7 +114,7 @@ export default function AdminDocuments() {
     size: number;
     mimeType: string;
   } | null>(null);
-  const [pendingObjectPath, setPendingObjectPath] = useState<string | null>(null);
+  const pendingObjectPathRef = useRef<string | null>(null);
   const [newDocument, setNewDocument] = useState({
     name: "",
     description: "",
@@ -452,7 +452,7 @@ export default function AdminDocuments() {
         setShowUploadDialog(open);
         if (!open) {
           setUploadedFileInfo(null);
-          setPendingObjectPath(null);
+          pendingObjectPathRef.current = null;
           setNewDocument({
             name: "",
             description: "",
@@ -510,7 +510,7 @@ export default function AdminDocuments() {
                         throw new Error("Failed to get upload URL");
                       }
                       const data = await res.json();
-                      setPendingObjectPath(data.objectPath);
+                      pendingObjectPathRef.current = data.objectPath;
                       return {
                         method: "PUT" as const,
                         url: data.uploadURL,
@@ -523,18 +523,18 @@ export default function AdminDocuments() {
                   }}
                   onComplete={(result) => {
                     const file = result.successful?.[0];
-                    if (file && pendingObjectPath) {
+                    if (file && pendingObjectPathRef.current) {
                       setUploadedFileInfo({
-                        objectPath: pendingObjectPath,
+                        objectPath: pendingObjectPathRef.current,
                         name: file.name,
-                        size: file.size,
+                        size: file.size || 0,
                         mimeType: file.type || "application/octet-stream",
                       });
                       if (!newDocument.name) {
                         setNewDocument(prev => ({ ...prev, name: file.name.replace(/\.[^/.]+$/, "") }));
                       }
                       toast({ title: "File uploaded successfully" });
-                      setPendingObjectPath(null);
+                      pendingObjectPathRef.current = null;
                     }
                   }}
                   buttonClassName="w-full"

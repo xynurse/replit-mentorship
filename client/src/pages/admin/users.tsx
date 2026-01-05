@@ -23,7 +23,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield, Plus, Upload } from "lucide-react";
+import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield, Plus, Upload, KeyRound } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,6 +60,10 @@ export default function AdminUsers() {
     successful: any[];
     failed: Array<{ row: number; email: string; error: string }>;
   } | null>(null);
+  const [defaultPassword, setDefaultPassword] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [showPasswordResetDialog, setShowPasswordResetDialog] = useState(false);
+  const [passwordResetResults, setPasswordResetResults] = useState<any | null>(null);
   const [newUser, setNewUser] = useState({
     email: "",
     password: "",
@@ -106,8 +111,8 @@ export default function AdminUsers() {
   };
 
   const bulkImportMutation = useMutation({
-    mutationFn: async (users: any[]) => {
-      const response = await apiRequest("POST", "/api/admin/users/bulk-import", { users });
+    mutationFn: async ({ users, defaultPassword: pwd }: { users: any[]; defaultPassword?: string }) => {
+      const response = await apiRequest("POST", "/api/admin/users/bulk-import", { users, defaultPassword: pwd || undefined });
       return response.json();
     },
     onSuccess: (data) => {
@@ -120,6 +125,24 @@ export default function AdminUsers() {
     },
     onError: (error: Error) => {
       toast({ title: "Import failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const bulkPasswordResetMutation = useMutation({
+    mutationFn: async ({ userIds, setPassword }: { userIds: string[]; setPassword: boolean }) => {
+      const response = await apiRequest("POST", "/api/admin/users/bulk-password-reset", { userIds, setPassword });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setPasswordResetResults(data);
+      setSelectedUserIds([]);
+      toast({
+        title: "Password reset completed",
+        description: `${data.successful.length} users processed`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Password reset failed", description: error.message, variant: "destructive" });
     },
   });
 
@@ -157,7 +180,7 @@ export default function AdminUsers() {
       return;
     }
 
-    bulkImportMutation.mutate(users);
+    bulkImportMutation.mutate({ users, defaultPassword });
   };
 
   const handleDownloadTemplate = () => {
@@ -178,6 +201,25 @@ export default function AdminUsers() {
   });
 
   const columns: Column<SafeUser>[] = [
+    {
+      key: "select",
+      header: "",
+      className: "w-12",
+      render: (user) => (
+        <Checkbox 
+          checked={selectedUserIds.includes(user.id)}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              setSelectedUserIds([...selectedUserIds, user.id]);
+            } else {
+              setSelectedUserIds(selectedUserIds.filter(id => id !== user.id));
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          data-testid={`checkbox-select-${user.id}`}
+        />
+      ),
+    },
     {
       key: "name",
       header: "User",
@@ -336,6 +378,12 @@ export default function AdminUsers() {
                     <SelectItem value="false">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
+                {selectedUserIds.length > 0 && (
+                  <Button variant="outline" onClick={() => setShowPasswordResetDialog(true)} data-testid="button-bulk-password-reset">
+                    <KeyRound className="h-4 w-4 mr-2" />
+                    Reset Passwords ({selectedUserIds.length})
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => setShowBulkImportDialog(true)} data-testid="button-bulk-import">
                   <Upload className="h-4 w-4 mr-2" />
                   Bulk Import
@@ -530,6 +578,7 @@ export default function AdminUsers() {
           if (!open) {
             setCsvFile(null);
             setImportResults(null);
+            setDefaultPassword("");
           }
         }}>
           <DialogContent className="max-w-lg">
@@ -622,10 +671,24 @@ export default function AdminUsers() {
                     <p className="font-medium mb-2">CSV Format Requirements:</p>
                     <ul className="list-disc list-inside space-y-1">
                       <li>Required columns: firstName, lastName, email, role</li>
-                      <li>Optional columns: organizationName, jobTitle, phone</li>
+                      <li>Optional columns: password, organizationName, jobTitle, phone</li>
                       <li>Role values: MENTOR, MENTEE</li>
-                      <li>Temporary passwords will be auto-generated</li>
+                      <li>If no password in CSV, uses default or auto-generates</li>
                     </ul>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultPassword">Default Password (Optional)</Label>
+                    <Input
+                      id="defaultPassword"
+                      type="text"
+                      value={defaultPassword}
+                      onChange={(e) => setDefaultPassword(e.target.value)}
+                      placeholder="Leave empty to auto-generate for each user"
+                      data-testid="input-default-password"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Set a default password for all imported users without a password in CSV
+                    </p>
                   </div>
                   <Button variant="outline" className="w-full" onClick={handleDownloadTemplate} data-testid="button-download-template">
                     Download CSV Template
@@ -644,6 +707,110 @@ export default function AdminUsers() {
                   </Button>
                 </DialogFooter>
               </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showPasswordResetDialog} onOpenChange={(open) => {
+          setShowPasswordResetDialog(open);
+          if (!open) {
+            setPasswordResetResults(null);
+          }
+        }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Bulk Password Reset</DialogTitle>
+              <DialogDescription>
+                Reset passwords for {selectedUserIds.length} selected user{selectedUserIds.length !== 1 ? "s" : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {passwordResetResults ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="font-medium">Reset Results</p>
+                  <p className="text-sm text-muted-foreground">
+                    {passwordResetResults.successful.length} passwords reset successfully
+                  </p>
+                  {passwordResetResults.failed.length > 0 && (
+                    <p className="text-sm text-destructive">
+                      {passwordResetResults.failed.length} failed
+                    </p>
+                  )}
+                </div>
+                {passwordResetResults.successful.length > 0 && passwordResetResults.successful[0].tempPassword && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">New Temporary Passwords:</p>
+                    <p className="text-xs text-muted-foreground">Save these passwords - they are only shown once!</p>
+                    <div className="max-h-48 overflow-y-auto space-y-2">
+                      {passwordResetResults.successful.map((user: any, idx: number) => (
+                        <div key={idx} className="text-xs p-2 bg-muted rounded flex justify-between gap-2">
+                          <span>{user.email}</span>
+                          <code className="bg-background px-1 rounded">{user.tempPassword}</code>
+                        </div>
+                      ))}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        const text = passwordResetResults.successful.map((u: any) => `${u.email},${u.tempPassword}`).join("\n");
+                        const blob = new Blob([`email,tempPassword\n${text}`], { type: "text/csv" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "reset-passwords.csv";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      data-testid="button-download-reset-passwords"
+                    >
+                      Download Passwords CSV
+                    </Button>
+                  </div>
+                )}
+                <DialogFooter>
+                  <Button onClick={() => setShowPasswordResetDialog(false)} data-testid="button-done">
+                    Done
+                  </Button>
+                </DialogFooter>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Choose how to reset passwords for the selected users:
+                </p>
+                <div className="space-y-3">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => bulkPasswordResetMutation.mutate({ userIds: selectedUserIds, setPassword: true })}
+                    disabled={bulkPasswordResetMutation.isPending}
+                    data-testid="button-generate-temp-passwords"
+                  >
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Generate temporary passwords
+                  </Button>
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => bulkPasswordResetMutation.mutate({ userIds: selectedUserIds, setPassword: false })}
+                    disabled={bulkPasswordResetMutation.isPending}
+                    data-testid="button-generate-reset-tokens"
+                  >
+                    <Mail className="mr-2 h-4 w-4" />
+                    Generate reset tokens (for email)
+                  </Button>
+                </div>
+                {bulkPasswordResetMutation.isPending && (
+                  <p className="text-sm text-center text-muted-foreground">Processing...</p>
+                )}
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowPasswordResetDialog(false)} data-testid="button-cancel">
+                    Cancel
+                  </Button>
+                </DialogFooter>
+              </div>
             )}
           </DialogContent>
         </Dialog>
