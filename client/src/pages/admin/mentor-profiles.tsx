@@ -89,11 +89,14 @@ export default function AdminMentorProfiles() {
     userId: "",
     preferredName: "",
     pronouns: "",
+    biography: "",
     region: "",
     languages: "",
     mentoringTracks: "",
     expertiseDescription: "",
     skillsToShare: "",
+    previouslyServedAsMentor: false,
+    mentorshipExperienceDescription: "",
     mentoringGoals: "",
     preferredMeetingFrequency: "",
     preferredMeetingFormat: "",
@@ -239,11 +242,14 @@ export default function AdminMentorProfiles() {
       userId: "",
       preferredName: "",
       pronouns: "",
+      biography: "",
       region: "",
       languages: "",
       mentoringTracks: "",
       expertiseDescription: "",
       skillsToShare: "",
+      previouslyServedAsMentor: false,
+      mentorshipExperienceDescription: "",
       mentoringGoals: "",
       preferredMeetingFrequency: "",
       preferredMeetingFormat: "",
@@ -263,11 +269,14 @@ export default function AdminMentorProfiles() {
       userId: newProfile.userId,
       preferredName: newProfile.preferredName || null,
       pronouns: newProfile.pronouns || null,
+      biography: newProfile.biography || null,
       region: newProfile.region || null,
       languages: newProfile.languages ? newProfile.languages.split(",").map(s => s.trim()) : [],
       mentoringTracks: newProfile.mentoringTracks ? newProfile.mentoringTracks.split(",").map(s => s.trim()) : [],
       expertiseDescription: newProfile.expertiseDescription || null,
       skillsToShare: newProfile.skillsToShare || null,
+      previouslyServedAsMentor: newProfile.previouslyServedAsMentor,
+      mentorshipExperienceDescription: newProfile.previouslyServedAsMentor ? (newProfile.mentorshipExperienceDescription || null) : null,
       mentoringGoals: newProfile.mentoringGoals || null,
       preferredMeetingFrequency: newProfile.preferredMeetingFrequency || null,
       preferredMeetingFormat: newProfile.preferredMeetingFormat || null,
@@ -708,6 +717,16 @@ export default function AdminMentorProfiles() {
                 />
               </div>
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="biography">Biography (Optional)</Label>
+              <Textarea
+                id="biography"
+                value={newProfile.biography}
+                onChange={(e) => setNewProfile({...newProfile, biography: e.target.value})}
+                placeholder="Share a brief professional biography..."
+                data-testid="input-biography"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="region">Region</Label>
@@ -765,6 +784,29 @@ export default function AdminMentorProfiles() {
                 data-testid="input-skills"
               />
             </div>
+            <div className="grid gap-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="previouslyServedAsMentor"
+                  checked={newProfile.previouslyServedAsMentor}
+                  onCheckedChange={(checked) => setNewProfile({...newProfile, previouslyServedAsMentor: checked === true})}
+                  data-testid="checkbox-previously-served"
+                />
+                <Label htmlFor="previouslyServedAsMentor">Have you previously served as a mentor?</Label>
+              </div>
+            </div>
+            {newProfile.previouslyServedAsMentor && (
+              <div className="grid gap-2">
+                <Label htmlFor="mentorshipExperienceDescription">Describe your mentorship experience</Label>
+                <Textarea
+                  id="mentorshipExperienceDescription"
+                  value={newProfile.mentorshipExperienceDescription}
+                  onChange={(e) => setNewProfile({...newProfile, mentorshipExperienceDescription: e.target.value})}
+                  placeholder="Share details about your previous mentorship experience..."
+                  data-testid="input-mentorship-experience"
+                />
+              </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="mentoringGoals">Mentoring Goals</Label>
               <Textarea

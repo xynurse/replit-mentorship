@@ -91,11 +91,13 @@ export default function AdminMenteeProfiles() {
 
   const [newProfile, setNewProfile] = useState({
     userId: "",
+    biography: "",
     careerStage: "",
     shortTermGoals: "",
     longTermVision: "",
     currentProjectOrIdea: "",
     previouslyBeenMentored: false,
+    mentorshipExperienceDescription: "",
     timezone: "",
     monthlyHoursAvailable: "",
     preferredDuration: "",
@@ -229,11 +231,13 @@ export default function AdminMenteeProfiles() {
   const resetNewProfile = () => {
     setNewProfile({
       userId: "",
+      biography: "",
       careerStage: "",
       shortTermGoals: "",
       longTermVision: "",
       currentProjectOrIdea: "",
       previouslyBeenMentored: false,
+      mentorshipExperienceDescription: "",
       timezone: "",
       monthlyHoursAvailable: "",
       preferredDuration: "",
@@ -248,11 +252,13 @@ export default function AdminMenteeProfiles() {
 
     const profileData = {
       userId: newProfile.userId,
+      biography: newProfile.biography || null,
       careerStage: newProfile.careerStage || null,
       shortTermGoals: newProfile.shortTermGoals || null,
       longTermVision: newProfile.longTermVision || null,
       currentProjectOrIdea: newProfile.currentProjectOrIdea || null,
       previouslyBeenMentored: newProfile.previouslyBeenMentored,
+      mentorshipExperienceDescription: newProfile.previouslyBeenMentored ? (newProfile.mentorshipExperienceDescription || null) : null,
       timezone: newProfile.timezone || null,
       monthlyHoursAvailable: newProfile.monthlyHoursAvailable || null,
       preferredDuration: newProfile.preferredDuration || null,
@@ -620,6 +626,16 @@ export default function AdminMenteeProfiles() {
               )}
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="biography">Biography (Optional)</Label>
+              <Textarea
+                id="biography"
+                value={newProfile.biography}
+                onChange={(e) => setNewProfile({...newProfile, biography: e.target.value})}
+                placeholder="Share a brief professional biography..."
+                data-testid="input-biography"
+              />
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="careerStage">Career Stage</Label>
               <Select value={newProfile.careerStage} onValueChange={(v) => setNewProfile({...newProfile, careerStage: v})}>
                 <SelectTrigger data-testid="select-new-career-stage">
@@ -666,6 +682,29 @@ export default function AdminMenteeProfiles() {
                 data-testid="input-current-project"
               />
             </div>
+            <div className="grid gap-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="previouslyBeenMentored"
+                  checked={newProfile.previouslyBeenMentored}
+                  onCheckedChange={(checked) => setNewProfile({...newProfile, previouslyBeenMentored: checked === true})}
+                  data-testid="checkbox-previously-mentored"
+                />
+                <Label htmlFor="previouslyBeenMentored">Have you previously been mentored?</Label>
+              </div>
+            </div>
+            {newProfile.previouslyBeenMentored && (
+              <div className="grid gap-2">
+                <Label htmlFor="mentorshipExperienceDescription">Describe your mentorship experience</Label>
+                <Textarea
+                  id="mentorshipExperienceDescription"
+                  value={newProfile.mentorshipExperienceDescription}
+                  onChange={(e) => setNewProfile({...newProfile, mentorshipExperienceDescription: e.target.value})}
+                  placeholder="Share details about your previous mentorship experience..."
+                  data-testid="input-mentorship-experience"
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="timezone">Timezone</Label>
