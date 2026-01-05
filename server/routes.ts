@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request as ExpressRequest } from "express";
 import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
@@ -236,7 +236,7 @@ export async function registerRoutes(
         organizationName: organizationName || null,
         jobTitle: jobTitle || null,
         isActive: true,
-        isEmailVerified: false,
+        isVerified: false,
         isProfileComplete: false,
       });
 
@@ -362,7 +362,13 @@ export async function registerRoutes(
 
   // Download CSV template for bulk import
   app.get("/api/admin/users/bulk-import/template", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
-    const csv = "firstName,lastName,email,role,password,organizationName,jobTitle,phone\nJohn,Doe,john.doe@example.com,MENTOR,,Healthcare Inc,Nurse Practitioner,+1234567890\nJane,Smith,jane.smith@example.com,MENTEE,WelcomeUser123!,Hospital System,Resident,,";
+    const headers = "firstName,lastName,email,role";
+    const examples = [
+      "John,Doe,john.doe@example.com,MENTOR",
+      "Jane,Smith,jane.smith@example.com,MENTEE",
+      "Maria,Garcia,maria.garcia@example.com,MENTOR"
+    ];
+    const csv = [headers, ...examples].join("\n");
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=user-import-template.csv");
     res.send(csv);
@@ -2036,8 +2042,8 @@ export async function registerRoutes(
   });
 
   // Document access validator for file downloads
-  const validateDocumentAccess = async (req: Request, canonicalKey: string): Promise<boolean> => {
-    const user = req.user;
+  const validateDocumentAccess = async (req: ExpressRequest, canonicalKey: string): Promise<boolean> => {
+    const user = (req as any).user;
     if (!user) return false;
     
     // canonicalKey is already normalized by the download handler
@@ -2346,7 +2352,7 @@ export async function registerRoutes(
       const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
       const filteredFolders = allFolders.filter(folder => {
         if (isAdmin) return true;
-        if (folder.createdById === user.id) return true;
+        if (folder.ownerId === user.id) return true;
         if (folder.visibility === 'PUBLIC') return true;
         if (folder.visibility === 'PRIVATE') return false;
         // TODO: Implement cohort/track/match membership checking
@@ -3520,7 +3526,7 @@ export async function registerRoutes(
 
       // Search goals
       if (type === 'ALL' || type === 'GOALS') {
-        const allGoals = await storage.getGoals({ userId: user.id });
+        const allGoals = await storage.getGoals({ ownerId: user.id });
         results.goals = allGoals
           .filter((g: any) => 
             g.title.toLowerCase().includes(query.toLowerCase()) ||
