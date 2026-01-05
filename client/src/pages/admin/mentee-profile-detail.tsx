@@ -107,11 +107,13 @@ export default function AdminMenteeProfileDetail() {
   const startEditing = () => {
     if (profile) {
       setEditData({
+        biography: profile.biography || "",
         careerStage: profile.careerStage || null,
         shortTermGoals: profile.shortTermGoals || "",
         longTermVision: profile.longTermVision || "",
         currentProjectOrIdea: profile.currentProjectOrIdea || "",
         previouslyBeenMentored: profile.previouslyBeenMentored ?? false,
+        mentorshipExperienceDescription: profile.mentorshipExperienceDescription || "",
         timezone: profile.timezone || "",
         monthlyHoursAvailable: profile.monthlyHoursAvailable || null,
         preferredDuration: profile.preferredDuration || null,
@@ -341,8 +343,8 @@ export default function AdminMenteeProfileDetail() {
                   {isEditing ? (
                     <Switch
                       checked={editData.previouslyBeenMentored ?? false}
-                      onCheckedChange={(checked) => setEditData({...editData, previouslyBeenMentored: checked})}
-                      data-testid="switch-previously-mentored"
+                      onCheckedChange={(checked) => setEditData({...editData, previouslyBeenMentored: checked, mentorshipExperienceDescription: checked ? editData.mentorshipExperienceDescription : ""})}
+                      data-testid="switch-previously-mentored-sidebar"
                     />
                   ) : (
                     <Badge variant={profile.previouslyBeenMentored ? "default" : "secondary"}>
@@ -467,6 +469,71 @@ export default function AdminMenteeProfileDetail() {
                   />
                 ) : (
                   <p className="whitespace-pre-wrap">{profile.currentProjectOrIdea || "-"}</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {(profile.biography || editData.biography || isEditing) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Biography</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isEditing ? (
+                    <Textarea
+                      value={editData.biography || ""}
+                      onChange={(e) => setEditData({...editData, biography: e.target.value})}
+                      placeholder="Professional biography..."
+                      data-testid="input-biography"
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{profile.biography || "-"}</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Mentorship Experience</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isEditing ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="previouslyBeenMentored"
+                        checked={editData.previouslyBeenMentored ?? false}
+                        onCheckedChange={(checked) => setEditData({...editData, previouslyBeenMentored: checked, mentorshipExperienceDescription: checked ? editData.mentorshipExperienceDescription : ""})}
+                        data-testid="switch-previously-mentored"
+                      />
+                      <Label htmlFor="previouslyBeenMentored">Previously been mentored</Label>
+                    </div>
+                    {editData.previouslyBeenMentored && (
+                      <div className="grid gap-2">
+                        <Label>Experience Description</Label>
+                        <Textarea
+                          value={editData.mentorshipExperienceDescription || ""}
+                          onChange={(e) => setEditData({...editData, mentorshipExperienceDescription: e.target.value})}
+                          placeholder="Describe your mentorship experience..."
+                          data-testid="input-mentorship-experience"
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label className="text-muted-foreground">Previously Been Mentored</Label>
+                      <p className="mt-1">{profile.previouslyBeenMentored ? "Yes" : "No"}</p>
+                    </div>
+                    {profile.previouslyBeenMentored && profile.mentorshipExperienceDescription && (
+                      <div>
+                        <Label className="text-muted-foreground">Experience Description</Label>
+                        <p className="mt-1 whitespace-pre-wrap">{profile.mentorshipExperienceDescription}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>

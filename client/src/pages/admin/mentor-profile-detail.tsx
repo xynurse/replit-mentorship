@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -109,6 +110,9 @@ export default function AdminMentorProfileDetail() {
       setEditData({
         preferredName: profile.preferredName || "",
         pronouns: profile.pronouns || "",
+        biography: profile.biography || "",
+        previouslyServedAsMentor: profile.previouslyServedAsMentor ?? false,
+        mentorshipExperienceDescription: profile.mentorshipExperienceDescription || "",
         region: profile.region || null,
         languages: profile.languages || [],
         mentoringTracks: profile.mentoringTracks || [],
@@ -443,6 +447,71 @@ export default function AdminMentorProfileDetail() {
                       <span className="text-muted-foreground">No tracks assigned</span>
                     )}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {(profile.biography || editData.biography || isEditing) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Biography</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isEditing ? (
+                    <Textarea
+                      value={editData.biography || ""}
+                      onChange={(e) => setEditData({...editData, biography: e.target.value})}
+                      placeholder="Professional biography..."
+                      data-testid="input-biography"
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{profile.biography || "-"}</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Mentorship Experience</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isEditing ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="previouslyServedAsMentor"
+                        checked={editData.previouslyServedAsMentor ?? false}
+                        onCheckedChange={(checked) => setEditData({...editData, previouslyServedAsMentor: checked, mentorshipExperienceDescription: checked ? editData.mentorshipExperienceDescription : ""})}
+                        data-testid="switch-previously-mentor"
+                      />
+                      <Label htmlFor="previouslyServedAsMentor">Previously served as a mentor</Label>
+                    </div>
+                    {editData.previouslyServedAsMentor && (
+                      <div className="grid gap-2">
+                        <Label>Experience Description</Label>
+                        <Textarea
+                          value={editData.mentorshipExperienceDescription || ""}
+                          onChange={(e) => setEditData({...editData, mentorshipExperienceDescription: e.target.value})}
+                          placeholder="Describe your mentorship experience..."
+                          data-testid="input-mentorship-experience"
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label className="text-muted-foreground">Previously Served as Mentor</Label>
+                      <p className="mt-1">{profile.previouslyServedAsMentor ? "Yes" : "No"}</p>
+                    </div>
+                    {profile.previouslyServedAsMentor && profile.mentorshipExperienceDescription && (
+                      <div>
+                        <Label className="text-muted-foreground">Experience Description</Label>
+                        <p className="mt-1 whitespace-pre-wrap">{profile.mentorshipExperienceDescription}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
