@@ -6,7 +6,7 @@ import { storage } from "./storage";
 import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
-import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { registerObjectStorageRoutes, ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
 import { AuditService, createAuditMiddleware } from "./audit";
 
 const generalApiLimiter = rateLimit({
@@ -2192,7 +2192,54 @@ export async function registerRoutes(
     }
   });
 
-  // Download document (validates access and increments count)
+  // Download document (validates access and streams file)
+  app.get("/api/documents/:id/download", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user!;
+      const doc = await storage.getDocument(req.params.id);
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Check document access permission
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      const isOwner = doc.uploadedById === user.id;
+      const isPublic = doc.visibility === 'PUBLIC';
+      
+      // Check for explicit share access
+      let hasShareAccess = false;
+      if (!isAdmin && !isOwner && !isPublic) {
+        const accessRecords = await storage.getDocumentAccess(req.params.id);
+        hasShareAccess = accessRecords.some(a => a.userId === user.id);
+      }
+      
+      if (!isAdmin && !isOwner && !isPublic && !hasShareAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Get the file from object storage and stream it
+      const objectStorageService = new ObjectStorageService();
+      try {
+        const objectFile = await objectStorageService.getObjectEntityFile(doc.fileUrl);
+        
+        // Set content disposition for download
+        const fileName = doc.name + (doc.mimeType === 'application/pdf' ? '.pdf' : '');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+        
+        await storage.incrementDownloadCount(req.params.id);
+        await objectStorageService.downloadObject(objectFile, res);
+      } catch (err) {
+        if (err instanceof ObjectNotFoundError) {
+          return res.status(404).json({ message: "File not found in storage" });
+        }
+        throw err;
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+  
+  // Legacy POST endpoint for backward compatibility
   app.post("/api/documents/:id/download", requireAuth, async (req, res, next) => {
     try {
       const user = req.user!;
@@ -2218,7 +2265,8 @@ export async function registerRoutes(
       }
       
       await storage.incrementDownloadCount(req.params.id);
-      res.json({ fileUrl: doc.fileUrl });
+      // Return the download URL for the client to use
+      res.json({ downloadUrl: `/api/documents/${req.params.id}/download` });
     } catch (error) {
       next(error);
     }

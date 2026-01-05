@@ -233,9 +233,26 @@ export default function DocumentsPage() {
 
   const downloadDocument = async (doc: Document) => {
     try {
-      const res = await apiRequest("POST", `/api/documents/${doc.id}/download`);
-      const { fileUrl } = await res.json();
-      window.open(fileUrl, "_blank");
+      // Use fetch with credentials to get the file as a blob
+      const response = await fetch(`/api/documents/${doc.id}/download`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error("Download failed");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.name + (doc.mimeType === "application/pdf" ? ".pdf" : "");
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({ title: "Document downloaded successfully" });
     } catch {
       toast({ title: "Failed to download document", variant: "destructive" });
     }
