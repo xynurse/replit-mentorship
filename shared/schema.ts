@@ -239,6 +239,7 @@ export const mentorProfiles = pgTable("mentor_profiles", {
   // Core Identity
   preferredName: text("preferred_name"),
   pronouns: text("pronouns"),
+  biography: text("biography"), // Optional bio field
   
   // Professional & Geographic
   region: mentorRegionEnum("region"),
@@ -248,6 +249,10 @@ export const mentorProfiles = pgTable("mentor_profiles", {
   mentoringTracks: text("mentoring_tracks").array().default(sql`ARRAY[]::text[]`),
   expertiseDescription: text("expertise_description"),
   skillsToShare: text("skills_to_share"),
+  
+  // Mentorship History
+  previouslyServedAsMentor: boolean("previously_served_as_mentor"),
+  mentorshipExperienceDescription: text("mentorship_experience_description"), // Only shown if previouslyServedAsMentor is true
   
   // Goals & Preferences
   mentoringGoals: text("mentoring_goals"),
@@ -332,6 +337,9 @@ export const menteeProfiles = pgTable("mentee_profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id).unique(),
   
+  // Core Identity
+  biography: text("biography"), // Optional bio field
+  
   // Career Context
   careerStage: careerStageEnum("career_stage"),
   shortTermGoals: text("short_term_goals"),
@@ -340,6 +348,7 @@ export const menteeProfiles = pgTable("mentee_profiles", {
   
   // Mentorship History
   previouslyBeenMentored: boolean("previously_been_mentored"),
+  mentorshipExperienceDescription: text("mentorship_experience_description"), // Only shown if previouslyBeenMentored is true
   pastSuccesses: text("past_successes"),
   pastChallenges: text("past_challenges"),
   
