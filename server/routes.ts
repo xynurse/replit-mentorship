@@ -644,6 +644,7 @@ export async function registerRoutes(
 
       const defaultMapping = {
         email: "email",
+        biography: "biography",
         maxMentees: "max_mentees",
         preferredMenteeStages: "preferred_mentee_stages",
         openToMentoringOutsideExpertise: "open_to_mentoring_outside_expertise",
@@ -721,6 +722,7 @@ export async function registerRoutes(
           
           const profileData: any = {
             userId: user.id,
+            biography: data[mapping.biography] || null,
             maxMentees: parseInteger(data[mapping.maxMentees], 2),
             preferredMenteeStages: parseArrayField(data[mapping.preferredMenteeStages]),
             openToMentoringOutsideExpertise: parseBoolean(data[mapping.openToMentoringOutsideExpertise]) ?? false,
@@ -781,6 +783,7 @@ export async function registerRoutes(
   app.get("/api/admin/mentor-profiles/bulk-import/template", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
     const headers = [
       "email",
+      "biography",
       "max_mentees",
       "preferred_mentee_stages",
       "open_to_mentoring_outside_expertise",
@@ -812,6 +815,7 @@ export async function registerRoutes(
     
     const exampleRow = [
       "mentor@example.com",
+      "Experienced healthcare leader with 15 years in hospital administration",
       "2",
       "early_career,mid_career",
       "true",
@@ -858,11 +862,13 @@ export async function registerRoutes(
 
       const defaultMapping = {
         email: "email",
+        biography: "biography",
         careerStage: "career_stage",
         shortTermGoals: "short_term_goals",
         longTermVision: "long_term_vision",
         currentProjectOrIdea: "current_project_or_idea",
         previouslyBeenMentored: "previously_been_mentored",
+        mentorshipExperienceDescription: "mentorship_experience_description",
         interestScienceResearch: "interest_science_research",
         interestProductDevelopment: "interest_product_development",
         interestInnovation: "interest_innovation",
@@ -928,11 +934,13 @@ export async function registerRoutes(
           
           const profileData: any = {
             userId: user.id,
+            biography: data[mapping.biography] || null,
             careerStage: data[mapping.careerStage] || null,
             shortTermGoals: data[mapping.shortTermGoals] || null,
             longTermVision: data[mapping.longTermVision] || null,
             currentProjectOrIdea: data[mapping.currentProjectOrIdea] || null,
             previouslyBeenMentored: parseBoolean(data[mapping.previouslyBeenMentored]),
+            mentorshipExperienceDescription: data[mapping.mentorshipExperienceDescription] || null,
             interestScienceResearch: parseInteger(data[mapping.interestScienceResearch], 0),
             interestProductDevelopment: parseInteger(data[mapping.interestProductDevelopment], 0),
             interestInnovation: parseInteger(data[mapping.interestInnovation], 0),
@@ -981,11 +989,13 @@ export async function registerRoutes(
   app.get("/api/admin/mentee-profiles/bulk-import/template", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
     const headers = [
       "email",
+      "biography",
       "career_stage",
       "short_term_goals",
       "long_term_vision",
       "current_project_or_idea",
       "previously_been_mentored",
+      "mentorship_experience_description",
       "interest_science_research",
       "interest_product_development",
       "interest_innovation",
@@ -1005,11 +1015,13 @@ export async function registerRoutes(
     
     const exampleRow = [
       "mentee@example.com",
+      "Recent nursing graduate passionate about healthcare innovation",
       "early_career",
       "Get promoted to senior position",
       "Become a healthcare innovation leader",
       "Developing a new patient care workflow",
       "false",
+      "",
       "2",
       "1",
       "2",
