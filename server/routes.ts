@@ -247,10 +247,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Password must be at least 8 characters" });
       }
 
-      // Check if email already exists
-      const existingUser = await storage.getUserByEmail(email);
-      if (existingUser) {
-        return res.status(400).json({ message: "Email already registered" });
+      // Check if email already exists (including soft-deleted users)
+      const emailTaken = await storage.emailExists(email);
+      if (emailTaken) {
+        return res.status(400).json({ message: "A user with this email address already exists" });
       }
 
       // Import hashPassword from auth module
@@ -272,7 +272,11 @@ export async function registerRoutes(
 
       const { password: _, ...safeUser } = user;
       res.status(201).json(safeUser);
-    } catch (error) {
+    } catch (error: any) {
+      // Handle duplicate email constraint error
+      if (error?.message?.includes('duplicate key') && error?.message?.includes('email')) {
+        return res.status(400).json({ message: "A user with this email address already exists" });
+      }
       next(error);
     }
   });
