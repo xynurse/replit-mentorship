@@ -184,6 +184,36 @@ export async function registerRoutes(
     }
   });
 
+  // Delete user endpoint (soft delete)
+  app.delete("/api/admin/users/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const currentUser = req.user as any;
+      
+      // Prevent self-deletion
+      if (id === currentUser.id) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+      
+      const userToDelete = await storage.getUser(id);
+      if (!userToDelete) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Only SUPER_ADMIN can delete ADMIN or SUPER_ADMIN users
+      if ((userToDelete.role === "SUPER_ADMIN" || userToDelete.role === "ADMIN") && currentUser.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ message: "Only Super Admins can delete admin accounts" });
+      }
+      
+      // Soft delete by setting deletedAt
+      await storage.updateUser(id, { deletedAt: new Date(), isActive: false });
+      
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Admin create user endpoint
   app.post("/api/admin/users", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {

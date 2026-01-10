@@ -35,6 +35,7 @@ const AdminMentorProfileDetail = lazy(() => import("@/pages/admin/mentor-profile
 const AdminMenteeProfiles = lazy(() => import("@/pages/admin/mentee-profiles"));
 const AdminMenteeProfileDetail = lazy(() => import("@/pages/admin/mentee-profile-detail"));
 const AdminCohortDetail = lazy(() => import("@/pages/admin/cohort-detail"));
+const AdminSettings = lazy(() => import("@/pages/admin/settings"));
 
 const ApplyPage = lazy(() => import("@/pages/apply"));
 const CertificatesPage = lazy(() => import("@/pages/certificates"));
@@ -94,6 +95,7 @@ function Router() {
       <AdminRoute path="/admin/mentor-profiles/:userId" component={AdminMentorProfileDetail} />
       <AdminRoute path="/admin/mentee-profiles" component={AdminMenteeProfiles} />
       <AdminRoute path="/admin/mentee-profiles/:userId" component={AdminMenteeProfileDetail} />
+      <AdminRoute path="/admin/settings" component={AdminSettings} />
       <LazyRoute path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />

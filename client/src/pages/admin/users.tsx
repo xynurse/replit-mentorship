@@ -23,7 +23,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield, Plus, Upload, KeyRound } from "lucide-react";
+import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield, Plus, Upload, KeyRound, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -66,6 +66,8 @@ export default function AdminUsers() {
   const [passwordResetResults, setPasswordResetResults] = useState<any | null>(null);
   const [showSendEmailDialog, setShowSendEmailDialog] = useState(false);
   const [sendEmailResults, setSendEmailResults] = useState<any | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<SafeUser | null>(null);
   const [newUser, setNewUser] = useState({
     email: "",
     password: "",
@@ -229,6 +231,21 @@ export default function AdminUsers() {
     },
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest("DELETE", `/api/admin/users/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (query) => Boolean(query.queryKey[0]?.toString().startsWith("/api/users")) });
+      setShowDeleteDialog(false);
+      setUserToDelete(null);
+      toast({ title: "User deleted successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete user", description: error.message, variant: "destructive" });
+    },
+  });
+
   const columns: Column<SafeUser>[] = [
     {
       key: "select",
@@ -338,6 +355,19 @@ export default function AdminUsers() {
                   Activate
                 </>
               )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => {
+                setUserToDelete(user);
+                setShowDeleteDialog(true);
+              }}
+              disabled={user.id === currentUser?.id}
+              data-testid={`button-delete-${user.id}`}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete User
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -922,6 +952,51 @@ export default function AdminUsers() {
                     data-testid="button-confirm-send-emails"
                   >
                     {sendWelcomeEmailsMutation.isPending ? "Sending..." : "Send Welcome Emails"}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showDeleteDialog} onOpenChange={(open) => {
+          setShowDeleteDialog(open);
+          if (!open) setUserToDelete(null);
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete User</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this user? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            {userToDelete && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-muted">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={userToDelete.profileImage || undefined} />
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {userToDelete.firstName?.[0]}{userToDelete.lastName?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{userToDelete.firstName} {userToDelete.lastName}</p>
+                      <p className="text-sm text-muted-foreground">{userToDelete.email}</p>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowDeleteDialog(false)} data-testid="button-cancel-delete">
+                    Cancel
+                  </Button>
+                  <Button 
+                    variant="destructive"
+                    onClick={() => deleteUserMutation.mutate(userToDelete.id)}
+                    disabled={deleteUserMutation.isPending}
+                    data-testid="button-confirm-delete"
+                  >
+                    {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
                   </Button>
                 </DialogFooter>
               </div>
