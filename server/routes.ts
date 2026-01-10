@@ -184,7 +184,7 @@ export async function registerRoutes(
     }
   });
 
-  // Delete user endpoint (soft delete)
+  // Delete user endpoint (permanent delete)
   app.delete("/api/admin/users/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -205,8 +205,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Only Super Admins can delete admin accounts" });
       }
       
-      // Soft delete by setting deletedAt
-      await storage.updateUser(id, { deletedAt: new Date(), isActive: false });
+      // Permanently delete the user
+      await storage.deleteUser(id);
       
       res.json({ message: "User deleted successfully" });
     } catch (error) {
