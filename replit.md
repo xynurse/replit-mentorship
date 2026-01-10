@@ -115,11 +115,9 @@ Preferred communication style: Simple, everyday language.
 - **@replit/vite-plugin-cartographer**: Development tooling
 - **@replit/vite-plugin-dev-banner**: Development banner display
 
-## Future Enhancements
-
-### Email Invitation System (Pending)
-- **Status**: Not yet implemented - user skipped email integration setup
-- **Desired Feature**: Manual trigger button to send welcome emails to newly imported users
-- **Integration Options**: Resend or SendGrid for transactional emails
-- **When Ready**: Set up Resend/SendGrid integration and add "Send Welcome Email" button in admin user management
-- **Current Workaround**: After bulk import, admin receives list of auto-generated passwords to manually share with new users
+### Email System
+- **Provider**: Resend (via Replit connector integration)
+- **Service**: server/email.ts - handles welcome email sending with Resend API
+- **Features**: Welcome emails with login credentials, temporary password generation
+- **Admin UI**: "Send Welcome Email" button in user management for selected users
+- **Template**: Professional HTML email with login credentials and sign-in link

@@ -64,6 +64,8 @@ export default function AdminUsers() {
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [showPasswordResetDialog, setShowPasswordResetDialog] = useState(false);
   const [passwordResetResults, setPasswordResetResults] = useState<any | null>(null);
+  const [showSendEmailDialog, setShowSendEmailDialog] = useState(false);
+  const [sendEmailResults, setSendEmailResults] = useState<any | null>(null);
   const [newUser, setNewUser] = useState({
     email: "",
     password: "",
@@ -143,6 +145,24 @@ export default function AdminUsers() {
     },
     onError: (error: Error) => {
       toast({ title: "Password reset failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const sendWelcomeEmailsMutation = useMutation({
+    mutationFn: async ({ userIds }: { userIds: string[] }) => {
+      const response = await apiRequest("POST", "/api/admin/users/send-welcome-emails", { userIds });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setSendEmailResults(data);
+      setSelectedUserIds([]);
+      toast({
+        title: "Welcome emails sent",
+        description: `${data.successful.length} emails sent, ${data.failed.length} failed`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to send emails", description: error.message, variant: "destructive" });
     },
   });
 
@@ -379,10 +399,16 @@ export default function AdminUsers() {
                   </SelectContent>
                 </Select>
                 {selectedUserIds.length > 0 && (
-                  <Button variant="outline" onClick={() => setShowPasswordResetDialog(true)} data-testid="button-bulk-password-reset">
-                    <KeyRound className="h-4 w-4 mr-2" />
-                    Reset Passwords ({selectedUserIds.length})
-                  </Button>
+                  <>
+                    <Button variant="outline" onClick={() => setShowSendEmailDialog(true)} data-testid="button-send-welcome-emails">
+                      <Mail className="h-4 w-4 mr-2" />
+                      Send Welcome Email ({selectedUserIds.length})
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowPasswordResetDialog(true)} data-testid="button-bulk-password-reset">
+                      <KeyRound className="h-4 w-4 mr-2" />
+                      Reset Passwords ({selectedUserIds.length})
+                    </Button>
+                  </>
                 )}
                 <Button variant="outline" onClick={() => setShowBulkImportDialog(true)} data-testid="button-bulk-import">
                   <Upload className="h-4 w-4 mr-2" />
@@ -808,6 +834,85 @@ export default function AdminUsers() {
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowPasswordResetDialog(false)} data-testid="button-cancel">
                     Cancel
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showSendEmailDialog} onOpenChange={(open) => {
+          setShowSendEmailDialog(open);
+          if (!open) {
+            setSendEmailResults(null);
+          }
+        }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Send Welcome Emails</DialogTitle>
+              <DialogDescription>
+                Send welcome emails with login credentials to {selectedUserIds.length} selected user{selectedUserIds.length !== 1 ? "s" : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {sendEmailResults ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="font-medium">Email Results</p>
+                  <p className="text-sm text-muted-foreground">
+                    {sendEmailResults.successful.length} emails sent successfully
+                  </p>
+                  {sendEmailResults.failed.length > 0 && (
+                    <p className="text-sm text-destructive">
+                      {sendEmailResults.failed.length} failed
+                    </p>
+                  )}
+                </div>
+                {sendEmailResults.failed.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Failed Emails:</p>
+                    <p className="text-xs text-muted-foreground">
+                      User passwords were NOT changed for failed emails.
+                    </p>
+                    <div className="max-h-48 overflow-y-auto space-y-2">
+                      {sendEmailResults.failed.map((user: any, idx: number) => (
+                        <div key={idx} className="text-xs p-2 bg-destructive/10 rounded">
+                          <span className="font-medium">{user.email}</span>: {user.error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <DialogFooter>
+                  <Button onClick={() => setShowSendEmailDialog(false)} data-testid="button-email-done">
+                    Done
+                  </Button>
+                </DialogFooter>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="text-sm text-muted-foreground">
+                    This will send welcome emails to the selected users with:
+                  </p>
+                  <ul className="text-sm text-muted-foreground list-disc ml-5 mt-2">
+                    <li>Their email address</li>
+                    <li>A new temporary password</li>
+                    <li>A link to sign in</li>
+                  </ul>
+                </div>
+                <p className="text-sm text-amber-600 dark:text-amber-400">
+                  Note: This will generate new temporary passwords for the selected users.
+                </p>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowSendEmailDialog(false)} data-testid="button-cancel-email">
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={() => sendWelcomeEmailsMutation.mutate({ userIds: selectedUserIds })}
+                    disabled={sendWelcomeEmailsMutation.isPending}
+                    data-testid="button-confirm-send-emails"
+                  >
+                    {sendWelcomeEmailsMutation.isPending ? "Sending..." : "Send Welcome Emails"}
                   </Button>
                 </DialogFooter>
               </div>

@@ -435,6 +435,77 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Send welcome emails to users
+  app.post("/api/admin/users/send-welcome-emails", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const sendEmailSchema = z.object({
+        userIds: z.array(z.string().uuid()).min(1, "At least one user ID required"),
+      });
+      
+      const parseResult = sendEmailSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid request", errors: parseResult.error.flatten() });
+      }
+      
+      const { userIds } = parseResult.data;
+      const { hashPassword } = await import("./auth");
+      const { sendWelcomeEmail } = await import("./email");
+      const crypto = await import("crypto");
+      
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host || 'localhost:5000';
+      const loginUrl = `${protocol}://${host}/login`;
+
+      const results = {
+        successful: [] as { userId: string; email: string }[],
+        failed: [] as { userId: string; email: string; error: string; tempPassword?: string }[],
+      };
+
+      for (const userId of userIds) {
+        try {
+          const user = await storage.getUser(userId);
+          if (!user) {
+            results.failed.push({ userId, email: "unknown", error: "User not found" });
+            continue;
+          }
+
+          // Generate cryptographically secure temporary password
+          const tempPassword = crypto.randomBytes(12).toString('base64').replace(/[+/=]/g, '').slice(0, 16);
+
+          // Try to send email FIRST before changing password
+          const emailResult = await sendWelcomeEmail({
+            email: user.email,
+            firstName: user.firstName || "",
+            lastName: user.lastName || "",
+            temporaryPassword: tempPassword,
+            loginUrl,
+          });
+
+          if (emailResult.success) {
+            // Only update password after successful email send
+            const hashedPassword = await hashPassword(tempPassword);
+            await storage.updateUser(userId, { password: hashedPassword });
+            results.successful.push({ userId, email: user.email });
+          } else {
+            // Email failed - don't change password, include temp password in case admin wants to retry
+            results.failed.push({ userId, email: user.email, error: emailResult.error || "Email send failed", tempPassword });
+          }
+        } catch (error: any) {
+          const user = await storage.getUser(userId);
+          results.failed.push({ userId, email: user?.email || "unknown", error: error.message || "Unknown error" });
+        }
+      }
+
+      res.json({
+        message: `Welcome emails sent to ${results.successful.length} users, ${results.failed.length} failed`,
+        successful: results.successful,
+        failed: results.failed,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // ============ MENTOR PROFILES ============
   
   // Admin: Get all mentor profiles with filters
