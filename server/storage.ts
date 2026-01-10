@@ -105,6 +105,15 @@ export interface IStorage {
   createMatch(match: InsertMentorshipMatch): Promise<MentorshipMatch>;
   updateMatch(id: string, data: Partial<MentorshipMatch>): Promise<MentorshipMatch | undefined>;
   getMatchesForUser(userId: string): Promise<(MentorshipMatch & { mentor?: Partial<User>; mentee?: Partial<User> })[]>;
+  getMatch(id: string): Promise<MentorshipMatch | undefined>;
+  getAllMatches(): Promise<(MentorshipMatch & { mentor: User; mentee: User; cohort?: { id: string; name: string } })[]>;
+  deleteMatch(id: string): Promise<boolean>;
+  
+  // Simple matching (without cohort requirement)
+  getAvailableMentors(): Promise<User[]>;
+  getAvailableMentees(): Promise<User[]>;
+  createSimpleMatch(mentorId: string, menteeId: string, matchedById: string, notes?: string): Promise<MentorshipMatch>;
+  checkExistingMatch(mentorId: string, menteeId: string): Promise<MentorshipMatch | undefined>;
   
   // Messaging
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -872,6 +881,172 @@ export class DatabaseStorage implements IStorage {
       mentor: r.mentor,
       mentee: r.mentee,
     }));
+  }
+
+  // Additional Match methods
+  async getMatch(id: string): Promise<MentorshipMatch | undefined> {
+    const [result] = await db.select().from(mentorshipMatches).where(eq(mentorshipMatches.id, id));
+    return result || undefined;
+  }
+
+  async getAllMatches(): Promise<(MentorshipMatch & { mentor: User; mentee: User; cohort?: { id: string; name: string } })[]> {
+    const mentorUsers = alias(users, 'mentor_users');
+    const menteeUsers = alias(users, 'mentee_users');
+    const mentorMemberships = alias(cohortMemberships, 'mentor_memberships');
+    const menteeMemberships = alias(cohortMemberships, 'mentee_memberships');
+
+    const results = await db.select({
+      match: mentorshipMatches,
+      mentor: mentorUsers,
+      mentee: menteeUsers,
+      cohort: {
+        id: cohorts.id,
+        name: cohorts.name,
+      },
+    })
+      .from(mentorshipMatches)
+      .leftJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .leftJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .leftJoin(mentorUsers, eq(mentorMemberships.userId, mentorUsers.id))
+      .leftJoin(menteeUsers, eq(menteeMemberships.userId, menteeUsers.id))
+      .leftJoin(cohorts, eq(mentorshipMatches.cohortId, cohorts.id))
+      .orderBy(desc(mentorshipMatches.createdAt));
+
+    return results.map(r => ({
+      ...r.match,
+      mentor: r.mentor as User,
+      mentee: r.mentee as User,
+      cohort: r.cohort || undefined,
+    }));
+  }
+
+  async deleteMatch(id: string): Promise<boolean> {
+    const result = await db.delete(mentorshipMatches).where(eq(mentorshipMatches.id, id)).returning({ id: mentorshipMatches.id });
+    return result.length > 0;
+  }
+
+  async getAvailableMentors(): Promise<User[]> {
+    return db.select()
+      .from(users)
+      .where(
+        and(
+          eq(users.role, 'MENTOR'),
+          eq(users.isActive, true),
+          isNull(users.deletedAt)
+        )
+      )
+      .orderBy(asc(users.firstName), asc(users.lastName));
+  }
+
+  async getAvailableMentees(): Promise<User[]> {
+    return db.select()
+      .from(users)
+      .where(
+        and(
+          eq(users.role, 'MENTEE'),
+          eq(users.isActive, true),
+          isNull(users.deletedAt)
+        )
+      )
+      .orderBy(asc(users.firstName), asc(users.lastName));
+  }
+
+  async createSimpleMatch(mentorId: string, menteeId: string, matchedById: string, notes?: string): Promise<MentorshipMatch> {
+    // Create dummy memberships for the match (or find existing)
+    let mentorMembership = await db.select().from(cohortMemberships).where(
+      and(
+        eq(cohortMemberships.userId, mentorId),
+        eq(cohortMemberships.role, 'MENTOR')
+      )
+    ).then(results => results[0]);
+
+    let menteeMembership = await db.select().from(cohortMemberships).where(
+      and(
+        eq(cohortMemberships.userId, menteeId),
+        eq(cohortMemberships.role, 'MENTEE')
+      )
+    ).then(results => results[0]);
+
+    // If no membership exists, create a default one
+    // First get or create a default cohort for ad-hoc matches
+    let defaultCohort = await db.select().from(cohorts).where(
+      eq(cohorts.name, 'General Mentorship')
+    ).then(results => results[0]);
+
+    if (!defaultCohort) {
+      const [newCohort] = await db.insert(cohorts).values({
+        name: 'General Mentorship',
+        description: 'Default cohort for ad-hoc mentor-mentee matches',
+        status: 'ACTIVE',
+      }).returning();
+      defaultCohort = newCohort;
+    }
+
+    if (!mentorMembership) {
+      const [newMembership] = await db.insert(cohortMemberships).values({
+        cohortId: defaultCohort.id,
+        userId: mentorId,
+        role: 'MENTOR',
+        applicationStatus: 'APPROVED',
+        matchStatus: 'UNMATCHED',
+        joinedAt: new Date(),
+      }).returning();
+      mentorMembership = newMembership;
+    }
+
+    if (!menteeMembership) {
+      const [newMembership] = await db.insert(cohortMemberships).values({
+        cohortId: defaultCohort.id,
+        userId: menteeId,
+        role: 'MENTEE',
+        applicationStatus: 'APPROVED',
+        matchStatus: 'UNMATCHED',
+        joinedAt: new Date(),
+      }).returning();
+      menteeMembership = newMembership;
+    }
+
+    // Create the match
+    const [match] = await db.insert(mentorshipMatches).values({
+      cohortId: defaultCohort.id,
+      mentorMembershipId: mentorMembership.id,
+      menteeMembershipId: menteeMembership.id,
+      status: 'ACTIVE',
+      matchedAt: new Date(),
+      matchedById,
+      startDate: new Date(),
+    }).returning();
+
+    // Update membership match statuses
+    await db.update(cohortMemberships).set({ matchStatus: 'MATCHED' }).where(eq(cohortMemberships.id, mentorMembership.id));
+    await db.update(cohortMemberships).set({ matchStatus: 'MATCHED' }).where(eq(cohortMemberships.id, menteeMembership.id));
+
+    return match;
+  }
+
+  async checkExistingMatch(mentorId: string, menteeId: string): Promise<MentorshipMatch | undefined> {
+    const mentorMemberships = alias(cohortMemberships, 'mentor_memberships');
+    const menteeMemberships = alias(cohortMemberships, 'mentee_memberships');
+
+    const [result] = await db.select({
+      match: mentorshipMatches,
+    })
+      .from(mentorshipMatches)
+      .innerJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .innerJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .where(
+        and(
+          eq(mentorMemberships.userId, mentorId),
+          eq(menteeMemberships.userId, menteeId),
+          or(
+            eq(mentorshipMatches.status, 'ACTIVE'),
+            eq(mentorshipMatches.status, 'PROPOSED'),
+            eq(mentorshipMatches.status, 'PAUSED')
+          )
+        )
+      );
+
+    return result?.match || undefined;
   }
 
   // Messaging Implementation

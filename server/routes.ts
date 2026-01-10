@@ -1831,6 +1831,102 @@ export async function registerRoutes(
     }
   });
 
+  // Get all matches (admin view)
+  app.get("/api/admin/matches", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const matches = await storage.getAllMatches();
+      res.json(matches);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get available mentors for matching
+  app.get("/api/admin/matches/available-mentors", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const mentors = await storage.getAvailableMentors();
+      res.json(mentors);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get available mentees for matching
+  app.get("/api/admin/matches/available-mentees", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const mentees = await storage.getAvailableMentees();
+      res.json(mentees);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create a simple match (without cohort requirement)
+  app.post("/api/admin/matches", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { mentorId, menteeId, notes } = req.body;
+      
+      if (!mentorId || !menteeId) {
+        return res.status(400).json({ message: "Mentor and mentee are required" });
+      }
+
+      if (mentorId === menteeId) {
+        return res.status(400).json({ message: "Cannot match a user with themselves" });
+      }
+
+      // Check if mentor exists and is a mentor
+      const mentor = await storage.getUser(mentorId);
+      if (!mentor) {
+        return res.status(404).json({ message: "Mentor not found" });
+      }
+      if (mentor.role !== 'MENTOR') {
+        return res.status(400).json({ message: "Selected user is not a mentor" });
+      }
+
+      // Check if mentee exists and is a mentee
+      const mentee = await storage.getUser(menteeId);
+      if (!mentee) {
+        return res.status(404).json({ message: "Mentee not found" });
+      }
+      if (mentee.role !== 'MENTEE') {
+        return res.status(400).json({ message: "Selected user is not a mentee" });
+      }
+
+      // Check for existing active match between these users
+      const existingMatch = await storage.checkExistingMatch(mentorId, menteeId);
+      if (existingMatch) {
+        return res.status(400).json({ 
+          message: "An active match already exists between this mentor and mentee",
+          existingMatch
+        });
+      }
+
+      const match = await storage.createSimpleMatch(mentorId, menteeId, req.user!.id, notes);
+      res.status(201).json(match);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete a match
+  app.delete("/api/admin/matches/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const match = await storage.getMatch(req.params.id);
+      if (!match) {
+        return res.status(404).json({ message: "Match not found" });
+      }
+
+      const deleted = await storage.deleteMatch(req.params.id);
+      if (!deleted) {
+        return res.status(500).json({ message: "Failed to delete match" });
+      }
+      
+      res.json({ message: "Match deleted successfully" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Auto-match endpoint (calculates compatibility scores)
   app.post("/api/cohorts/:cohortId/auto-match", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
