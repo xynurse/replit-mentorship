@@ -76,8 +76,17 @@ export default function AdminUsers() {
     jobTitle: "",
   });
 
+  // Build URL with query parameters properly
+  const buildUsersUrl = () => {
+    const params = new URLSearchParams();
+    if (roleFilter !== "all") params.append("role", roleFilter);
+    if (statusFilter !== "all") params.append("isActive", statusFilter);
+    const queryString = params.toString();
+    return queryString ? `/api/users?${queryString}` : "/api/users";
+  };
+
   const { data: users = [], isLoading } = useQuery<SafeUser[]>({
-    queryKey: ["/api/users", { role: roleFilter !== "all" ? roleFilter : undefined, isActive: statusFilter !== "all" ? statusFilter : undefined }],
+    queryKey: [buildUsersUrl()],
   });
 
   const createUserMutation = useMutation({
@@ -86,7 +95,7 @@ export default function AdminUsers() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ predicate: (query) => Boolean(query.queryKey[0]?.toString().startsWith("/api/users")) });
       setShowCreateDialog(false);
       setNewUser({
         email: "",
@@ -118,7 +127,7 @@ export default function AdminUsers() {
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ predicate: (query) => Boolean(query.queryKey[0]?.toString().startsWith("/api/users")) });
       setImportResults(data);
       toast({
         title: `Import completed`,
@@ -212,7 +221,7 @@ export default function AdminUsers() {
       return apiRequest("PATCH", `/api/users/${userId}/${activate ? 'activate' : 'deactivate'}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ predicate: (query) => Boolean(query.queryKey[0]?.toString().startsWith("/api/users")) });
       toast({ title: "User status updated" });
     },
     onError: () => {
