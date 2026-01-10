@@ -246,6 +246,23 @@ export default function AdminUsers() {
     },
   });
 
+  const toggleSuperAdminMutation = useMutation({
+    mutationFn: async ({ userId, makeSuperAdmin }: { userId: string; makeSuperAdmin: boolean }) => {
+      return apiRequest("PATCH", `/api/admin/users/${userId}/role`, { 
+        role: makeSuperAdmin ? "SUPER_ADMIN" : "ADMIN" 
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ predicate: (query) => Boolean(query.queryKey[0]?.toString().startsWith("/api/users")) });
+      toast({ 
+        title: variables.makeSuperAdmin ? "User promoted to Super Admin" : "Super Admin status removed" 
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update role", description: error.message, variant: "destructive" });
+    },
+  });
+
   const columns: Column<SafeUser>[] = [
     {
       key: "select",
@@ -356,6 +373,18 @@ export default function AdminUsers() {
                 </>
               )}
             </DropdownMenuItem>
+            {currentUser?.role === "SUPER_ADMIN" && user.id !== currentUser.id && (user.role === "ADMIN" || user.role === "SUPER_ADMIN") && (
+              <DropdownMenuItem
+                onClick={() => toggleSuperAdminMutation.mutate({ 
+                  userId: user.id, 
+                  makeSuperAdmin: user.role !== "SUPER_ADMIN" 
+                })}
+                data-testid={`button-toggle-superadmin-${user.id}`}
+              >
+                <Shield className="mr-2 h-4 w-4" />
+                {user.role === "SUPER_ADMIN" ? "Remove Super Admin" : "Make Super Admin"}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
