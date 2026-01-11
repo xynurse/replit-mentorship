@@ -144,15 +144,6 @@ export default function LoginPage() {
               "Sign in"
             )}
           </Button>
-
-          <p className="text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <Link href="/register">
-              <span className="text-primary hover:underline cursor-pointer font-medium" data-testid="link-register">
-                Create account
-              </span>
-            </Link>
-          </p>
         </form>
       </Form>
     </AuthLayout>
