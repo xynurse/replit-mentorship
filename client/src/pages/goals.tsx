@@ -61,7 +61,9 @@ import {
   MoreVertical,
   Trash2,
   Edit,
+  FileDown,
 } from "lucide-react";
+import { exportGoalsToPDF, type GoalData } from "@/lib/pdf-export";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -535,6 +537,33 @@ export default function GoalsPage() {
     ? Math.round((goals?.reduce((sum, g) => sum + (g.progress || 0), 0) || 0) / totalGoals)
     : 0;
 
+  const handleExportPDF = () => {
+    if (!goals || !user) return;
+    
+    const goalData: GoalData[] = goals.map(goal => ({
+      title: goal.title,
+      description: goal.description,
+      category: goal.category,
+      status: goal.status,
+      progress: goal.progress,
+      targetDate: goal.targetDate,
+      specificDetails: goal.specificDetails,
+      measurableMetrics: goal.measurableMetrics,
+      mentorFeedback: goal.mentorFeedback,
+    }));
+    
+    exportGoalsToPDF(goalData, {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      organizationName: user.organizationName,
+      jobTitle: user.jobTitle,
+    });
+    
+    toast({ title: "PDF downloaded successfully!" });
+  };
+
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
@@ -549,12 +578,23 @@ export default function GoalsPage() {
               </Badge>
             )}
           </div>
-          {!isMentor && (
-            <Button onClick={() => setShowWizard(true)} data-testid="button-create-goal">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Create SMART Goal
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleExportPDF}
+              disabled={!goals || goals.length === 0}
+              data-testid="button-export-goals-pdf"
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Export PDF
             </Button>
-          )}
+            {!isMentor && (
+              <Button onClick={() => setShowWizard(true)} data-testid="button-create-goal">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Create SMART Goal
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">

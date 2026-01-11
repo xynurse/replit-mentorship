@@ -14,8 +14,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Loader2, User, Bell, Globe } from "lucide-react";
+import { Loader2, User, Bell, Globe, FileDown } from "lucide-react";
 import { Link } from "wouter";
+import { exportProfileToPDF } from "@/lib/pdf-export";
 
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -85,6 +86,27 @@ export default function SettingsPage() {
     updateProfileMutation.mutate(data);
   };
 
+  const handleExportProfile = () => {
+    if (!user) return;
+    
+    exportProfileToPDF({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      organizationName: user.organizationName,
+      jobTitle: user.jobTitle,
+      bio: user.bio,
+      phone: user.phone,
+      linkedInUrl: user.linkedInUrl,
+      yearsOfExperience: user.yearsOfExperience,
+      languagesSpoken: user.languagesSpoken || undefined,
+      timezone: user.timezone,
+    });
+    
+    toast({ title: "Profile PDF downloaded!" });
+  };
+
   if (!user) return null;
 
   const userInitials = `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase();
@@ -115,9 +137,15 @@ export default function SettingsPage() {
 
           <TabsContent value="profile">
             <Card>
-              <CardHeader>
-                <CardTitle>Profile Information</CardTitle>
-                <CardDescription>Update your personal information and professional details</CardDescription>
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div>
+                  <CardTitle>Profile Information</CardTitle>
+                  <CardDescription>Update your personal information and professional details</CardDescription>
+                </div>
+                <Button variant="outline" onClick={handleExportProfile} data-testid="button-export-profile-pdf">
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Export PDF
+                </Button>
               </CardHeader>
               <CardContent>
                 <Form {...form}>

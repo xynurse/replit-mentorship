@@ -133,3 +133,24 @@ Preferred communication style: Simple, everyday language.
 - **Features**: Welcome emails with login credentials, temporary password generation
 - **Admin UI**: "Send Welcome Email" button in user management for selected users
 - **Template**: Professional HTML email with login credentials and sign-in link
+
+### Meeting Tracking System
+- **Admin Meetings Page**: `/admin/meetings` for tracking all mentor-mentee meetings
+- **Meeting Analytics**: Dashboard with total meetings, completed, upcoming, and today's meetings
+- **Analytics Charts**: Line chart for meeting trends over 14 days, bar chart for format distribution
+- **Filtering**: Filter by status (upcoming, today, completed, missed) and format (virtual, in-person, phone)
+- **Search**: Search meetings by mentor/mentee name, cohort, or agenda
+- **API Endpoint**: `GET /api/admin/meetings` - Returns all meetings with user details (admin only)
+- **Storage Method**: `getAllMeetingsWithDetails()` - Joins meetings with mentor/mentee user data
+- **Schema Table**: meetingLogs (shared/schema.ts)
+
+### PDF Export System
+- **Library**: jsPDF with html2canvas for client-side PDF generation
+- **Utility Location**: client/src/lib/pdf-export.ts
+- **SONSIEL Branding**: Teal header with logo, footer with date and page numbers
+- **Goals Export**: Button on Goals page to export all goals with progress, milestones, and feedback
+- **Profile Export**: Button on Settings page to export user profile information
+- **Export Functions**: 
+  - `exportGoalsToPDF(goals, user)` - Export goals with SMART details and milestones
+  - `exportProfileToPDF(user)` - Export user profile with organization and contact info
+  - `exportElementToPDF(elementId, filename)` - Generic HTML element to PDF conversion

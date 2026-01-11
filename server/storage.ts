@@ -75,6 +75,12 @@ export interface IStorage {
   createMeeting(meeting: InsertMeetingLog): Promise<MeetingLog>;
   updateMeeting(id: string, data: Partial<MeetingLog>): Promise<MeetingLog | undefined>;
   deleteMeeting(id: string): Promise<void>;
+  getAllMeetingsWithDetails(): Promise<{
+    meeting: MeetingLog;
+    mentor: { id: string; firstName: string; lastName: string; email: string; profileImage: string | null };
+    mentee: { id: string; firstName: string; lastName: string; email: string; profileImage: string | null };
+    cohort?: { id: string; name: string };
+  }[]>;
   getAdminDashboardStats(): Promise<{ totalMentors: number; totalMentees: number; activeMatches: number; pendingApplications: number; upcomingMeetings: number; overdueTasks: number }>;
   
   // Application Questions
@@ -647,6 +653,55 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMeeting(id: string): Promise<void> {
     await db.delete(meetingLogs).where(eq(meetingLogs.id, id));
+  }
+
+  async getAllMeetingsWithDetails(): Promise<{
+    meeting: MeetingLog;
+    mentor: { id: string; firstName: string; lastName: string; email: string; profileImage: string | null };
+    mentee: { id: string; firstName: string; lastName: string; email: string; profileImage: string | null };
+    cohort?: { id: string; name: string };
+  }[]> {
+    const mentorMemberships = alias(cohortMemberships, 'mentor_memberships');
+    const menteeMemberships = alias(cohortMemberships, 'mentee_memberships');
+    const mentorUsers = alias(users, 'mentor_users');
+    const menteeUsers = alias(users, 'mentee_users');
+
+    const results = await db.select({
+      meeting: meetingLogs,
+      mentor: {
+        id: mentorUsers.id,
+        firstName: mentorUsers.firstName,
+        lastName: mentorUsers.lastName,
+        email: mentorUsers.email,
+        profileImage: mentorUsers.profileImage,
+      },
+      mentee: {
+        id: menteeUsers.id,
+        firstName: menteeUsers.firstName,
+        lastName: menteeUsers.lastName,
+        email: menteeUsers.email,
+        profileImage: menteeUsers.profileImage,
+      },
+      cohort: {
+        id: cohorts.id,
+        name: cohorts.name,
+      },
+    })
+      .from(meetingLogs)
+      .innerJoin(mentorshipMatches, eq(meetingLogs.matchId, mentorshipMatches.id))
+      .innerJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .innerJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .innerJoin(mentorUsers, eq(mentorMemberships.userId, mentorUsers.id))
+      .innerJoin(menteeUsers, eq(menteeMemberships.userId, menteeUsers.id))
+      .leftJoin(cohorts, eq(mentorshipMatches.cohortId, cohorts.id))
+      .orderBy(desc(meetingLogs.scheduledDate));
+
+    return results.map(r => ({
+      meeting: r.meeting,
+      mentor: r.mentor,
+      mentee: r.mentee,
+      cohort: r.cohort ? { id: r.cohort.id, name: r.cohort.name } : undefined,
+    }));
   }
 
   async getAdminDashboardStats(): Promise<{ totalMentors: number; totalMentees: number; activeMatches: number; pendingApplications: number; upcomingMeetings: number; overdueTasks: number }> {

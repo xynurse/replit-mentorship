@@ -3272,6 +3272,15 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/meetings", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const meetings = await storage.getAllMeetingsWithDetails();
+      res.json(meetings);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/meetings/:id", requireAuth, async (req, res, next) => {
     try {
       const meeting = await storage.getMeeting(req.params.id);

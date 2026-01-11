@@ -21,6 +21,7 @@ import {
   UserCog,
   UserCheck,
   Link2,
+  Calendar,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -57,6 +58,7 @@ interface AdminLayoutProps {
 const adminMenuItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
+  { title: "Meetings", url: "/admin/meetings", icon: Calendar },
   { title: "User Management", url: "/admin/users", icon: Users },
   { title: "Connections", url: "/admin/connections", icon: Link2 },
   { title: "Mentor Profiles", url: "/admin/mentor-profiles", icon: UserCog },
