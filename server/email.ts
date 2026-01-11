@@ -131,3 +131,69 @@ export async function sendBulkWelcomeEmails(
 
   return { successful, failed };
 }
+
+export interface PasswordResetEmailData {
+  email: string;
+  firstName: string;
+  resetUrl: string;
+}
+
+export async function sendPasswordResetEmail(data: PasswordResetEmailData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    
+    const result = await client.emails.send({
+      from: fromEmail || 'SONSIEL Mentorship Hub <noreply@sonsiel.org>',
+      to: data.email,
+      subject: 'Reset Your Password - SONSIEL Mentorship Hub',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Password Reset Request</h1>
+          </div>
+          
+          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <p style="font-size: 16px;">Hello ${data.firstName},</p>
+            
+            <p>We received a request to reset your password for your SONSIEL Mentorship Hub account.</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.resetUrl}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Reset Your Password</a>
+            </div>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #6b7280;">This link will expire in 1 hour for security reasons.</p>
+            </div>
+            
+            <p style="color: #dc2626; font-size: 14px;">If you didn't request this password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">If you're having trouble clicking the button, copy and paste this URL into your browser:</p>
+            <p style="font-size: 12px; color: #9ca3af; word-break: break-all;">${data.resetUrl}</p>
+          </div>
+          
+          <p style="text-align: center; font-size: 12px; color: #9ca3af; margin-top: 20px;">
+            SONSIEL Mentorship Hub - Empowering Healthcare Professionals
+          </p>
+        </body>
+        </html>
+      `,
+    });
+
+    if (result.error) {
+      return { success: false, error: result.error.message };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to send password reset email:', error);
+    return { success: false, error: error.message || 'Failed to send email' };
+  }
+}

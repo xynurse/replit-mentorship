@@ -7,6 +7,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, UserRole, registerSchema, completeProfileSchema } from "@shared/schema";
+import { sendPasswordResetEmail } from "./email";
 
 declare global {
   namespace Express {
@@ -254,6 +255,7 @@ export function setupAuth(app: Express) {
 
       const user = await storage.getUserByEmail(email);
       
+      // Always return success to prevent email enumeration attacks
       res.json({ message: "If an account exists, a password reset email has been sent." });
 
       if (user) {
@@ -265,7 +267,26 @@ export function setupAuth(app: Express) {
           passwordResetExpires: resetExpires,
         });
 
-        console.log(`Password reset token for ${email}: ${resetToken}`);
+        // Build the reset URL
+        const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+          : process.env.REPLIT_DOMAINS
+            ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+            : 'http://localhost:5000';
+        const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+
+        // Send the password reset email
+        const emailResult = await sendPasswordResetEmail({
+          email: user.email,
+          firstName: user.firstName,
+          resetUrl,
+        });
+
+        if (!emailResult.success) {
+          console.error(`Failed to send password reset email to ${email}:`, emailResult.error);
+        } else {
+          console.log(`Password reset email sent to ${email}`);
+        }
       }
     } catch (error) {
       next(error);
