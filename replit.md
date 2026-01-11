@@ -56,6 +56,18 @@ Preferred communication style: Simple, everyday language.
 - **Frontend Components**: NotificationBell (header dropdown), Notifications page (client/src/pages/notifications.tsx)
 - **Schema Tables**: notifications, notificationPreferences (shared/schema.ts)
 
+### Mentor-Mentee Connections System
+- **Admin Connections Page**: `/admin/connections` with two tabs - "All Connections" and "Create Connection"
+- **Multi-Mentee Support**: One mentor can be assigned to multiple mentees (unique constraint only prevents duplicate pairings)
+- **Mentor Goal Visibility**: Mentors can view their mentees' goals through the connection details dialog
+- **API Endpoints**: 
+  - `GET /api/matches/:id/goals` - Get goals for a specific match (mentors can see their mentees' goals)
+  - `GET /api/mentor/mentee-goals` - Get all mentee goals across all active matches for a mentor
+- **Match Status Workflow**: PROPOSED → ACTIVE → PAUSED/COMPLETED/TERMINATED
+- **Auto-Cohort Creation**: Creates "General Mentorship" cohort for ad-hoc matches without explicit cohort
+- **Storage Methods**: getMatchWithUsers, getAllMatches, createSimpleMatch, checkExistingMatch
+- **Frontend Features**: Dual-list selection UI, search/filter, connection details with mentee goals display
+
 ### Data Storage
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation

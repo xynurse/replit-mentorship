@@ -106,6 +106,7 @@ export interface IStorage {
   updateMatch(id: string, data: Partial<MentorshipMatch>): Promise<MentorshipMatch | undefined>;
   getMatchesForUser(userId: string): Promise<(MentorshipMatch & { mentor?: Partial<User>; mentee?: Partial<User> })[]>;
   getMatch(id: string): Promise<MentorshipMatch | undefined>;
+  getMatchWithUsers(id: string): Promise<(MentorshipMatch & { mentor: User; mentee: User; mentorId: string; menteeId: string }) | undefined>;
   getAllMatches(): Promise<(MentorshipMatch & { mentor: User; mentee: User; cohort?: { id: string; name: string } })[]>;
   deleteMatch(id: string): Promise<boolean>;
   
@@ -889,12 +890,47 @@ export class DatabaseStorage implements IStorage {
     return result || undefined;
   }
 
+  async getMatchWithUsers(id: string): Promise<(MentorshipMatch & { mentor: User; mentee: User; mentorId: string; menteeId: string }) | undefined> {
+    const mentorUsers = alias(users, 'mentor_users');
+    const menteeUsers = alias(users, 'mentee_users');
+    const mentorMemberships = alias(cohortMemberships, 'mentor_memberships');
+    const menteeMemberships = alias(cohortMemberships, 'mentee_memberships');
+
+    // Use INNER JOINs since matches MUST have valid memberships (created by createSimpleMatch)
+    const results = await db.select({
+      match: mentorshipMatches,
+      mentor: mentorUsers,
+      mentee: menteeUsers,
+      mentorId: mentorMemberships.userId,
+      menteeId: menteeMemberships.userId,
+    })
+      .from(mentorshipMatches)
+      .innerJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .innerJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .innerJoin(mentorUsers, eq(mentorMemberships.userId, mentorUsers.id))
+      .innerJoin(menteeUsers, eq(menteeMemberships.userId, menteeUsers.id))
+      .where(eq(mentorshipMatches.id, id));
+
+    if (results.length === 0) {
+      return undefined;
+    }
+
+    return {
+      ...results[0].match,
+      mentor: results[0].mentor,
+      mentee: results[0].mentee,
+      mentorId: results[0].mentorId,
+      menteeId: results[0].menteeId,
+    };
+  }
+
   async getAllMatches(): Promise<(MentorshipMatch & { mentor: User; mentee: User; cohort?: { id: string; name: string } })[]> {
     const mentorUsers = alias(users, 'mentor_users');
     const menteeUsers = alias(users, 'mentee_users');
     const mentorMemberships = alias(cohortMemberships, 'mentor_memberships');
     const menteeMemberships = alias(cohortMemberships, 'mentee_memberships');
 
+    // Use INNER JOINs for memberships/users since matches MUST have valid data
     const results = await db.select({
       match: mentorshipMatches,
       mentor: mentorUsers,
@@ -905,17 +941,17 @@ export class DatabaseStorage implements IStorage {
       },
     })
       .from(mentorshipMatches)
-      .leftJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
-      .leftJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
-      .leftJoin(mentorUsers, eq(mentorMemberships.userId, mentorUsers.id))
-      .leftJoin(menteeUsers, eq(menteeMemberships.userId, menteeUsers.id))
+      .innerJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .innerJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .innerJoin(mentorUsers, eq(mentorMemberships.userId, mentorUsers.id))
+      .innerJoin(menteeUsers, eq(menteeMemberships.userId, menteeUsers.id))
       .leftJoin(cohorts, eq(mentorshipMatches.cohortId, cohorts.id))
       .orderBy(desc(mentorshipMatches.createdAt));
 
     return results.map(r => ({
       ...r.match,
-      mentor: r.mentor as User,
-      mentee: r.mentee as User,
+      mentor: r.mentor,
+      mentee: r.mentee,
       cohort: r.cohort || undefined,
     }));
   }

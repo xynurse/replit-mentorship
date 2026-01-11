@@ -1927,6 +1927,82 @@ export async function registerRoutes(
     }
   });
 
+  // Get goals for a specific match (mentors can view their mentees' goals)
+  app.get("/api/matches/:id/goals", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const matchId = req.params.id;
+      
+      // Use getMatchWithUsers to get mentor/mentee user IDs
+      const match = await storage.getMatchWithUsers(matchId);
+      if (!match) {
+        return res.status(404).json({ message: "Match not found" });
+      }
+      
+      // Authorization: mentors can only see goals for their own matches
+      const isAuthorized = 
+        user.role === 'SUPER_ADMIN' || 
+        user.role === 'ADMIN' ||
+        match.mentorId === user.id ||
+        match.menteeId === user.id;
+      
+      if (!isAuthorized) {
+        return res.status(403).json({ message: "Not authorized to view goals for this match" });
+      }
+      
+      // Get goals for this match (goals linked to this match OR owned by the mentee)
+      const goals = await storage.getGoals({ 
+        matchId: matchId 
+      });
+      
+      // Also get goals owned by the mentee that may not have a matchId set
+      const menteeGoals = await storage.getGoals({ 
+        ownerId: match.menteeId 
+      });
+      
+      // Combine and deduplicate
+      const allGoals = [...goals];
+      for (const goal of menteeGoals) {
+        if (!allGoals.some(g => g.id === goal.id)) {
+          allGoals.push(goal);
+        }
+      }
+      
+      res.json(allGoals);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get all mentee goals for a mentor (across all their matches)
+  app.get("/api/mentor/mentee-goals", requireRole("MENTOR"), async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Get all active matches where this user is the mentor
+      const matches = await storage.getMatchesForUser(user.id);
+      // Filter to matches where the user is the mentor (mentor.id matches user.id)
+      const mentorMatches = matches.filter(m => m.mentor?.id === user.id && m.status === 'ACTIVE');
+      
+      // Get goals for all mentees
+      const allGoals: any[] = [];
+      for (const match of mentorMatches) {
+        if (match.mentee?.id) {
+          const menteeGoals = await storage.getGoals({ ownerId: match.mentee.id });
+          allGoals.push(...menteeGoals.map(goal => ({
+            ...goal,
+            mentee: match.mentee,
+            matchId: match.id
+          })));
+        }
+      }
+      
+      res.json(allGoals);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Auto-match endpoint (calculates compatibility scores)
   app.post("/api/cohorts/:cohortId/auto-match", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {

@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Loader2, Users, UserCheck, GraduationCap, Check, X, Search,
-  ArrowRight, Trash2, Eye, MoreHorizontal, Plus, RefreshCw
+  ArrowRight, Trash2, Eye, MoreHorizontal, Plus, RefreshCw, Target
 } from "lucide-react";
 import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { User, MentorshipMatch } from "@shared/schema";
+import type { User, MentorshipMatch, Goal } from "@shared/schema";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type MatchWithDetails = MentorshipMatch & {
   mentor: User;
@@ -74,6 +76,18 @@ export default function AdminConnectionsPage() {
   const [confirmMatchDialog, setConfirmMatchDialog] = useState(false);
   const [matchToDelete, setMatchToDelete] = useState<MatchWithDetails | null>(null);
   const [matchToView, setMatchToView] = useState<MatchWithDetails | null>(null);
+
+  // Query for mentee goals when viewing a match
+  const { data: matchGoals = [], isLoading: goalsLoading } = useQuery<Goal[]>({
+    queryKey: ['/api/matches', matchToView?.id, 'goals'],
+    queryFn: async () => {
+      if (!matchToView?.id) return [];
+      const res = await fetch(`/api/matches/${matchToView.id}/goals`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!matchToView?.id,
+  });
 
   const { data: mentors = [], isLoading: mentorsLoading } = useQuery<User[]>({
     queryKey: ['/api/admin/matches/available-mentors'],
@@ -697,7 +711,7 @@ export default function AdminConnectionsPage() {
       </Dialog>
 
       <Dialog open={!!matchToView} onOpenChange={(open) => !open && setMatchToView(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Connection Details</DialogTitle>
           </DialogHeader>
@@ -748,6 +762,65 @@ export default function AdminConnectionsPage() {
                     {matchToView.createdAt ? new Date(matchToView.createdAt).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm font-medium">Mentee Goals</p>
+                </div>
+                {goalsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : matchGoals.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-3">
+                    No goals set yet
+                  </p>
+                ) : (
+                  <ScrollArea className="max-h-[200px]">
+                    <div className="space-y-2 pr-2">
+                      {matchGoals.map((goal) => (
+                        <div 
+                          key={goal.id} 
+                          className="p-3 rounded-md border bg-muted/30"
+                          data-testid={`goal-${goal.id}`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <p className="text-sm font-medium line-clamp-2">{goal.title}</p>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "shrink-0 text-xs",
+                                goal.status === 'COMPLETED' && "bg-green-500/10 text-green-700 border-green-300",
+                                goal.status === 'IN_PROGRESS' && "bg-blue-500/10 text-blue-700 border-blue-300",
+                                goal.status === 'NOT_STARTED' && "bg-gray-500/10 text-gray-600 border-gray-300"
+                              )}
+                            >
+                              {goal.status?.replace('_', ' ') || 'NOT STARTED'}
+                            </Badge>
+                          </div>
+                          {goal.progress !== undefined && goal.progress !== null && (
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>Progress</span>
+                                <span>{goal.progress}%</span>
+                              </div>
+                              <Progress value={goal.progress} className="h-1.5" />
+                            </div>
+                          )}
+                          {goal.targetDate && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Target: {new Date(goal.targetDate).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
               </div>
 
               <Separator />
