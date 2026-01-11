@@ -87,43 +87,44 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
+/* DARK MODE - Matches landing page aesthetic */
 .dark {
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
   --opaque-button-border-intensity: 9;
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
-  --background: 220 13% 9%;
-  --foreground: 0 0% 98%;
-  --border: 220 13% 18%;
-  --card: 220 13% 11%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 220 13% 14%;
-  --sidebar: 220 13% 13%;
-  --sidebar-foreground: 0 0% 98%;
-  --sidebar-border: 220 13% 16%;
-  --sidebar-primary: 195 85% 45%;
-  --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 220 13% 18%;
-  --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-ring: 195 85% 45%;
-  --popover: 220 13% 15%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 220 13% 19%;
-  --primary: 195 85% 45%;
-  --primary-foreground: 0 0% 98%;
-  --secondary: 220 13% 20%;
-  --secondary-foreground: 0 0% 98%;
-  --muted: 220 13% 17%;
-  --muted-foreground: 220 10% 70%;
-  --accent: 195 18% 16%;
-  --accent-foreground: 0 0% 98%;
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --border: 217 33% 17%;
+  --card: 222 47% 13%;
+  --card-foreground: 210 40% 98%;
+  --card-border: 217 33% 17%;
+  --sidebar: 222 47% 11%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-border: 217 33% 17%;
+  --sidebar-primary: 168 76% 42%;
+  --sidebar-primary-foreground: 210 40% 98%;
+  --sidebar-accent: 217 33% 17%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-ring: 168 76% 42%;
+  --popover: 222 47% 13%;
+  --popover-foreground: 210 40% 98%;
+  --popover-border: 217 33% 17%;
+  --primary: 168 76% 42%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 199 89% 48%;
+  --accent-foreground: 210 40% 98%;
   --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 98%;
-  --input: 220 13% 30%;
-  --ring: 195 85% 45%;
-  --chart-1: 195 85% 65%;
-  --chart-2: 168 76% 60%;
+  --destructive-foreground: 210 40% 98%;
+  --input: 217 33% 25%;
+  --ring: 168 76% 42%;
+  --chart-1: 168 76% 50%;
+  --chart-2: 199 89% 60%;
   --chart-3: 142 71% 62%;
   --chart-4: 262 52% 68%;
   --chart-5: 340 75% 65%;
@@ -172,6 +173,16 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-30px) rotate(2deg); }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.8; }
   }
 }
 
