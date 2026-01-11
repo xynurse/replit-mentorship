@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@shared/schema";
+import { AnimatedBackground } from "@/components/animated-background";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -158,7 +159,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <SidebarProvider style={sidebarStyle}>
-      <div className="flex h-screen w-full">
+      <AnimatedBackground />
+      <div className="flex h-screen w-full relative z-10">
         <Sidebar>
           <SidebarHeader className="p-4">
             <div className="flex items-center gap-3">

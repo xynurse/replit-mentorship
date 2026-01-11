@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "@/components/theme-provider";
 
 const tracks = [
   { name: 'Scientist', icon: Microscope, desc: 'Research & Evidence-Based Practice', color: '#60A5FA' },
@@ -35,6 +37,7 @@ export default function LoginPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [, setLocation] = useLocation();
   const { loginMutation, user } = useAuth();
+  const { theme } = useTheme();
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -64,56 +67,78 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{
-      background: 'linear-gradient(135deg, #0F172A 0%, #1E3A5F 50%, #0D4F6B 100%)',
-      fontFamily: "'Outfit', 'Segoe UI', sans-serif",
-    }}>
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute rounded-full animate-[float_8s_ease-in-out_infinite]"
-          style={{
-            top: '-20%',
-            right: '-10%',
-            width: '600px',
-            height: '600px',
-            background: 'radial-gradient(circle, rgba(96,165,250,0.15) 0%, transparent 70%)',
-          }} 
-        />
-        <div 
-          className="absolute rounded-full animate-[float_10s_ease-in-out_infinite_reverse]"
-          style={{
-            bottom: '-30%',
-            left: '-15%',
-            width: '800px',
-            height: '800px',
-            background: 'radial-gradient(circle, rgba(20,184,166,0.12) 0%, transparent 70%)',
-          }} 
-        />
-        <div 
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)
-            `,
-            backgroundSize: '60px 60px'
-          }} 
-        />
-      </div>
+    <div 
+      className="min-h-screen relative overflow-hidden bg-background dark:bg-[#0F172A]"
+      style={{
+        fontFamily: "'Outfit', 'Segoe UI', sans-serif",
+      }}
+    >
+      {/* Dark mode animated background */}
+      {theme === 'dark' && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div 
+            className="absolute rounded-full"
+            style={{
+              top: '-20%',
+              right: '-10%',
+              width: '600px',
+              height: '600px',
+              background: 'radial-gradient(circle, rgba(96,165,250,0.15) 0%, transparent 70%)',
+              animation: 'float 8s ease-in-out infinite',
+            }} 
+          />
+          <div 
+            className="absolute rounded-full"
+            style={{
+              bottom: '-30%',
+              left: '-15%',
+              width: '800px',
+              height: '800px',
+              background: 'radial-gradient(circle, rgba(20,184,166,0.12) 0%, transparent 70%)',
+              animation: 'float 10s ease-in-out infinite reverse',
+            }} 
+          />
+          <div 
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)
+              `,
+              backgroundSize: '60px 60px'
+            }} 
+          />
+        </div>
+      )}
+
+      {/* Light mode subtle background */}
+      {theme === 'light' && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div 
+            className="absolute rounded-full opacity-30"
+            style={{
+              top: '-20%',
+              right: '-10%',
+              width: '600px',
+              height: '600px',
+              background: 'radial-gradient(circle, rgba(20,184,166,0.2) 0%, transparent 70%)',
+            }} 
+          />
+          <div 
+            className="absolute rounded-full opacity-20"
+            style={{
+              bottom: '-30%',
+              left: '-15%',
+              width: '800px',
+              height: '800px',
+              background: 'radial-gradient(circle, rgba(96,165,250,0.15) 0%, transparent 70%)',
+            }} 
+          />
+        </div>
+      )}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
-        
-        @keyframes float {
-          0%, 100% { transform: translateY(0) rotate(0deg); }
-          50% { transform: translateY(-30px) rotate(2deg); }
-        }
-        
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-        }
         
         .track-card:hover {
           transform: translateY(-4px);
@@ -136,22 +161,21 @@ export default function LoginPage() {
             <Heart size={26} strokeWidth={2.5} className="text-white" />
           </div>
           <div>
-            <div className="text-[22px] font-bold tracking-tight text-slate-50">SONSIEL</div>
-            <div className="text-[11px] text-slate-400 tracking-[2px] uppercase font-medium">Mentorship Hub</div>
+            <div className="text-[22px] font-bold tracking-tight text-foreground">SONSIEL</div>
+            <div className="text-[11px] text-muted-foreground tracking-[2px] uppercase font-medium">Mentorship Hub</div>
           </div>
         </div>
-        <button 
-          onClick={() => setShowLoginForm(true)}
-          className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium text-slate-50 transition-all duration-300 hover:bg-white/15"
-          style={{
-            background: 'rgba(255,255,255,0.1)',
-            border: '1px solid rgba(255,255,255,0.2)',
-          }}
-          data-testid="button-show-login"
-        >
-          Sign In
-          <ArrowRight size={16} />
-        </button>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <button 
+            onClick={() => setShowLoginForm(true)}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 dark:bg-white/10 dark:hover:bg-white/15 dark:text-slate-50 dark:border-white/20"
+            data-testid="button-show-login"
+          >
+            Sign In
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -167,44 +191,39 @@ export default function LoginPage() {
             }}
           >
             <div 
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2 mb-6 text-[13px]"
-              style={{
-                background: 'rgba(20,184,166,0.15)',
-                border: '1px solid rgba(20,184,166,0.3)',
-                color: '#5EEAD4'
-              }}
+              className="inline-flex items-center gap-2 rounded-full px-4 py-2 mb-6 text-[13px] bg-primary/10 border border-primary/30 text-primary dark:bg-teal-500/15 dark:border-teal-500/30 dark:text-teal-300"
             >
               <Calendar size={14} />
               2026 Cohort Now Active
             </div>
             
-            <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6 text-slate-50 tracking-tight">
+            <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6 text-foreground tracking-tight">
               Advancing{' '}
-              <span className="bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-teal-500 to-blue-500 bg-clip-text text-transparent">
                 Nursing Excellence
               </span>{' '}
               Through Mentorship
             </h1>
             
-            <p className="text-lg text-slate-400 leading-relaxed mb-8 max-w-lg">
-              The <strong className="text-slate-200">Society of Nurse Scientists, Innovators, Entrepreneurs & Leaders</strong> connects nursing professionals with expert mentors across five specialized career tracks.
+            <p className="text-lg text-muted-foreground leading-relaxed mb-8 max-w-lg">
+              The <strong className="text-foreground">Society of Nurse Scientists, Innovators, Entrepreneurs & Leaders</strong> connects nursing professionals with expert mentors across five specialized career tracks.
             </p>
 
             {/* Stats */}
-            <div className="flex gap-10 pt-6 border-t border-white/10">
+            <div className="flex gap-10 pt-6 border-t border-border">
               <div>
-                <div className="text-3xl font-bold text-teal-400">5</div>
-                <div className="text-xs text-slate-500 uppercase tracking-wider">Career Tracks</div>
+                <div className="text-3xl font-bold text-teal-500">5</div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">Career Tracks</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-blue-400">6-12</div>
-                <div className="text-xs text-slate-500 uppercase tracking-wider">Month Programs</div>
+                <div className="text-3xl font-bold text-blue-500">6-12</div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">Month Programs</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-purple-400">
+                <div className="text-3xl font-bold text-purple-500">
                   <Globe size={28} className="inline" />
                 </div>
-                <div className="text-xs text-slate-500 uppercase tracking-wider">Global Network</div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">Global Network</div>
               </div>
             </div>
           </div>
@@ -220,7 +239,7 @@ export default function LoginPage() {
           >
             {!showLoginForm ? (
               <>
-                <div className="text-xs text-slate-500 uppercase tracking-[2px] mb-4 font-semibold">
+                <div className="text-xs text-muted-foreground uppercase tracking-[2px] mb-4 font-semibold">
                   Specialized Mentorship Tracks
                 </div>
                 <div className="flex flex-col gap-3">
@@ -235,8 +254,8 @@ export default function LoginPage() {
                         style={{
                           background: isActive 
                             ? `linear-gradient(135deg, ${track.color}15 0%, ${track.color}08 100%)`
-                            : 'rgba(255,255,255,0.03)',
-                          border: `1px solid ${isActive ? track.color + '40' : 'rgba(255,255,255,0.08)'}`,
+                            : theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                          border: `1px solid ${isActive ? track.color + '40' : theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
                         }}
                         data-testid={`track-card-${track.name.toLowerCase()}`}
                       >
@@ -249,21 +268,21 @@ export default function LoginPage() {
                         <div 
                           className="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300"
                           style={{
-                            background: isActive ? `${track.color}25` : 'rgba(255,255,255,0.05)',
+                            background: isActive ? `${track.color}25` : theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
                           }}
                         >
-                          <Icon size={24} color={isActive ? track.color : '#64748B'} />
+                          <Icon size={24} color={isActive ? track.color : theme === 'dark' ? '#64748B' : '#94A3B8'} />
                         </div>
                         <div className="flex-1">
                           <div 
                             className="text-base font-semibold mb-1"
-                            style={{ color: isActive ? '#F8FAFC' : '#CBD5E1' }}
+                            style={{ color: isActive ? (theme === 'dark' ? '#F8FAFC' : '#1e293b') : (theme === 'dark' ? '#CBD5E1' : '#64748B') }}
                           >
                             {track.name} Track
                           </div>
                           <div 
                             className="text-sm"
-                            style={{ color: isActive ? '#94A3B8' : '#475569' }}
+                            style={{ color: isActive ? (theme === 'dark' ? '#94A3B8' : '#64748B') : (theme === 'dark' ? '#475569' : '#94A3B8') }}
                           >
                             {track.desc}
                           </div>
@@ -294,16 +313,12 @@ export default function LoginPage() {
             ) : (
               /* Login Form */
               <div 
-                className="rounded-2xl p-8"
-                style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  backdropFilter: 'blur(20px)'
-                }}
+                className="rounded-2xl p-8 bg-card dark:bg-white/5 border border-border dark:border-white/10"
+                style={{ backdropFilter: 'blur(20px)' }}
               >
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-slate-50 mb-2">Welcome back</h2>
-                  <p className="text-slate-400 text-sm">Sign in to continue your mentorship journey</p>
+                  <h2 className="text-2xl font-bold text-foreground mb-2">Welcome back</h2>
+                  <p className="text-muted-foreground text-sm">Sign in to continue your mentorship journey</p>
                 </div>
 
                 <Form {...form}>
@@ -313,17 +328,17 @@ export default function LoginPage() {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-slate-300 text-sm">Email address</FormLabel>
+                          <FormLabel className="text-foreground text-sm">Email address</FormLabel>
                           <FormControl>
                             <Input
                               type="email"
                               placeholder="you@example.com"
-                              className="bg-white/5 border-white/10 text-slate-50 placeholder:text-slate-500 focus:border-teal-400 h-12"
+                              className="h-12"
                               data-testid="input-email"
                               {...field}
                             />
                           </FormControl>
-                          <FormMessage className="text-red-400" />
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
@@ -334,9 +349,9 @@ export default function LoginPage() {
                       render={({ field }) => (
                         <FormItem>
                           <div className="flex items-center justify-between">
-                            <FormLabel className="text-slate-300 text-sm">Password</FormLabel>
+                            <FormLabel className="text-foreground text-sm">Password</FormLabel>
                             <Link href="/forgot-password">
-                              <span className="text-sm text-teal-400 hover:text-teal-300 cursor-pointer transition-colors" data-testid="link-forgot-password">
+                              <span className="text-sm text-primary hover:text-primary/80 cursor-pointer transition-colors" data-testid="link-forgot-password">
                                 Forgot password?
                               </span>
                             </Link>
@@ -346,7 +361,7 @@ export default function LoginPage() {
                               <Input
                                 type={showPassword ? "text" : "password"}
                                 placeholder="Enter your password"
-                                className="bg-white/5 border-white/10 text-slate-50 placeholder:text-slate-500 focus:border-teal-400 h-12 pr-12"
+                                className="h-12 pr-12"
                                 data-testid="input-password"
                                 {...field}
                               />
@@ -354,7 +369,7 @@ export default function LoginPage() {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent text-slate-400 hover:text-slate-200"
+                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent text-muted-foreground hover:text-foreground"
                                 onClick={() => setShowPassword(!showPassword)}
                                 data-testid="button-toggle-password"
                               >
@@ -366,7 +381,7 @@ export default function LoginPage() {
                               </Button>
                             </div>
                           </FormControl>
-                          <FormMessage className="text-red-400" />
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
@@ -380,11 +395,10 @@ export default function LoginPage() {
                             <Checkbox
                               checked={field.value}
                               onCheckedChange={field.onChange}
-                              className="border-slate-500 data-[state=checked]:bg-teal-500 data-[state=checked]:border-teal-500"
                               data-testid="checkbox-remember"
                             />
                           </FormControl>
-                          <FormLabel className="!mt-0 font-normal text-sm text-slate-400 cursor-pointer">
+                          <FormLabel className="!mt-0 font-normal text-sm text-muted-foreground cursor-pointer">
                             Remember me for 30 days
                           </FormLabel>
                         </FormItem>
@@ -414,7 +428,7 @@ export default function LoginPage() {
 
                 <button
                   onClick={() => setShowLoginForm(false)}
-                  className="w-full mt-4 py-3 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+                  className="w-full mt-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
                   data-testid="button-back-to-tracks"
                 >
                   ← Back to overview
@@ -426,10 +440,8 @@ export default function LoginPage() {
 
         {/* Program Features */}
         <div 
-          className="mt-16 rounded-3xl p-8 grid grid-cols-2 md:grid-cols-4 gap-8 transition-all duration-800"
+          className="mt-16 rounded-3xl p-8 grid grid-cols-2 md:grid-cols-4 gap-8 transition-all duration-800 bg-card/50 dark:bg-white/[0.03] border border-border dark:border-white/[0.08]"
           style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.08)',
             opacity: isLoaded ? 1 : 0,
             transform: isLoaded ? 'translateY(0)' : 'translateY(30px)',
             transitionDelay: '0.6s'
@@ -442,10 +454,10 @@ export default function LoginPage() {
                 background: 'linear-gradient(135deg, rgba(20,184,166,0.2) 0%, rgba(20,184,166,0.05) 100%)',
               }}
             >
-              <Users size={26} className="text-teal-400" />
+              <Users size={26} className="text-teal-500" />
             </div>
-            <div className="text-[15px] font-semibold text-slate-50 mb-1">1:1 Matching</div>
-            <div className="text-[13px] text-slate-500 leading-relaxed">
+            <div className="text-[15px] font-semibold text-foreground mb-1">1:1 Matching</div>
+            <div className="text-[13px] text-muted-foreground leading-relaxed">
               Personalized mentor-mentee pairing
             </div>
           </div>
@@ -456,10 +468,10 @@ export default function LoginPage() {
                 background: 'linear-gradient(135deg, rgba(96,165,250,0.2) 0%, rgba(96,165,250,0.05) 100%)',
               }}
             >
-              <Microscope size={26} className="text-blue-400" />
+              <Microscope size={26} className="text-blue-500" />
             </div>
-            <div className="text-[15px] font-semibold text-slate-50 mb-1">SMART Goals</div>
-            <div className="text-[13px] text-slate-500 leading-relaxed">
+            <div className="text-[15px] font-semibold text-foreground mb-1">SMART Goals</div>
+            <div className="text-[13px] text-muted-foreground leading-relaxed">
               Structured goal-setting framework
             </div>
           </div>
@@ -470,10 +482,10 @@ export default function LoginPage() {
                 background: 'linear-gradient(135deg, rgba(167,139,250,0.2) 0%, rgba(167,139,250,0.05) 100%)',
               }}
             >
-              <Globe size={26} className="text-purple-400" />
+              <Globe size={26} className="text-purple-500" />
             </div>
-            <div className="text-[15px] font-semibold text-slate-50 mb-1">Global Community</div>
-            <div className="text-[13px] text-slate-500 leading-relaxed">
+            <div className="text-[15px] font-semibold text-foreground mb-1">Global Community</div>
+            <div className="text-[13px] text-muted-foreground leading-relaxed">
               Worldwide nursing network
             </div>
           </div>
@@ -484,10 +496,10 @@ export default function LoginPage() {
                 background: 'linear-gradient(135deg, rgba(251,191,36,0.2) 0%, rgba(251,191,36,0.05) 100%)',
               }}
             >
-              <Lightbulb size={26} className="text-yellow-400" />
+              <Lightbulb size={26} className="text-yellow-500" />
             </div>
-            <div className="text-[15px] font-semibold text-slate-50 mb-1">Track Resources</div>
-            <div className="text-[13px] text-slate-500 leading-relaxed">
+            <div className="text-[15px] font-semibold text-foreground mb-1">Track Resources</div>
+            <div className="text-[13px] text-muted-foreground leading-relaxed">
               Specialized tools & templates
             </div>
           </div>
@@ -496,13 +508,13 @@ export default function LoginPage() {
 
       {/* Footer */}
       <footer 
-        className="relative z-10 px-6 md:px-12 py-6 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 transition-opacity duration-600"
+        className="relative z-10 px-6 md:px-12 py-6 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4 transition-opacity duration-600"
         style={{ opacity: isLoaded ? 1 : 0, transitionDelay: '0.8s' }}
       >
-        <div className="text-[13px] text-slate-600">
+        <div className="text-[13px] text-muted-foreground">
           © 2026 SONSIEL - Society of Nurse Scientists, Innovators, Entrepreneurs & Leaders
         </div>
-        <div className="text-[13px] text-slate-500 flex items-center gap-2">
+        <div className="text-[13px] text-muted-foreground flex items-center gap-2">
           <span 
             className="inline-block w-2 h-2 rounded-full animate-pulse"
             style={{ background: '#22C55E' }}

@@ -48,6 +48,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { AnimatedBackground } from "@/components/animated-background";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -173,7 +174,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
+      <AnimatedBackground />
+      <div className="flex h-screen w-full relative z-10">
         <AdminSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between gap-4 px-4 h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
