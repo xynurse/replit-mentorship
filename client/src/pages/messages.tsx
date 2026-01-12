@@ -28,7 +28,6 @@ import {
   MoreVertical,
   Edit,
   Trash2,
-  Reply,
   Check,
   CheckCheck,
   Circle,
@@ -441,19 +440,6 @@ function MessageThread() {
           </div>
         </div>
         
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" data-testid="button-conversation-menu">
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem data-testid="menuitem-view-details">
-              <Users className="h-4 w-4 mr-2" />
-              View details
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       <ScrollArea className="flex-1 p-4">
@@ -523,17 +509,18 @@ function MessageThread() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="h-6 w-6"
+                                data-testid={`button-message-actions-${message.id}`}
                               >
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEdit(message.id, message.content)}>
+                              <DropdownMenuItem onClick={() => handleEdit(message.id, message.content)} data-testid={`button-edit-message-${message.id}`}>
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => deleteMessage(message.id)} className="text-destructive">
+                              <DropdownMenuItem onClick={() => deleteMessage(message.id)} className="text-destructive" data-testid={`button-delete-message-${message.id}`}>
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Delete
                               </DropdownMenuItem>
@@ -551,22 +538,6 @@ function MessageThread() {
                           <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                         </div>
                         
-                        {!isOwn && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <Reply className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                              <DropdownMenuItem>Reply</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
                       </div>
                     )}
                     
