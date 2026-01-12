@@ -92,6 +92,7 @@ export interface IStorage {
   updateCalendarEvent(id: string, data: Partial<CalendarEvent>): Promise<CalendarEvent | undefined>;
   deleteCalendarEvent(id: string): Promise<void>;
   getCalendarEventParticipants(eventId: string): Promise<(CalendarEventParticipant & { user: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'profileImage'> })[]>;
+  updateCalendarEventParticipants(eventId: string, participantIds: string[], organizerId: string): Promise<void>;
   
   // Application Questions
   getApplicationQuestions(cohortId?: string, forRole?: string): Promise<ApplicationQuestion[]>;
@@ -809,6 +810,21 @@ export class DatabaseStorage implements IStorage {
       ...r.participant,
       user: r.user,
     }));
+  }
+
+  async updateCalendarEventParticipants(eventId: string, participantIds: string[], organizerId: string): Promise<void> {
+    await db.delete(calendarEventParticipants).where(eq(calendarEventParticipants.eventId, eventId));
+    
+    const uniqueParticipantIds = Array.from(new Set(participantIds));
+    
+    if (uniqueParticipantIds.length > 0) {
+      const participants = uniqueParticipantIds.map(userId => ({
+        eventId,
+        userId,
+        isOrganizer: userId === organizerId,
+      }));
+      await db.insert(calendarEventParticipants).values(participants);
+    }
   }
 
   // Application Questions

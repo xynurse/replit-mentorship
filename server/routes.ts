@@ -3396,7 +3396,16 @@ export async function registerRoutes(
     try {
       const user = req.user as any;
       const events = await storage.getCalendarEventsForUser(user.id);
-      res.json(events);
+      
+      const eventsWithParticipants = await Promise.all(events.map(async (event) => {
+        const participants = await storage.getCalendarEventParticipants(event.id);
+        return {
+          ...event,
+          participantIds: participants.map(p => p.userId),
+        };
+      }));
+      
+      res.json(eventsWithParticipants);
     } catch (error) {
       next(error);
     }
@@ -3478,7 +3487,7 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Not authorized to update this event" });
       }
       
-      const { title, description, startTime, endTime, location, meetingUrl, format, status } = req.body;
+      const { title, description, startTime, endTime, location, meetingUrl, format, status, participantIds } = req.body;
       
       const updateData: any = {};
       if (title) updateData.title = title;
@@ -3491,6 +3500,11 @@ export async function registerRoutes(
       if (status) updateData.status = status;
       
       const updated = await storage.updateCalendarEvent(req.params.id, updateData);
+      
+      if (participantIds && Array.isArray(participantIds) && event.type === "MEETING") {
+        await storage.updateCalendarEventParticipants(req.params.id, participantIds, user.id);
+      }
+      
       res.json(updated);
     } catch (error) {
       next(error);

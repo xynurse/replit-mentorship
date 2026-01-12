@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar as CalendarIcon, Clock, MapPin, Plus, ChevronLeft, ChevronRight, Ban, Users, Video } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, MapPin, Plus, ChevronLeft, ChevronRight, Ban, Users, Video, ExternalLink, Pencil, Trash2, X } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, addMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -49,6 +49,20 @@ export default function CalendarPage() {
     meetingUrl: "",
     location: "",
   });
+  
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [showEventDetailDialog, setShowEventDetailDialog] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editEvent, setEditEvent] = useState({
+    title: "",
+    description: "",
+    date: "",
+    startTime: "",
+    endTime: "",
+    meetingUrl: "",
+    location: "",
+  });
+  const [editParticipants, setEditParticipants] = useState<string[]>([]);
 
   const { data: tasks = [], isLoading: isLoadingTasks } = useQuery<any[]>({
     queryKey: ["/api/tasks"],
@@ -86,6 +100,61 @@ export default function CalendarPage() {
       toast({
         title: "Error",
         description: error.message || "Failed to create event",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateEventMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiRequest("PATCH", `/api/calendar-events/${id}`, data);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "Failed to update event" }));
+        throw new Error(error.message || "Failed to update event");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Event updated",
+        description: "Your event has been updated successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar-events"] });
+      setShowEventDetailDialog(false);
+      setIsEditing(false);
+      setSelectedEvent(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update event",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteEventMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/calendar-events/${id}`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "Failed to delete event" }));
+        throw new Error(error.message || "Failed to delete event");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Event deleted",
+        description: "Your event has been deleted successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar-events"] });
+      setShowEventDetailDialog(false);
+      setSelectedEvent(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete event",
         variant: "destructive",
       });
     },
@@ -198,6 +267,86 @@ export default function CalendarPage() {
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
+  };
+
+  const toggleEditParticipant = (userId: string) => {
+    setEditParticipants(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const openEventDetail = (eventId: string) => {
+    const event = calendarEvents.find(e => e.id === eventId);
+    if (event) {
+      setSelectedEvent(event);
+      setShowEventDetailDialog(true);
+      setIsEditing(false);
+    }
+  };
+
+  const startEditing = () => {
+    if (!selectedEvent) return;
+    const startDate = new Date(selectedEvent.startTime);
+    const endDate = new Date(selectedEvent.endTime);
+    setEditEvent({
+      title: selectedEvent.title,
+      description: selectedEvent.description || "",
+      date: format(startDate, "yyyy-MM-dd"),
+      startTime: format(startDate, "HH:mm"),
+      endTime: format(endDate, "HH:mm"),
+      meetingUrl: selectedEvent.meetingUrl || "",
+      location: selectedEvent.location || "",
+    });
+    setEditParticipants((selectedEvent as any).participantIds || []);
+    setIsEditing(true);
+  };
+
+  const handleUpdateEvent = () => {
+    if (!selectedEvent || !editEvent.title || !editEvent.date || !editEvent.startTime) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const startTime = new Date(`${editEvent.date}T${editEvent.startTime}`);
+    const endTime = new Date(`${editEvent.date}T${editEvent.endTime}`);
+
+    const updateData: any = {
+      title: editEvent.title,
+      description: editEvent.description || null,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      location: editEvent.location || null,
+      meetingUrl: editEvent.meetingUrl || null,
+    };
+
+    if (selectedEvent.type === "MEETING") {
+      updateData.participantIds = Array.from(new Set([...editParticipants, user?.id].filter(Boolean)));
+    }
+
+    updateEventMutation.mutate({ id: selectedEvent.id, data: updateData });
+  };
+
+  const handleDeleteEvent = () => {
+    if (!selectedEvent) return;
+    if (confirm("Are you sure you want to delete this event?")) {
+      deleteEventMutation.mutate(selectedEvent.id);
+    }
+  };
+
+  const getParticipantNames = (event: CalendarEvent) => {
+    const participantIds = (event as any).participantIds || [];
+    return participantIds
+      .map((id: string) => {
+        const u = messageableUsers.find(mu => mu.id === id);
+        return u ? `${u.firstName} ${u.lastName}` : null;
+      })
+      .filter(Boolean);
   };
 
   if (!user) return null;
@@ -399,13 +548,16 @@ export default function CalendarPage() {
                 selectedDateEvents.length > 0 ? (
                   <div className="space-y-3">
                     {selectedDateEvents.map((event) => (
-                      <div
+                      <button
                         key={event.id}
+                        onClick={() => event.type !== "task" && openEventDetail(event.id)}
                         className={cn(
-                          "p-3 rounded-md",
-                          event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" : "bg-muted/50"
+                          "w-full text-left p-3 rounded-md hover-elevate",
+                          event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" : "bg-muted/50",
+                          event.type !== "task" && "cursor-pointer"
                         )}
                         data-testid={`event-${event.id}`}
+                        disabled={event.type === "task"}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -431,7 +583,7 @@ export default function CalendarPage() {
                             {event.type === "task" ? "Task" : event.type === "block" ? "Blocked" : "Meeting"}
                           </Badge>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
@@ -478,13 +630,16 @@ export default function CalendarPage() {
                   .sort((a, b) => a.date.getTime() - b.date.getTime())
                   .slice(0, 8)
                   .map((event) => (
-                    <div
+                    <button
                       key={`${event.type}-${event.id}`}
+                      onClick={() => event.type !== "task" && openEventDetail(event.id)}
                       className={cn(
-                        "flex items-center justify-between gap-4 p-3 rounded-md",
-                        event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" : "bg-muted/50"
+                        "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate",
+                        event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" : "bg-muted/50",
+                        event.type !== "task" && "cursor-pointer"
                       )}
                       data-testid={`upcoming-${event.type}-${event.id}`}
+                      disabled={event.type === "task"}
                     >
                       <div className="flex items-center gap-3">
                         <div className={cn(
@@ -504,7 +659,7 @@ export default function CalendarPage() {
                         <CalendarIcon className="h-4 w-4" />
                         <span>{format(event.date, "MMM d, h:mm a")}</span>
                       </div>
-                    </div>
+                    </button>
                   ))}
               </div>
             ) : (
@@ -723,6 +878,293 @@ export default function CalendarPage() {
               }
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEventDetailDialog} onOpenChange={(open) => {
+        if (!open) {
+          setIsEditing(false);
+          setSelectedEvent(null);
+        }
+        setShowEventDetailDialog(open);
+      }}>
+        <DialogContent className="sm:max-w-[550px]">
+          {selectedEvent && (
+            <>
+              <DialogHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <DialogTitle className="flex items-center gap-2">
+                      {selectedEvent.type === "MEETING" ? (
+                        <Video className="h-5 w-5 text-blue-500" />
+                      ) : (
+                        <Ban className="h-5 w-5 text-orange-500" />
+                      )}
+                      {isEditing ? "Edit Event" : selectedEvent.title}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {isEditing 
+                        ? "Update the event details below" 
+                        : (selectedEvent.type === "MEETING" ? "Meeting details" : "Blocked time details")
+                      }
+                    </DialogDescription>
+                  </div>
+                  {!isEditing && (
+                    <div className="flex gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={startEditing}
+                        data-testid="button-edit-event"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={handleDeleteEvent}
+                        className="text-destructive hover:text-destructive"
+                        data-testid="button-delete-event"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </DialogHeader>
+
+              {isEditing ? (
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-title">Title <span className="text-destructive">*</span></Label>
+                    <Input
+                      id="edit-title"
+                      value={editEvent.title}
+                      onChange={(e) => setEditEvent(prev => ({ ...prev, title: e.target.value }))}
+                      data-testid="input-edit-title"
+                    />
+                  </div>
+
+                  {selectedEvent.type === "MEETING" && (
+                    <div className="space-y-2">
+                      <Label>Participants</Label>
+                      <div className="border rounded-md p-3 max-h-32 overflow-y-auto">
+                        {messageableUsers.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No users available</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {messageableUsers.map((u) => (
+                              <div 
+                                key={u.id}
+                                className={cn(
+                                  "flex items-center gap-2 p-2 rounded-md cursor-pointer hover-elevate",
+                                  editParticipants.includes(u.id) && "bg-primary/10"
+                                )}
+                                onClick={() => toggleEditParticipant(u.id)}
+                                data-testid={`edit-participant-${u.id}`}
+                              >
+                                <input 
+                                  type="checkbox" 
+                                  checked={editParticipants.includes(u.id)}
+                                  onChange={() => toggleEditParticipant(u.id)}
+                                  className="rounded"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">
+                                    {u.firstName} {u.lastName}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-date">Date <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="edit-date"
+                        type="date"
+                        value={editEvent.date}
+                        onChange={(e) => setEditEvent(prev => ({ ...prev, date: e.target.value }))}
+                        data-testid="input-edit-date"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-start">Start <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="edit-start"
+                        type="time"
+                        value={editEvent.startTime}
+                        onChange={(e) => setEditEvent(prev => ({ ...prev, startTime: e.target.value }))}
+                        data-testid="input-edit-start"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-end">End <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="edit-end"
+                        type="time"
+                        value={editEvent.endTime}
+                        onChange={(e) => setEditEvent(prev => ({ ...prev, endTime: e.target.value }))}
+                        data-testid="input-edit-end"
+                      />
+                    </div>
+                  </div>
+
+                  {selectedEvent.type === "MEETING" && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-meetingUrl">Video Call Link</Label>
+                        <Input
+                          id="edit-meetingUrl"
+                          placeholder="https://zoom.us/j/..."
+                          value={editEvent.meetingUrl}
+                          onChange={(e) => setEditEvent(prev => ({ ...prev, meetingUrl: e.target.value }))}
+                          data-testid="input-edit-meeting-url"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-location">Location</Label>
+                        <Input
+                          id="edit-location"
+                          placeholder="e.g., Conference Room A"
+                          value={editEvent.location}
+                          onChange={(e) => setEditEvent(prev => ({ ...prev, location: e.target.value }))}
+                          data-testid="input-edit-location"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-description">Description</Label>
+                    <Textarea
+                      id="edit-description"
+                      placeholder="Add notes or description..."
+                      value={editEvent.description}
+                      onChange={(e) => setEditEvent(prev => ({ ...prev, description: e.target.value }))}
+                      rows={3}
+                      data-testid="input-edit-description"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 py-4">
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md">
+                    <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">
+                        {format(new Date(selectedEvent.startTime), "EEEE, MMMM d, yyyy")}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(selectedEvent.startTime), "h:mm a")} - {format(new Date(selectedEvent.endTime), "h:mm a")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {selectedEvent.type === "MEETING" && (
+                    <>
+                      {(() => {
+                        const names = getParticipantNames(selectedEvent);
+                        return names.length > 0 ? (
+                          <div className="space-y-2">
+                            <Label className="text-muted-foreground">Participants</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {names.map((name: string, i: number) => (
+                                <Badge key={i} variant="secondary">
+                                  <Users className="h-3 w-3 mr-1" />
+                                  {name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {selectedEvent.meetingUrl && (
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground">Video Call Link</Label>
+                          <a
+                            href={selectedEvent.meetingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md text-blue-600 dark:text-blue-400 hover:underline"
+                            data-testid="link-meeting-url"
+                          >
+                            <Video className="h-4 w-4" />
+                            <span className="flex-1 truncate">{selectedEvent.meetingUrl}</span>
+                            <ExternalLink className="h-4 w-4 shrink-0" />
+                          </a>
+                        </div>
+                      )}
+
+                      {selectedEvent.location && (
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground">Location</Label>
+                          <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span>{selectedEvent.location}</span>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {selectedEvent.description && (
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Description</Label>
+                      <p className="text-sm whitespace-pre-wrap p-3 bg-muted/50 rounded-md">
+                        {selectedEvent.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedEvent.status && (
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Status</Label>
+                      <Badge variant={selectedEvent.status === "COMPLETED" ? "default" : "secondary"}>
+                        {selectedEvent.status}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <DialogFooter>
+                {isEditing ? (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsEditing(false)}
+                      data-testid="button-cancel-edit"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleUpdateEvent}
+                      disabled={updateEventMutation.isPending}
+                      data-testid="button-save-event"
+                    >
+                      {updateEventMutation.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowEventDetailDialog(false)}
+                    data-testid="button-close-event-detail"
+                  >
+                    Close
+                  </Button>
+                )}
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </DashboardLayout>
