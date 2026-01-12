@@ -3106,10 +3106,17 @@ export async function registerRoutes(
     try {
       const user = req.user as any;
       
-      // Preprocess data to convert empty strings to undefined
+      // Preprocess data to convert empty strings to undefined and date strings to Date objects
       const processedData: Record<string, any> = {};
+      const dateFields = ['targetDate', 'completedAt'];
       for (const [key, value] of Object.entries(req.body)) {
-        processedData[key] = value === '' ? undefined : value;
+        if (value === '' || value === null) {
+          processedData[key] = undefined;
+        } else if (dateFields.includes(key) && typeof value === 'string') {
+          processedData[key] = new Date(value);
+        } else {
+          processedData[key] = value;
+        }
       }
       
       const validatedData = insertGoalSchema.parse({
@@ -3145,18 +3152,31 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Not authorized to update this goal" });
       }
       
+      // Preprocess data to convert date strings to Date objects
+      const processedData: Record<string, any> = {};
+      const dateFields = ['targetDate', 'completedAt'];
+      for (const [key, value] of Object.entries(req.body)) {
+        if (value === '' || value === null) {
+          processedData[key] = null;
+        } else if (dateFields.includes(key) && typeof value === 'string') {
+          processedData[key] = new Date(value);
+        } else {
+          processedData[key] = value;
+        }
+      }
+      
       // Track progress changes
-      if (req.body.progress !== undefined && req.body.progress !== goal.progress) {
+      if (processedData.progress !== undefined && processedData.progress !== goal.progress) {
         await storage.createGoalProgress({
           goalId: goal.id,
           previousProgress: goal.progress || 0,
-          newProgress: req.body.progress,
-          notes: req.body.progressNotes || null,
+          newProgress: processedData.progress,
+          notes: processedData.progressNotes || null,
           updatedById: user.id,
         });
       }
       
-      const updatedGoal = await storage.updateGoal(req.params.id, req.body);
+      const updatedGoal = await storage.updateGoal(req.params.id, processedData);
       res.json(updatedGoal);
     } catch (error) {
       next(error);
