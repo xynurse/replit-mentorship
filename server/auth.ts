@@ -267,13 +267,15 @@ export function setupAuth(app: Express) {
           passwordResetExpires: resetExpires,
         });
 
-        // Build the reset URL
-        const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-          : process.env.REPLIT_DOMAINS
-            ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-            : 'http://localhost:5000';
-        const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+        // Build the reset URL - use path parameter format to match frontend route
+        const baseUrl = process.env.REPLIT_DEPLOYMENT_URL
+          ? process.env.REPLIT_DEPLOYMENT_URL
+          : process.env.REPLIT_DEV_DOMAIN 
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+            : process.env.REPLIT_DOMAINS
+              ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+              : 'http://localhost:5000';
+        const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
 
         // Send the password reset email
         const emailResult = await sendPasswordResetEmail({
