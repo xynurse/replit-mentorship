@@ -1895,13 +1895,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Cannot match a user with themselves" });
       }
 
-      // Check if mentor exists and is a mentor
+      // Check if mentor exists and has a role that can be a mentor (MENTOR, ADMIN, or SUPER_ADMIN)
       const mentor = await storage.getUser(mentorId);
       if (!mentor) {
         return res.status(404).json({ message: "Mentor not found" });
       }
-      if (mentor.role !== 'MENTOR') {
-        return res.status(400).json({ message: "Selected user is not a mentor" });
+      if (!['MENTOR', 'ADMIN', 'SUPER_ADMIN'].includes(mentor.role)) {
+        return res.status(400).json({ message: "Selected user must have MENTOR, ADMIN, or SUPER_ADMIN role to be a mentor" });
       }
 
       // Check if mentee exists and is a mentee
