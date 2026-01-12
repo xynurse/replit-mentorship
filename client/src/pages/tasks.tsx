@@ -290,6 +290,17 @@ export default function TasksPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [isEditingTask, setIsEditingTask] = useState(false);
+
+  const editForm = useForm<TaskFormValues>({
+    resolver: zodResolver(taskFormSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      priority: "MEDIUM",
+      category: "SELF_TASK",
+    },
+  });
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -378,6 +389,35 @@ export default function TasksPage() {
 
   const onSubmitCreate = (data: TaskFormValues) => {
     createTaskMutation.mutate(data);
+  };
+
+  const onSubmitEdit = (data: TaskFormValues) => {
+    if (!selectedTask) return;
+    updateTaskMutation.mutate({
+      id: selectedTask.id,
+      data: {
+        title: data.title,
+        description: data.description || null,
+        priority: data.priority,
+        category: data.category,
+        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        estimatedHours: data.estimatedHours || null,
+      },
+    });
+    setIsEditingTask(false);
+  };
+
+  const handleEditTask = () => {
+    if (!selectedTask) return;
+    editForm.reset({
+      title: selectedTask.title,
+      description: selectedTask.description || "",
+      priority: (selectedTask.priority as TaskPriority) || "MEDIUM",
+      category: (selectedTask.category as TaskCategory) || "SELF_TASK",
+      dueDate: selectedTask.dueDate ? new Date(selectedTask.dueDate).toISOString().split("T")[0] : "",
+      estimatedHours: selectedTask.estimatedHours || undefined,
+    });
+    setIsEditingTask(true);
   };
 
   const clearFilters = () => {
@@ -855,105 +895,272 @@ export default function TasksPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+      <Dialog open={showDetailDialog} onOpenChange={(open) => {
+        setShowDetailDialog(open);
+        if (!open) setIsEditingTask(false);
+      }}>
         <DialogContent className="max-w-2xl">
           {selectedTask && (
             <>
               <DialogHeader>
                 <div className="flex items-center gap-2">
-                  <DialogTitle className="flex-1">{selectedTask.title}</DialogTitle>
-                  <Badge variant={getStatusBadgeVariant(selectedTask.status as TaskStatus)}>
-                    {STATUS_OPTIONS.find(s => s.value === selectedTask.status)?.label || selectedTask.status}
-                  </Badge>
+                  <DialogTitle className="flex-1">
+                    {isEditingTask ? "Edit Task" : selectedTask.title}
+                  </DialogTitle>
+                  {!isEditingTask && (
+                    <Badge variant={getStatusBadgeVariant(selectedTask.status as TaskStatus)}>
+                      {STATUS_OPTIONS.find(s => s.value === selectedTask.status)?.label || selectedTask.status}
+                    </Badge>
+                  )}
                 </div>
               </DialogHeader>
 
-              <div className="space-y-4">
-                {selectedTask.description && (
-                  <div>
-                    <Label className="text-muted-foreground">Description</Label>
-                    <p className="mt-1">{selectedTask.description}</p>
-                  </div>
-                )}
+              {isEditingTask ? (
+                <Form {...editForm}>
+                  <form onSubmit={editForm.handleSubmit(onSubmitEdit)} className="space-y-4">
+                    <FormField
+                      control={editForm.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Title *</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="What needs to be done?"
+                              {...field}
+                              data-testid="input-edit-task-title"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Priority</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      {selectedTask.priority && getPriorityIcon(selectedTask.priority as TaskPriority)}
-                      <span>
-                        {PRIORITY_OPTIONS.find(p => p.value === selectedTask.priority)?.label || selectedTask.priority}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Category</Label>
-                    <p className="mt-1">
-                      {CATEGORY_OPTIONS.find(c => c.value === selectedTask.category)?.label || selectedTask.category}
-                    </p>
-                  </div>
-                </div>
+                    <FormField
+                      control={editForm.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Add more details..."
+                              {...field}
+                              data-testid="input-edit-task-description"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <div className="grid grid-cols-2 gap-4">
-                  {selectedTask.dueDate && (
-                    <div>
-                      <Label className="text-muted-foreground">Due Date</Label>
-                      <p className={`mt-1 ${isOverdue(selectedTask.dueDate) && selectedTask.status !== "COMPLETED" ? "text-red-600" : ""}`}>
-                        {formatDate(selectedTask.dueDate)}
-                        {isOverdue(selectedTask.dueDate) && selectedTask.status !== "COMPLETED" && " (Overdue)"}
-                      </p>
-                    </div>
-                  )}
-                  {selectedTask.estimatedHours && (
-                    <div>
-                      <Label className="text-muted-foreground">Estimated Hours</Label>
-                      <p className="mt-1">{selectedTask.estimatedHours}h</p>
-                    </div>
-                  )}
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={editForm.control}
+                        name="priority"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Priority</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-edit-task-priority">
+                                  <SelectValue placeholder="Select priority" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {PRIORITY_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                <div>
-                  <Label className="text-muted-foreground">Update Status</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {STATUS_OPTIONS.map((option) => (
+                      <FormField
+                        control={editForm.control}
+                        name="category"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Category</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-edit-task-category">
+                                  <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {CATEGORY_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={editForm.control}
+                        name="dueDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Due Date</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="date"
+                                {...field}
+                                data-testid="input-edit-task-due-date"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={editForm.control}
+                        name="estimatedHours"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Estimated Hours</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                placeholder="e.g., 2"
+                                onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                                value={field.value || ""}
+                                data-testid="input-edit-task-estimated-hours"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <DialogFooter>
                       <Button
-                        key={option.value}
-                        size="sm"
-                        variant={selectedTask.status === option.value ? "default" : "outline"}
-                        onClick={() => {
-                          updateTaskMutation.mutate({
-                            id: selectedTask.id,
-                            data: { status: option.value },
-                          });
-                          setSelectedTask({ ...selectedTask, status: option.value });
-                        }}
-                        data-testid={`button-status-${option.value}`}
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsEditingTask(false)}
                       >
-                        <option.icon className="h-4 w-4 mr-1" />
-                        {option.label}
+                        Cancel
                       </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                      <Button
+                        type="submit"
+                        disabled={updateTaskMutation.isPending}
+                        data-testid="button-submit-edit-task"
+                      >
+                        {updateTaskMutation.isPending ? "Saving..." : "Save Changes"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              ) : (
+                <>
+                  <div className="space-y-4">
+                    {selectedTask.description && (
+                      <div>
+                        <Label className="text-muted-foreground">Description</Label>
+                        <p className="mt-1">{selectedTask.description}</p>
+                      </div>
+                    )}
 
-              <DialogFooter>
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to delete this task?")) {
-                      deleteTaskMutation.mutate(selectedTask.id);
-                      setShowDetailDialog(false);
-                    }
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Task
-                </Button>
-                <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
-                  Close
-                </Button>
-              </DialogFooter>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-muted-foreground">Priority</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          {selectedTask.priority && getPriorityIcon(selectedTask.priority as TaskPriority)}
+                          <span>
+                            {PRIORITY_OPTIONS.find(p => p.value === selectedTask.priority)?.label || selectedTask.priority}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Category</Label>
+                        <p className="mt-1">
+                          {CATEGORY_OPTIONS.find(c => c.value === selectedTask.category)?.label || selectedTask.category}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {selectedTask.dueDate && (
+                        <div>
+                          <Label className="text-muted-foreground">Due Date</Label>
+                          <p className={`mt-1 ${isOverdue(selectedTask.dueDate) && selectedTask.status !== "COMPLETED" ? "text-red-600" : ""}`}>
+                            {formatDate(selectedTask.dueDate)}
+                            {isOverdue(selectedTask.dueDate) && selectedTask.status !== "COMPLETED" && " (Overdue)"}
+                          </p>
+                        </div>
+                      )}
+                      {selectedTask.estimatedHours && (
+                        <div>
+                          <Label className="text-muted-foreground">Estimated Hours</Label>
+                          <p className="mt-1">{selectedTask.estimatedHours}h</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label className="text-muted-foreground">Update Status</Label>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {STATUS_OPTIONS.map((option) => (
+                          <Button
+                            key={option.value}
+                            size="sm"
+                            variant={selectedTask.status === option.value ? "default" : "outline"}
+                            onClick={() => {
+                              updateTaskMutation.mutate({
+                                id: selectedTask.id,
+                                data: { status: option.value },
+                              });
+                              setSelectedTask({ ...selectedTask, status: option.value });
+                            }}
+                            data-testid={`button-status-${option.value}`}
+                          >
+                            <option.icon className="h-4 w-4 mr-1" />
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <DialogFooter className="gap-2">
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        if (confirm("Are you sure you want to delete this task?")) {
+                          deleteTaskMutation.mutate(selectedTask.id);
+                          setShowDetailDialog(false);
+                        }
+                      }}
+                      data-testid="button-delete-task"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                    <Button variant="outline" onClick={handleEditTask} data-testid="button-edit-task">
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
+                      Close
+                    </Button>
+                  </DialogFooter>
+                </>
+              )}
             </>
           )}
         </DialogContent>
