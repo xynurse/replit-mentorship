@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -316,8 +317,37 @@ function MessageThread() {
   const [inputValue, setInputValue] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const toggleMessageSelection = (messageId: string) => {
+    setSelectedMessages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedMessages.size === 0) return;
+    const confirmed = confirm(`Delete ${selectedMessages.size} message${selectedMessages.size > 1 ? 's' : ''}?`);
+    if (!confirmed) return;
+    
+    const messageIds = Array.from(selectedMessages);
+    for (let i = 0; i < messageIds.length; i++) {
+      await deleteMessage(messageIds[i]);
+    }
+    setSelectedMessages(new Set());
+  };
+
+  const clearSelection = () => {
+    setSelectedMessages(new Set());
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -415,32 +445,60 @@ function MessageThread() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 p-3 border-b">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden"
-          onClick={() => setActiveConversation(null)}
-          data-testid="button-back-to-list"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        
-        <div className="flex-1 flex items-center gap-3">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback>{getConversationName()[0]}</AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="font-medium" data-testid="text-conversation-name">{getConversationName()}</p>
-            {activeConversation.type === "DIRECT" && (
-              <p className="text-xs text-muted-foreground">
-                {isOtherOnline() ? "Online" : "Offline"}
-              </p>
-            )}
+      {selectedMessages.size > 0 ? (
+        <div className="flex items-center gap-3 p-3 border-b bg-muted/50">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={clearSelection}
+            data-testid="button-clear-selection"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          
+          <div className="flex-1">
+            <p className="font-medium" data-testid="text-selected-count">
+              {selectedMessages.size} message{selectedMessages.size > 1 ? 's' : ''} selected
+            </p>
+          </div>
+          
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleBulkDelete}
+            data-testid="button-delete-selected"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 p-3 border-b">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setActiveConversation(null)}
+            data-testid="button-back-to-list"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          
+          <div className="flex-1 flex items-center gap-3">
+            <Avatar className="h-9 w-9">
+              <AvatarFallback>{getConversationName()[0]}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-medium" data-testid="text-conversation-name">{getConversationName()}</p>
+              {activeConversation.type === "DIRECT" && (
+                <p className="text-xs text-muted-foreground">
+                  {isOtherOnline() ? "Online" : "Offline"}
+                </p>
+              )}
+            </div>
           </div>
         </div>
-        
-      </div>
+      )}
 
       <ScrollArea className="flex-1 p-4">
         {isLoadingMessages ? (
@@ -502,30 +560,14 @@ function MessageThread() {
                         <Button size="sm" variant="outline" onClick={handleCancelEdit}>Cancel</Button>
                       </div>
                     ) : (
-                      <div className="flex items-end gap-2">
+                      <div className="flex items-center gap-2">
                         {isOwn && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                data-testid={`button-message-actions-${message.id}`}
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEdit(message.id, message.content)} data-testid={`button-edit-message-${message.id}`}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => deleteMessage(message.id)} className="text-destructive" data-testid={`button-delete-message-${message.id}`}>
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <Checkbox
+                            checked={selectedMessages.has(message.id)}
+                            onCheckedChange={() => toggleMessageSelection(message.id)}
+                            className="flex-shrink-0"
+                            data-testid={`checkbox-message-${message.id}`}
+                          />
                         )}
                         
                         <div
@@ -533,7 +575,7 @@ function MessageThread() {
                             isOwn
                               ? "bg-primary text-primary-foreground"
                               : "bg-muted"
-                          }`}
+                          } ${selectedMessages.has(message.id) ? "ring-2 ring-primary ring-offset-2" : ""}`}
                         >
                           <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                         </div>
