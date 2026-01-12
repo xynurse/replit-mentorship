@@ -491,6 +491,28 @@ export default function GoalsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState<{
+    title: string;
+    description: string;
+    specificDetails: string;
+    measurableMetrics: string;
+    achievabilityNotes: string;
+    relevanceExplanation: string;
+    category: string;
+    targetDate: string;
+    progress: number;
+  }>({
+    title: "",
+    description: "",
+    specificDetails: "",
+    measurableMetrics: "",
+    achievabilityNotes: "",
+    relevanceExplanation: "",
+    category: "SHORT_TERM",
+    targetDate: "",
+    progress: 0,
+  });
 
   const { data: goals, isLoading } = useQuery<Goal[]>({
     queryKey: ["/api/goals", statusFilter, categoryFilter],
@@ -511,11 +533,64 @@ export default function GoalsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
       toast({ title: "Goal updated" });
+      setIsEditing(false);
     },
     onError: () => {
       toast({ title: "Failed to update goal", variant: "destructive" });
     },
   });
+
+  const startEditing = (goal: Goal) => {
+    setEditFormData({
+      title: goal.title || "",
+      description: goal.description || "",
+      specificDetails: goal.specificDetails || "",
+      measurableMetrics: formatMeasurableMetrics(goal.measurableMetrics) || "",
+      achievabilityNotes: goal.achievabilityNotes || "",
+      relevanceExplanation: goal.relevanceExplanation || "",
+      category: goal.category || "SHORT_TERM",
+      targetDate: goal.targetDate ? new Date(goal.targetDate).toISOString().split("T")[0] : "",
+      progress: goal.progress || 0,
+    });
+    setIsEditing(true);
+  };
+
+  const saveEdits = () => {
+    if (!selectedGoal) return;
+    const measurableMetricsValue = editFormData.measurableMetrics 
+      ? { description: editFormData.measurableMetrics } 
+      : null;
+    updateGoalMutation.mutate({
+      id: selectedGoal.id,
+      data: {
+        title: editFormData.title,
+        description: editFormData.description || null,
+        specificDetails: editFormData.specificDetails || null,
+        measurableMetrics: measurableMetricsValue,
+        achievabilityNotes: editFormData.achievabilityNotes || null,
+        relevanceExplanation: editFormData.relevanceExplanation || null,
+        category: editFormData.category as GoalCategory,
+        targetDate: editFormData.targetDate ? new Date(editFormData.targetDate) : null,
+        progress: editFormData.progress,
+      },
+    });
+    setSelectedGoal({
+      ...selectedGoal,
+      title: editFormData.title,
+      description: editFormData.description || null,
+      specificDetails: editFormData.specificDetails || null,
+      measurableMetrics: measurableMetricsValue,
+      achievabilityNotes: editFormData.achievabilityNotes || null,
+      relevanceExplanation: editFormData.relevanceExplanation || null,
+      category: editFormData.category as GoalCategory,
+      targetDate: editFormData.targetDate ? new Date(editFormData.targetDate) : null,
+      progress: editFormData.progress,
+    });
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+  };
 
   const deleteGoalMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -549,7 +624,11 @@ export default function GoalsPage() {
       targetDate: goal.targetDate,
       specificDetails: goal.specificDetails,
       measurableMetrics: goal.measurableMetrics,
+      achievabilityNotes: goal.achievabilityNotes,
+      relevanceExplanation: goal.relevanceExplanation,
       mentorFeedback: goal.mentorFeedback,
+      createdAt: goal.createdAt,
+      updatedAt: goal.updatedAt,
     }));
     
     exportGoalsToPDF(goalData, {
@@ -793,25 +872,58 @@ export default function GoalsPage() {
         onSuccess={() => setShowWizard(false)}
       />
 
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+      <Dialog open={showDetailDialog} onOpenChange={(open) => {
+        setShowDetailDialog(open);
+        if (!open) setIsEditing(false);
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {selectedGoal && (
             <>
               <DialogHeader>
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <DialogTitle className="text-xl">{selectedGoal.title}</DialogTitle>
+                  <div className="flex-1">
+                    {isEditing ? (
+                      <Input
+                        value={editFormData.title}
+                        onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                        className="text-xl font-semibold"
+                        placeholder="Goal title"
+                        data-testid="input-edit-goal-title"
+                      />
+                    ) : (
+                      <DialogTitle className="text-xl">{selectedGoal.title}</DialogTitle>
+                    )}
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <Badge variant={getStatusBadgeVariant(selectedGoal.status as GoalStatus)}>
                         {GOAL_STATUS_OPTIONS.find(s => s.value === selectedGoal.status)?.label || selectedGoal.status}
                       </Badge>
-                      {selectedGoal.category && (
+                      {isEditing ? (
+                        <Select
+                          value={editFormData.category}
+                          onValueChange={(val) => setEditFormData({ ...editFormData, category: val })}
+                        >
+                          <SelectTrigger className="w-[140px] h-7" data-testid="select-edit-goal-category">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {GOAL_CATEGORY_OPTIONS.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : selectedGoal.category && (
                         <Badge variant={getCategoryBadgeVariant(selectedGoal.category as GoalCategory)}>
                           {GOAL_CATEGORY_OPTIONS.find(c => c.value === selectedGoal.category)?.label || selectedGoal.category}
                         </Badge>
                       )}
                     </div>
                   </div>
+                  {!isMentor && !isEditing && (
+                    <Button variant="outline" size="sm" onClick={() => startEditing(selectedGoal)} data-testid="button-edit-goal">
+                      <Edit className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                  )}
                 </div>
               </DialogHeader>
 
@@ -819,62 +931,134 @@ export default function GoalsPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Progress</Label>
-                    <span className="font-medium">{selectedGoal.progress || 0}%</span>
+                    {isEditing ? (
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={editFormData.progress}
+                        onChange={(e) => setEditFormData({ ...editFormData, progress: parseInt(e.target.value) || 0 })}
+                        className="w-20 h-7 text-right"
+                        data-testid="input-edit-goal-progress"
+                      />
+                    ) : (
+                      <span className="font-medium">{selectedGoal.progress || 0}%</span>
+                    )}
                   </div>
-                  <Progress value={selectedGoal.progress || 0} className="h-3" />
+                  <Progress value={isEditing ? editFormData.progress : (selectedGoal.progress || 0)} className="h-3" />
                 </div>
 
-                {selectedGoal.description && (
-                  <div>
-                    <Label className="text-muted-foreground">Description</Label>
+                <div>
+                  <Label className="text-muted-foreground">Description</Label>
+                  {isEditing ? (
+                    <Textarea
+                      value={editFormData.description}
+                      onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                      placeholder="Describe your goal..."
+                      className="mt-1"
+                      data-testid="input-edit-goal-description"
+                    />
+                  ) : selectedGoal.description ? (
                     <p className="mt-1">{selectedGoal.description}</p>
-                  </div>
-                )}
+                  ) : (
+                    <p className="mt-1 text-muted-foreground italic">No description provided</p>
+                  )}
+                </div>
 
-                {selectedGoal.specificDetails && (
-                  <div>
-                    <Label className="text-muted-foreground flex items-center gap-1">
-                      <Target className="h-4 w-4" /> Specific Details
-                    </Label>
+                <div>
+                  <Label className="text-muted-foreground flex items-center gap-1">
+                    <Target className="h-4 w-4" /> Specific Details
+                  </Label>
+                  {isEditing ? (
+                    <Textarea
+                      value={editFormData.specificDetails}
+                      onChange={(e) => setEditFormData({ ...editFormData, specificDetails: e.target.value })}
+                      placeholder="What exactly do you want to accomplish?"
+                      className="mt-1"
+                      data-testid="input-edit-goal-specific"
+                    />
+                  ) : selectedGoal.specificDetails ? (
                     <p className="mt-1">{selectedGoal.specificDetails}</p>
-                  </div>
-                )}
+                  ) : (
+                    <p className="mt-1 text-muted-foreground italic">Not specified</p>
+                  )}
+                </div>
 
-                {formatMeasurableMetrics(selectedGoal.measurableMetrics) && (
-                  <div>
-                    <Label className="text-muted-foreground flex items-center gap-1">
-                      <Ruler className="h-4 w-4" /> Measurable Metrics
-                    </Label>
+                <div>
+                  <Label className="text-muted-foreground flex items-center gap-1">
+                    <Ruler className="h-4 w-4" /> Measurable Metrics
+                  </Label>
+                  {isEditing ? (
+                    <Textarea
+                      value={editFormData.measurableMetrics}
+                      onChange={(e) => setEditFormData({ ...editFormData, measurableMetrics: e.target.value })}
+                      placeholder="How will you track progress?"
+                      className="mt-1"
+                      data-testid="input-edit-goal-measurable"
+                    />
+                  ) : formatMeasurableMetrics(selectedGoal.measurableMetrics) ? (
                     <p className="mt-1">{formatMeasurableMetrics(selectedGoal.measurableMetrics)}</p>
-                  </div>
-                )}
+                  ) : (
+                    <p className="mt-1 text-muted-foreground italic">Not specified</p>
+                  )}
+                </div>
 
-                {selectedGoal.achievabilityNotes && (
-                  <div>
-                    <Label className="text-muted-foreground flex items-center gap-1">
-                      <Lightbulb className="h-4 w-4" /> Achievability Notes
-                    </Label>
+                <div>
+                  <Label className="text-muted-foreground flex items-center gap-1">
+                    <Lightbulb className="h-4 w-4" /> Achievability Notes
+                  </Label>
+                  {isEditing ? (
+                    <Textarea
+                      value={editFormData.achievabilityNotes}
+                      onChange={(e) => setEditFormData({ ...editFormData, achievabilityNotes: e.target.value })}
+                      placeholder="Is this goal realistic given your resources?"
+                      className="mt-1"
+                      data-testid="input-edit-goal-achievable"
+                    />
+                  ) : selectedGoal.achievabilityNotes ? (
                     <p className="mt-1">{selectedGoal.achievabilityNotes}</p>
-                  </div>
-                )}
+                  ) : (
+                    <p className="mt-1 text-muted-foreground italic">Not specified</p>
+                  )}
+                </div>
 
-                {selectedGoal.relevanceExplanation && (
-                  <div>
-                    <Label className="text-muted-foreground flex items-center gap-1">
-                      <Link className="h-4 w-4" /> Relevance
-                    </Label>
+                <div>
+                  <Label className="text-muted-foreground flex items-center gap-1">
+                    <Link className="h-4 w-4" /> Relevance
+                  </Label>
+                  {isEditing ? (
+                    <Textarea
+                      value={editFormData.relevanceExplanation}
+                      onChange={(e) => setEditFormData({ ...editFormData, relevanceExplanation: e.target.value })}
+                      placeholder="Why is this goal important to your development?"
+                      className="mt-1"
+                      data-testid="input-edit-goal-relevant"
+                    />
+                  ) : selectedGoal.relevanceExplanation ? (
                     <p className="mt-1">{selectedGoal.relevanceExplanation}</p>
-                  </div>
-                )}
+                  ) : (
+                    <p className="mt-1 text-muted-foreground italic">Not specified</p>
+                  )}
+                </div>
 
-                {selectedGoal.targetDate && (
-                  <div>
-                    <Label className="text-muted-foreground flex items-center gap-1">
-                      <CalendarDays className="h-4 w-4" /> Target Date
-                    </Label>
+                <div>
+                  <Label className="text-muted-foreground flex items-center gap-1">
+                    <CalendarDays className="h-4 w-4" /> Target Date
+                  </Label>
+                  {isEditing ? (
+                    <Input
+                      type="date"
+                      value={editFormData.targetDate}
+                      onChange={(e) => setEditFormData({ ...editFormData, targetDate: e.target.value })}
+                      className="mt-1 w-48"
+                      data-testid="input-edit-goal-target-date"
+                    />
+                  ) : selectedGoal.targetDate ? (
                     <p className="mt-1">{formatDate(selectedGoal.targetDate)}</p>
-                  </div>
-                )}
+                  ) : (
+                    <p className="mt-1 text-muted-foreground italic">No target date set</p>
+                  )}
+                </div>
 
                 {selectedGoal.mentorFeedback && (
                   <div className="bg-muted p-4 rounded-lg">
@@ -883,47 +1067,64 @@ export default function GoalsPage() {
                   </div>
                 )}
 
-                <div>
-                  <Label className="text-muted-foreground">Update Status</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {GOAL_STATUS_OPTIONS.map((option) => (
-                      <Button
-                        key={option.value}
-                        size="sm"
-                        variant={selectedGoal.status === option.value ? "default" : "outline"}
-                        onClick={() => {
-                          updateGoalMutation.mutate({
-                            id: selectedGoal.id,
-                            data: { status: option.value },
-                          });
-                          setSelectedGoal({ ...selectedGoal, status: option.value });
-                        }}
-                        data-testid={`button-goal-status-${option.value}`}
-                      >
-                        <option.icon className="h-4 w-4 mr-1" />
-                        {option.label}
-                      </Button>
-                    ))}
+                {!isEditing && (
+                  <div>
+                    <Label className="text-muted-foreground">Update Status</Label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {GOAL_STATUS_OPTIONS.map((option) => (
+                        <Button
+                          key={option.value}
+                          size="sm"
+                          variant={selectedGoal.status === option.value ? "default" : "outline"}
+                          onClick={() => {
+                            updateGoalMutation.mutate({
+                              id: selectedGoal.id,
+                              data: { status: option.value },
+                            });
+                            setSelectedGoal({ ...selectedGoal, status: option.value });
+                          }}
+                          data-testid={`button-goal-status-${option.value}`}
+                        >
+                          <option.icon className="h-4 w-4 mr-1" />
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              <DialogFooter>
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to delete this goal?")) {
-                      deleteGoalMutation.mutate(selectedGoal.id);
-                      setShowDetailDialog(false);
-                    }
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Goal
-                </Button>
-                <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
-                  Close
-                </Button>
+              <DialogFooter className="flex-wrap gap-2">
+                {isEditing ? (
+                  <>
+                    <Button variant="outline" onClick={cancelEditing} data-testid="button-cancel-edit-goal">
+                      Cancel
+                    </Button>
+                    <Button onClick={saveEdits} disabled={updateGoalMutation.isPending} data-testid="button-save-goal">
+                      {updateGoalMutation.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {!isMentor && (
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to delete this goal?")) {
+                            deleteGoalMutation.mutate(selectedGoal.id);
+                            setShowDetailDialog(false);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Goal
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
+                      Close
+                    </Button>
+                  </>
+                )}
               </DialogFooter>
             </>
           )}

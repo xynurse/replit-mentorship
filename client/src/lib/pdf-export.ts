@@ -69,7 +69,11 @@ export interface GoalData {
   targetDate?: string | Date | null;
   specificDetails?: string | null;
   measurableMetrics?: any;
+  achievabilityNotes?: string | null;
+  relevanceExplanation?: string | null;
   mentorFeedback?: string | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
   milestones?: {
     title: string;
     description?: string | null;
@@ -170,6 +174,35 @@ export function exportGoalsToPDF(goals: GoalData[], user: UserInfo, options?: Pa
         }
         yPos += 8;
       }
+      
+      const addSmartSection = (label: string, content: string | null | undefined, iconChar: string) => {
+        if (!content) return;
+        if (yPos > pageHeight - 40) {
+          addFooter(doc, pageNumber);
+          doc.addPage();
+          pageNumber++;
+          yPos = 20;
+        }
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(SONSIEL_TEAL);
+        doc.text(`${iconChar} ${label}:`, margin + 3, yPos);
+        yPos += 4;
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(TEXT_SECONDARY);
+        const lines = doc.splitTextToSize(content, contentWidth - 10);
+        doc.text(lines, margin + 6, yPos);
+        yPos += (lines.length * 4) + 3;
+      };
+      
+      const measurableText = typeof goal.measurableMetrics === 'string' 
+        ? goal.measurableMetrics 
+        : goal.measurableMetrics?.description || null;
+      
+      addSmartSection('Specific', goal.specificDetails, 'S');
+      addSmartSection('Measurable', measurableText, 'M');
+      addSmartSection('Achievable', goal.achievabilityNotes, 'A');
+      addSmartSection('Relevant', goal.relevanceExplanation, 'R');
       
       if (goal.milestones && goal.milestones.length > 0) {
         doc.setFontSize(9);
