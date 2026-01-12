@@ -68,6 +68,9 @@ export const notificationResourceTypeEnum = pgEnum("notification_resource_type",
 
 export const emailFrequencyEnum = pgEnum("email_frequency", ["INSTANT", "DAILY_DIGEST", "WEEKLY_DIGEST", "NEVER"]);
 
+export const calendarEventTypeEnum = pgEnum("calendar_event_type", ["MEETING", "BLOCK"]);
+export const calendarEventStatusEnum = pgEnum("calendar_event_status", ["SCHEDULED", "COMPLETED", "CANCELLED"]);
+
 export const userRoleEnum = pgEnum("user_role", ["SUPER_ADMIN", "ADMIN", "MENTOR", "MENTEE"]);
 
 // Mentorship role choice enum
@@ -581,6 +584,34 @@ export const meetingLogs = pgTable("meeting_logs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const calendarEvents = pgTable("calendar_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: calendarEventTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  isAllDay: boolean("is_all_day").default(false),
+  location: text("location"),
+  meetingUrl: text("meeting_url"),
+  format: meetingFormatEnum("format"),
+  platform: meetingPlatformEnum("platform"),
+  status: calendarEventStatusEnum("status").default("SCHEDULED"),
+  matchId: varchar("match_id").references(() => mentorshipMatches.id),
+  createdById: varchar("created_by_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const calendarEventParticipants = pgTable("calendar_event_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => calendarEvents.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  isOrganizer: boolean("is_organizer").default(false),
+  responseStatus: text("response_status").default("PENDING"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const goals = pgTable("goals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   matchId: varchar("match_id").references(() => mentorshipMatches.id),
@@ -846,6 +877,8 @@ export const insertCohortTrackSchema = createInsertSchema(cohortTracks).omit({ i
 export const insertCohortMembershipSchema = createInsertSchema(cohortMemberships).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMentorshipMatchSchema = createInsertSchema(mentorshipMatches).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMeetingLogSchema = createInsertSchema(meetingLogs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCalendarEventParticipantSchema = createInsertSchema(calendarEventParticipants).omit({ id: true, createdAt: true });
 export const insertGoalSchema = createInsertSchema(goals).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTaskCommentSchema = createInsertSchema(taskComments).omit({ id: true, createdAt: true });
@@ -877,6 +910,10 @@ export type MentorshipMatch = typeof mentorshipMatches.$inferSelect;
 export type InsertMentorshipMatch = z.infer<typeof insertMentorshipMatchSchema>;
 export type MeetingLog = typeof meetingLogs.$inferSelect;
 export type InsertMeetingLog = z.infer<typeof insertMeetingLogSchema>;
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
+export type CalendarEventParticipant = typeof calendarEventParticipants.$inferSelect;
+export type InsertCalendarEventParticipant = z.infer<typeof insertCalendarEventParticipantSchema>;
 export type Goal = typeof goals.$inferSelect;
 export type InsertGoal = z.infer<typeof insertGoalSchema>;
 export type Task = typeof tasks.$inferSelect;

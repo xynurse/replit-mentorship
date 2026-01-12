@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useMessaging, MessagingProvider } from "@/hooks/use-messaging";
 import { useAuth } from "@/hooks/use-auth";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
@@ -8,6 +9,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,14 +35,134 @@ import {
   MessageSquare,
   Users,
   ArrowLeft,
+  Plus,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { User } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+
+interface NewMessageDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onUserSelected: (userId: string) => void;
+}
+
+function NewMessageDialog({ isOpen, onClose, onUserSelected }: NewMessageDialogProps) {
+  const { user: currentUser } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  const { data: allUsers = [], isLoading } = useQuery<User[]>({
+    queryKey: ["/api/users/all"],
+    enabled: isOpen,
+    queryFn: async () => {
+      const res = await fetch("/api/users/messageable", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch users");
+      return res.json();
+    },
+  });
+  
+  const filteredUsers = allUsers.filter(u => {
+    if (u.id === currentUser?.id) return false;
+    if (!searchQuery) return true;
+    const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+    return fullName.includes(searchQuery.toLowerCase()) || 
+           u.email?.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+  
+  const handleSelectUser = (userId: string) => {
+    onUserSelected(userId);
+    onClose();
+    setSearchQuery("");
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>New Message</DialogTitle>
+          <DialogDescription>Select a user to start a conversation</DialogDescription>
+        </DialogHeader>
+        
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search users..."
+            className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            data-testid="input-search-users-message"
+          />
+        </div>
+        
+        <ScrollArea className="h-[300px]">
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="flex items-center gap-3 p-3">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="flex-1">
+                    <Skeleton className="h-4 w-24 mb-1" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <Users className="h-10 w-10 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No users found</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {filteredUsers.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => handleSelectUser(u.id)}
+                  className="flex items-center gap-3 p-3 rounded-md hover-elevate active-elevate-2 w-full text-left"
+                  data-testid={`button-select-user-${u.id}`}
+                >
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={u.profileImage || undefined} />
+                    <AvatarFallback>
+                      {u.firstName?.[0]}{u.lastName?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">
+                      {u.firstName} {u.lastName}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {u.email}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="flex-shrink-0">
+                    {u.role}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function ConversationList() {
-  const { conversations, isLoadingConversations, activeConversation, setActiveConversation, onlineUsers } = useMessaging();
+  const { conversations, isLoadingConversations, activeConversation, setActiveConversation, onlineUsers, startDirectConversation } = useMessaging();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [showNewMessageDialog, setShowNewMessageDialog] = useState(false);
+  
+  const handleStartConversation = async (recipientId: string) => {
+    try {
+      const conversation = await startDirectConversation(recipientId);
+      setActiveConversation(conversation);
+    } catch (error) {
+      toast({ title: "Failed to start conversation", variant: "destructive" });
+    }
+  };
 
   const getConversationName = (conv: typeof conversations[0]) => {
     if (conv.name) return conv.name;
@@ -91,18 +219,33 @@ function ConversationList() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 border-b">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search conversations..."
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            data-testid="input-search-conversations"
-          />
+      <div className="p-3 border-b space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search conversations..."
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="input-search-conversations"
+            />
+          </div>
+          <Button
+            onClick={() => setShowNewMessageDialog(true)}
+            size="icon"
+            data-testid="button-new-message"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
       </div>
+      
+      <NewMessageDialog
+        isOpen={showNewMessageDialog}
+        onClose={() => setShowNewMessageDialog(false)}
+        onUserSelected={handleStartConversation}
+      />
       
       <ScrollArea className="flex-1">
         <div className="flex flex-col gap-1 p-2">
@@ -110,6 +253,14 @@ function ConversationList() {
             <div className="text-center text-muted-foreground p-6">
               <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-50" />
               <p className="text-sm">No conversations yet</p>
+              <Button 
+                className="mt-4" 
+                onClick={() => setShowNewMessageDialog(true)}
+                data-testid="button-start-first-conversation"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Start a Conversation
+              </Button>
             </div>
           ) : (
             filteredConversations.map(conv => (

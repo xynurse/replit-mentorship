@@ -7,6 +7,7 @@ import {
   auditLogs, errorLogs, dataExportRequests, accountDeletionRequests,
   searchHistory, savedSearches, surveys, surveyResponses, onboardingProgress, certificates,
   mentorProfiles, professionalProfiles, mentorshipRoles, menteeProfiles, mentorProfilesExtended,
+  calendarEvents, calendarEventParticipants,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -29,7 +30,8 @@ import {
   type ProfessionalProfile, type InsertProfessionalProfile,
   type MentorshipRole, type InsertMentorshipRole,
   type MenteeProfile, type InsertMenteeProfile,
-  type MentorProfileExtended, type InsertMentorProfileExtended
+  type MentorProfileExtended, type InsertMentorProfileExtended,
+  type CalendarEvent, type InsertCalendarEvent, type CalendarEventParticipant, type InsertCalendarEventParticipant
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -82,6 +84,14 @@ export interface IStorage {
     cohort?: { id: string; name: string };
   }[]>;
   getAdminDashboardStats(): Promise<{ totalMentors: number; totalMentees: number; activeMatches: number; pendingApplications: number; upcomingMeetings: number; overdueTasks: number }>;
+  
+  // Calendar Events
+  getCalendarEventsForUser(userId: string): Promise<CalendarEvent[]>;
+  getCalendarEvent(id: string): Promise<CalendarEvent | undefined>;
+  createCalendarEvent(event: InsertCalendarEvent, participantIds: string[]): Promise<CalendarEvent>;
+  updateCalendarEvent(id: string, data: Partial<CalendarEvent>): Promise<CalendarEvent | undefined>;
+  deleteCalendarEvent(id: string): Promise<void>;
+  getCalendarEventParticipants(eventId: string): Promise<(CalendarEventParticipant & { user: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'profileImage'> })[]>;
   
   // Application Questions
   getApplicationQuestions(cohortId?: string, forRole?: string): Promise<ApplicationQuestion[]>;
@@ -725,6 +735,80 @@ export class DatabaseStorage implements IStorage {
       upcomingMeetings: upcomingMeetings.length,
       overdueTasks: overdueTasks.length,
     };
+  }
+
+  // Calendar Events
+  async getCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
+    const participantEvents = await db.select({ eventId: calendarEventParticipants.eventId })
+      .from(calendarEventParticipants)
+      .where(eq(calendarEventParticipants.userId, userId));
+    
+    const eventIds = participantEvents.map(p => p.eventId);
+    if (eventIds.length === 0) {
+      return db.select().from(calendarEvents)
+        .where(eq(calendarEvents.createdById, userId))
+        .orderBy(asc(calendarEvents.startTime));
+    }
+    
+    return db.select().from(calendarEvents)
+      .where(or(
+        inArray(calendarEvents.id, eventIds),
+        eq(calendarEvents.createdById, userId)
+      ))
+      .orderBy(asc(calendarEvents.startTime));
+  }
+
+  async getCalendarEvent(id: string): Promise<CalendarEvent | undefined> {
+    const [event] = await db.select().from(calendarEvents).where(eq(calendarEvents.id, id));
+    return event || undefined;
+  }
+
+  async createCalendarEvent(event: InsertCalendarEvent, participantIds: string[]): Promise<CalendarEvent> {
+    const [result] = await db.insert(calendarEvents).values(event).returning();
+    
+    if (participantIds.length > 0) {
+      const participants = participantIds.map(userId => ({
+        eventId: result.id,
+        userId,
+        isOrganizer: userId === event.createdById,
+      }));
+      await db.insert(calendarEventParticipants).values(participants);
+    }
+    
+    return result;
+  }
+
+  async updateCalendarEvent(id: string, data: Partial<CalendarEvent>): Promise<CalendarEvent | undefined> {
+    const [event] = await db.update(calendarEvents)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(calendarEvents.id, id))
+      .returning();
+    return event || undefined;
+  }
+
+  async deleteCalendarEvent(id: string): Promise<void> {
+    await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  }
+
+  async getCalendarEventParticipants(eventId: string): Promise<(CalendarEventParticipant & { user: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'profileImage'> })[]> {
+    const results = await db.select({
+      participant: calendarEventParticipants,
+      user: {
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        profileImage: users.profileImage,
+      },
+    })
+      .from(calendarEventParticipants)
+      .innerJoin(users, eq(calendarEventParticipants.userId, users.id))
+      .where(eq(calendarEventParticipants.eventId, eventId));
+    
+    return results.map(r => ({
+      ...r.participant,
+      user: r.user,
+    }));
   }
 
   // Application Questions

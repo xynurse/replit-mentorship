@@ -66,11 +66,27 @@ app.use((req, res, next) => {
   await autoSeedIfEmpty();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    // Handle Zod validation errors specifically
+    if (err.name === 'ZodError') {
+      const zodErrors = err.errors?.map((e: any) => ({
+        path: e.path.join('.'),
+        message: e.message,
+        code: e.code,
+      })) || [];
+      log(`Validation error: ${JSON.stringify(zodErrors)}`);
+      return res.status(400).json({ 
+        message: "Validation error", 
+        errors: zodErrors 
+      });
+    }
+
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    if (status >= 500) {
+      console.error(err);
+    }
   });
 
   // importantly only setup vite in development and after

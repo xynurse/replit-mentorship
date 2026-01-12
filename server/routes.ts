@@ -72,6 +72,27 @@ export async function registerRoutes(
     }
   });
 
+  // Get all users that can be messaged (for starting new conversations)
+  app.get("/api/users/messageable", requireAuth, async (req, res, next) => {
+    try {
+      const currentUser = req.user as any;
+      const users = await storage.getAllUsers({ isActive: true });
+      const safeUsers = users
+        .filter(u => u.id !== currentUser.id)
+        .map(({ password, ...user }) => ({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          profileImage: user.profileImage,
+        }));
+      res.json(safeUsers);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // CSV Export endpoints
   app.get("/api/export/users", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
@@ -2872,10 +2893,17 @@ export async function registerRoutes(
   app.post("/api/tasks", requireAuth, async (req, res, next) => {
     try {
       const user = req.user as any;
+      
+      // Preprocess data to convert empty strings to undefined
+      const processedData: Record<string, any> = {};
+      for (const [key, value] of Object.entries(req.body)) {
+        processedData[key] = value === '' ? undefined : value;
+      }
+      
       const validatedData = insertTaskSchema.parse({
-        ...req.body,
+        ...processedData,
         createdById: user.id,
-        assignedToId: req.body.assignedToId || user.id,
+        assignedToId: processedData.assignedToId || user.id,
       });
       
       const task = await storage.createTask(validatedData);
@@ -3077,10 +3105,17 @@ export async function registerRoutes(
   app.post("/api/goals", requireAuth, async (req, res, next) => {
     try {
       const user = req.user as any;
+      
+      // Preprocess data to convert empty strings to undefined
+      const processedData: Record<string, any> = {};
+      for (const [key, value] of Object.entries(req.body)) {
+        processedData[key] = value === '' ? undefined : value;
+      }
+      
       const validatedData = insertGoalSchema.parse({
-        ...req.body,
+        ...processedData,
         createdById: user.id,
-        ownerId: req.body.ownerId || user.id,
+        ownerId: processedData.ownerId || user.id,
         mentorApproved: user.role === 'MENTOR', // Auto-approve if mentor creates it
       });
       
@@ -3330,6 +3365,132 @@ export async function registerRoutes(
       }
       
       await storage.deleteMeeting(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Calendar Events Routes
+  app.get("/api/calendar-events", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const events = await storage.getCalendarEventsForUser(user.id);
+      res.json(events);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/calendar-events/:id", requireAuth, async (req, res, next) => {
+    try {
+      const event = await storage.getCalendarEvent(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      
+      const participants = await storage.getCalendarEventParticipants(req.params.id);
+      res.json({ ...event, participants });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/calendar-events", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { participantIds, type, title, description, startTime, endTime, location, meetingUrl, format, matchId } = req.body;
+      
+      if (!type || !title || !startTime || !endTime) {
+        return res.status(400).json({ message: "Missing required fields: type, title, startTime, endTime" });
+      }
+      
+      if (type !== "MEETING" && type !== "BLOCK") {
+        return res.status(400).json({ message: "Invalid event type. Must be MEETING or BLOCK" });
+      }
+      
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({ message: "Invalid date format for startTime or endTime" });
+      }
+      
+      if (end <= start) {
+        return res.status(400).json({ message: "End time must be after start time" });
+      }
+      
+      let validParticipantIds: string[] = [user.id];
+      if (type === "MEETING" && participantIds && Array.isArray(participantIds)) {
+        const activeUsers = await storage.getAllUsers({ isActive: true });
+        const activeUserIds = new Set(activeUsers.map(u => u.id));
+        validParticipantIds = [user.id, ...participantIds.filter((id: string) => activeUserIds.has(id) && id !== user.id)];
+      }
+      
+      const event = await storage.createCalendarEvent({
+        type,
+        title,
+        description: description || undefined,
+        startTime: start,
+        endTime: end,
+        location: location || undefined,
+        meetingUrl: meetingUrl || undefined,
+        format: format || undefined,
+        matchId: matchId || undefined,
+        createdById: user.id,
+      }, validParticipantIds);
+      
+      res.status(201).json(event);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/calendar-events/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const event = await storage.getCalendarEvent(req.params.id);
+      
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      
+      if (event.createdById !== user.id) {
+        return res.status(403).json({ message: "Not authorized to update this event" });
+      }
+      
+      const { title, description, startTime, endTime, location, meetingUrl, format, status } = req.body;
+      
+      const updateData: any = {};
+      if (title) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (startTime) updateData.startTime = new Date(startTime);
+      if (endTime) updateData.endTime = new Date(endTime);
+      if (location !== undefined) updateData.location = location;
+      if (meetingUrl !== undefined) updateData.meetingUrl = meetingUrl;
+      if (format) updateData.format = format;
+      if (status) updateData.status = status;
+      
+      const updated = await storage.updateCalendarEvent(req.params.id, updateData);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/calendar-events/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const event = await storage.getCalendarEvent(req.params.id);
+      
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      
+      if (event.createdById !== user.id) {
+        return res.status(403).json({ message: "Not authorized to delete this event" });
+      }
+      
+      await storage.deleteCalendarEvent(req.params.id);
       res.status(204).send();
     } catch (error) {
       next(error);
