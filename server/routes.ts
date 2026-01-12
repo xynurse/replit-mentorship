@@ -592,8 +592,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "User not found" });
       }
       
-      if (user.role !== "MENTOR") {
-        return res.status(400).json({ message: "User must have MENTOR role" });
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(400).json({ message: "User must have MENTOR, ADMIN, or SUPER_ADMIN role" });
       }
 
       // Check if profile already exists
@@ -702,8 +702,8 @@ export async function registerRoutes(
     }
   });
 
-  // Mentor: Get own profile
-  app.get("/api/mentor/profile", requireRole("MENTOR"), async (req, res, next) => {
+  // Mentor: Get own profile (ADMIN/SUPER_ADMIN can also be mentors)
+  app.get("/api/mentor/profile", requireRole("MENTOR", "ADMIN", "SUPER_ADMIN"), async (req, res, next) => {
     try {
       const profile = await storage.getMentorProfile(req.user!.id);
       if (!profile) {
@@ -715,8 +715,8 @@ export async function registerRoutes(
     }
   });
 
-  // Mentor: Update own profile (limited fields)
-  app.patch("/api/mentor/profile", requireRole("MENTOR"), async (req, res, next) => {
+  // Mentor: Update own profile (limited fields) - ADMIN/SUPER_ADMIN can also be mentors
+  app.patch("/api/mentor/profile", requireRole("MENTOR", "ADMIN", "SUPER_ADMIN"), async (req, res, next) => {
     try {
       const allowedFields = [
         "preferredName",
@@ -825,8 +825,8 @@ export async function registerRoutes(
             throw new Error(`User not found with email: ${email}`);
           }
 
-          if (user.role !== "MENTOR") {
-            throw new Error(`User ${email} is not a mentor`);
+          if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+            throw new Error(`User ${email} must have MENTOR, ADMIN, or SUPER_ADMIN role`);
           }
 
           const existingProfile = await storage.getMentorProfileExtended(user.id);
@@ -1974,8 +1974,8 @@ export async function registerRoutes(
     }
   });
 
-  // Get all mentee goals for a mentor (across all their matches)
-  app.get("/api/mentor/mentee-goals", requireRole("MENTOR"), async (req, res, next) => {
+  // Get all mentee goals for a mentor (across all their matches) - ADMIN/SUPER_ADMIN can also be mentors
+  app.get("/api/mentor/mentee-goals", requireRole("MENTOR", "ADMIN", "SUPER_ADMIN"), async (req, res, next) => {
     try {
       const user = req.user as any;
       

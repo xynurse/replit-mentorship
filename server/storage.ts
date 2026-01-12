@@ -1017,11 +1017,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAvailableMentors(): Promise<User[]> {
+    // Include MENTOR, ADMIN, and SUPER_ADMIN as they can all act as mentors
     return db.select()
       .from(users)
       .where(
         and(
-          eq(users.role, 'MENTOR'),
+          inArray(users.role, ['MENTOR', 'ADMIN', 'SUPER_ADMIN']),
           eq(users.isActive, true),
           isNull(users.deletedAt)
         )
