@@ -167,10 +167,13 @@ export interface IStorage {
   
   // Folders
   getFolder(id: string): Promise<Folder | undefined>;
-  getFolders(filters?: { parentFolderId?: string | null; ownerId?: string; cohortId?: string; trackId?: string; matchId?: string; visibility?: string }): Promise<Folder[]>;
+  getFolders(filters?: { parentFolderId?: string | null; ownerId?: string; cohortId?: string; trackId?: string; matchId?: string; visibility?: string; scope?: string; isSystemFolder?: boolean }): Promise<Folder[]>;
   createFolder(folder: InsertFolder): Promise<Folder>;
   updateFolder(id: string, data: Partial<Folder>): Promise<Folder | undefined>;
   deleteFolder(id: string): Promise<void>;
+  getOrCreatePersonalFolder(userId: string): Promise<Folder>;
+  getOrCreateSystemFolder(): Promise<Folder>;
+  getSharedDocumentsForUser(userId: string): Promise<(Document & { sharedBy: User; sharedAt: Date })[]>;
   
   // Document Versions
   getDocumentVersions(documentId: string): Promise<DocumentVersion[]>;
@@ -1489,7 +1492,7 @@ export class DatabaseStorage implements IStorage {
     return folder || undefined;
   }
 
-  async getFolders(filters?: { parentFolderId?: string | null; ownerId?: string; cohortId?: string; trackId?: string; matchId?: string; visibility?: string }): Promise<Folder[]> {
+  async getFolders(filters?: { parentFolderId?: string | null; ownerId?: string; cohortId?: string; trackId?: string; matchId?: string; visibility?: string; scope?: string; isSystemFolder?: boolean }): Promise<Folder[]> {
     const conditions = [];
     if (filters?.parentFolderId !== undefined) {
       if (filters.parentFolderId === null) {
@@ -1503,6 +1506,8 @@ export class DatabaseStorage implements IStorage {
     if (filters?.trackId) conditions.push(eq(folders.trackId, filters.trackId));
     if (filters?.matchId) conditions.push(eq(folders.matchId, filters.matchId));
     if (filters?.visibility) conditions.push(eq(folders.visibility, filters.visibility as any));
+    if (filters?.scope) conditions.push(eq(folders.scope, filters.scope as any));
+    if (filters?.isSystemFolder !== undefined) conditions.push(eq(folders.isSystemFolder, filters.isSystemFolder));
     
     return db.select().from(folders).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(asc(folders.sortOrder), asc(folders.name));
   }
@@ -1519,6 +1524,73 @@ export class DatabaseStorage implements IStorage {
 
   async deleteFolder(id: string): Promise<void> {
     await db.delete(folders).where(eq(folders.id, id));
+  }
+
+  async getOrCreatePersonalFolder(userId: string): Promise<Folder> {
+    const [existing] = await db.select().from(folders).where(and(
+      eq(folders.ownerId, userId),
+      eq(folders.scope, 'PERSONAL'),
+      eq(folders.isSystemFolder, true)
+    ));
+    
+    if (existing) return existing;
+    
+    const [newFolder] = await db.insert(folders).values({
+      name: 'My Documents',
+      description: 'Your personal document storage',
+      ownerId: userId,
+      scope: 'PERSONAL',
+      visibility: 'PRIVATE',
+      isSystemFolder: true,
+      icon: 'folder-user',
+    } as any).returning();
+    
+    return newFolder;
+  }
+
+  async getOrCreateSystemFolder(): Promise<Folder> {
+    const [existing] = await db.select().from(folders).where(and(
+      eq(folders.scope, 'SYSTEM'),
+      eq(folders.isSystemFolder, true),
+      isNull(folders.parentFolderId)
+    ));
+    
+    if (existing) return existing;
+    
+    const [newFolder] = await db.insert(folders).values({
+      name: 'System Resources',
+      description: 'Documents shared by administrators with all users',
+      scope: 'SYSTEM',
+      visibility: 'PUBLIC',
+      isSystemFolder: true,
+      icon: 'folder-cog',
+    } as any).returning();
+    
+    return newFolder;
+  }
+
+  async getSharedDocumentsForUser(userId: string): Promise<(Document & { sharedBy: User; sharedAt: Date })[]> {
+    const results = await db.select({
+      document: documents,
+      sharedBy: users,
+      sharedAt: documentAccess.sharedAt,
+    }).from(documentAccess)
+      .innerJoin(documents, eq(documentAccess.documentId, documents.id))
+      .innerJoin(users, eq(documentAccess.grantedById, users.id))
+      .where(and(
+        eq(documentAccess.userId, userId),
+        or(
+          isNull(documentAccess.expiresAt),
+          gt(documentAccess.expiresAt, new Date())
+        )
+      ))
+      .orderBy(desc(documentAccess.sharedAt));
+    
+    return results.map(r => ({
+      ...r.document,
+      sharedBy: r.sharedBy,
+      sharedAt: r.sharedAt || new Date(),
+    }));
   }
 
   // Document Version methods

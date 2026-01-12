@@ -38,13 +38,22 @@ Preferred communication style: Simple, everyday language.
 
 ### Document Management System
 - **Object Storage**: Replit Object Storage with cloud-based file persistence
+- **Folder Scopes**: Three automatic folder types - SYSTEM (admin resources), PERSONAL (user private), SHARED (documents shared with user)
+- **Tabbed Interface**: Document Library with three tabs - "System Resources", "My Documents", "Shared With Me"
+- **Auto-Folder Creation**: Personal and System folders created automatically on first access
+- **Document Sharing**: Share documents with other users, sends DOCUMENT_SHARED notification with optional message
 - **Folder Organization**: Hierarchical folders with navigation and nested structure support
 - **Version Control**: Document versioning with change notes and version history
 - **Access Control**: Granular visibility (PRIVATE, MENTORSHIP, COHORT, PUBLIC) with share links and expiration
 - **File Upload**: Uppy integration with drag-drop, progress tracking, and resumable uploads
-- **Security**: Path normalization with segment validation, ACL checks before file access, namespace enforcement
+- **Security**: Path normalization, role-based sharing permissions (only admins can share SYSTEM docs), scope enforcement
 - **Admin Oversight**: Admin dashboard for monitoring all documents across the platform
-- **Schema Tables**: documents, folders, documentVersions, documentAccess (shared/schema.ts)
+- **API Endpoints**:
+  - `GET /api/folders/system` - Get or create system folder
+  - `GET /api/folders/personal` - Get or create personal folder for current user
+  - `GET /api/documents/shared-with-me` - Get documents shared with current user
+  - `POST /api/documents/:id/share` - Share document with another user (with notification)
+- **Schema Tables**: documents, folders (with scope/isSystemFolder), documentVersions, documentAccess (with sharedAt)
 
 ### Notification System
 - **Notification Types**: 21 event types covering WELCOME, APPLICATION_*, MATCH_*, TASK_*, GOAL_*, MEETING_*, DOCUMENT_SHARED, SYSTEM_ANNOUNCEMENT

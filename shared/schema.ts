@@ -20,6 +20,7 @@ export const taskActionEnum = pgEnum("task_action", ["CREATED", "UPDATED", "ASSI
 export const documentCategoryEnum = pgEnum("document_category", ["TEMPLATE", "AGREEMENT", "RESOURCE", "SUBMISSION", "OTHER"]);
 export const documentVisibilityEnum = pgEnum("document_visibility", ["PUBLIC", "COHORT", "TRACK", "MATCH", "PRIVATE"]);
 export const documentAccessTypeEnum = pgEnum("document_access_type", ["VIEW", "DOWNLOAD", "EDIT"]);
+export const folderScopeEnum = pgEnum("folder_scope", ["SYSTEM", "PERSONAL", "SHARED"]);
 export const cohortRoleEnum = pgEnum("cohort_role", ["MENTOR", "MENTEE"]);
 export const questionTypeEnum = pgEnum("question_type", ["TEXT", "TEXTAREA", "SELECT", "MULTISELECT", "RATING", "CHECKBOX", "DATE", "FILE"]);
 export const questionForRoleEnum = pgEnum("question_for_role", ["MENTOR", "MENTEE", "BOTH"]);
@@ -737,7 +738,9 @@ export const documentAccess = pgTable("document_access", {
   accessType: documentAccessTypeEnum("access_type").default("VIEW"),
   grantedById: varchar("granted_by_id").references(() => users.id),
   grantedAt: timestamp("granted_at").defaultNow(),
+  sharedAt: timestamp("shared_at").defaultNow(),
   expiresAt: timestamp("expires_at"),
+  message: text("message"),
 });
 
 export const folders = pgTable("folders", {
@@ -750,9 +753,11 @@ export const folders = pgTable("folders", {
   trackId: varchar("track_id").references(() => tracks.id),
   matchId: varchar("match_id").references(() => mentorshipMatches.id),
   visibility: documentVisibilityEnum("visibility").default("PRIVATE"),
+  scope: folderScopeEnum("scope").default("PERSONAL"),
   color: text("color"),
   icon: text("icon"),
   sortOrder: integer("sort_order").default(0),
+  isSystemFolder: boolean("is_system_folder").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

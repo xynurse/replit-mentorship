@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -37,7 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { useUpload } from "@/hooks/use-upload";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Document, Folder, DocumentCategory, DocumentVisibility } from "@shared/schema";
+import type { Document, Folder, DocumentCategory, DocumentVisibility, User } from "@shared/schema";
 import {
   Search,
   Grid3X3,
@@ -59,7 +61,13 @@ import {
   ChevronRight,
   ArrowLeft,
   Filter,
+  FolderCog,
+  FolderHeart,
+  Users,
+  Send,
 } from "lucide-react";
+
+type SharedDocument = Document & { sharedBy: User; sharedAt: Date };
 
 const CATEGORY_OPTIONS: { value: DocumentCategory; label: string }[] = [
   { value: "TEMPLATE", label: "Template" },
@@ -108,11 +116,19 @@ export default function DocumentsPage() {
   const { toast } = useToast();
   const { getUploadParameters } = useUpload();
 
+  const [activeTab, setActiveTab] = useState<"system" | "personal" | "shared">("personal");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<Folder[]>([]);
+  
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [shareDocumentId, setShareDocumentId] = useState<string | null>(null);
+  const [shareUserId, setShareUserId] = useState<string>("");
+  const [shareMessage, setShareMessage] = useState("");
+
+  const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
@@ -130,14 +146,39 @@ export default function DocumentsPage() {
   const [documentCategory, setDocumentCategory] = useState<DocumentCategory>("OTHER");
   const [documentVisibility, setDocumentVisibility] = useState<DocumentVisibility>("PRIVATE");
 
+  const { data: systemFolder } = useQuery<Folder>({
+    queryKey: ["/api/folders/system"],
+    enabled: activeTab === "system",
+  });
+
+  const { data: personalFolder } = useQuery<Folder>({
+    queryKey: ["/api/folders/personal"],
+    enabled: activeTab === "personal",
+  });
+
+  const { data: sharedDocuments, isLoading: sharedLoading } = useQuery<SharedDocument[]>({
+    queryKey: ["/api/documents/shared-with-me"],
+    enabled: activeTab === "shared",
+  });
+
+  const { data: shareableUsers } = useQuery<{ id: string; firstName: string; lastName: string; email: string }[]>({
+    queryKey: ["/api/users/messageable"],
+    enabled: showShareDialog,
+  });
+
+  const effectiveFolderId = activeTab === "system" 
+    ? (currentFolderId || systemFolder?.id || null)
+    : activeTab === "personal"
+    ? (currentFolderId || personalFolder?.id || null)
+    : null;
+
   const { data: documents, isLoading: docsLoading } = useQuery<Document[]>({
-    queryKey: ["/api/documents", currentFolderId, categoryFilter, searchQuery],
+    queryKey: ["/api/documents", effectiveFolderId, categoryFilter, searchQuery, activeTab],
     queryFn: async () => {
+      if (activeTab === "shared") return [];
       const params = new URLSearchParams();
-      if (currentFolderId === null) {
-        params.set("folderId", "null");
-      } else if (currentFolderId) {
-        params.set("folderId", currentFolderId);
+      if (effectiveFolderId) {
+        params.set("folderId", effectiveFolderId);
       }
       if (categoryFilter) params.set("category", categoryFilter);
       if (searchQuery) params.set("search", searchQuery);
@@ -145,21 +186,22 @@ export default function DocumentsPage() {
       if (!res.ok) throw new Error("Failed to fetch documents");
       return res.json();
     },
+    enabled: activeTab !== "shared" && (activeTab === "system" ? !!systemFolder : !!personalFolder),
   });
 
   const { data: folders, isLoading: foldersLoading } = useQuery<Folder[]>({
-    queryKey: ["/api/folders", currentFolderId],
+    queryKey: ["/api/folders", effectiveFolderId, activeTab],
     queryFn: async () => {
+      if (activeTab === "shared") return [];
       const params = new URLSearchParams();
-      if (currentFolderId === null) {
-        params.set("parentFolderId", "null");
-      } else if (currentFolderId) {
-        params.set("parentFolderId", currentFolderId);
+      if (effectiveFolderId) {
+        params.set("parentFolderId", effectiveFolderId);
       }
       const res = await fetch(`/api/folders?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch folders");
       return res.json();
     },
+    enabled: activeTab !== "shared" && (activeTab === "system" ? !!systemFolder : !!personalFolder),
   });
 
   const createDocumentMutation = useMutation({
@@ -231,6 +273,40 @@ export default function DocumentsPage() {
     },
   });
 
+  const shareDocumentMutation = useMutation({
+    mutationFn: async (data: { documentId: string; userId: string; message?: string }) => {
+      const res = await apiRequest("POST", `/api/documents/${data.documentId}/share`, {
+        userId: data.userId,
+        message: data.message,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Document shared successfully" });
+      setShowShareDialog(false);
+      setShareDocumentId(null);
+      setShareUserId("");
+      setShareMessage("");
+    },
+    onError: () => {
+      toast({ title: "Failed to share document", variant: "destructive" });
+    },
+  });
+
+  const handleShareDocument = () => {
+    if (!shareDocumentId || !shareUserId) return;
+    shareDocumentMutation.mutate({
+      documentId: shareDocumentId,
+      userId: shareUserId,
+      message: shareMessage,
+    });
+  };
+
+  const openShareDialog = (doc: Document) => {
+    setShareDocumentId(doc.id);
+    setShowShareDialog(true);
+  };
+
   const downloadDocument = async (doc: Document) => {
     try {
       // Use fetch with credentials to get the file as a blob
@@ -300,6 +376,10 @@ export default function DocumentsPage() {
 
   const handleSaveDocument = () => {
     if (!uploadedFile) return;
+    
+    // Use effectiveFolderId to save to the correct folder based on active tab
+    const targetFolderId = currentFolderId || effectiveFolderId;
+    
     createDocumentMutation.mutate({
       name: documentName || uploadedFile.name,
       description: documentDescription,
@@ -309,20 +389,36 @@ export default function DocumentsPage() {
       mimeType: uploadedFile.contentType,
       category: documentCategory,
       visibility: documentVisibility,
-      folderId: currentFolderId,
+      folderId: targetFolderId,
     });
   };
 
   const handleCreateFolder = () => {
     if (!newFolderName.trim()) return;
+    
+    // Use effectiveFolderId for folder creation
+    const targetParentId = currentFolderId || effectiveFolderId;
+    
     createFolderMutation.mutate({
       name: newFolderName,
       description: newFolderDescription,
-      parentFolderId: currentFolderId,
+      parentFolderId: targetParentId,
     });
   };
 
-  const isLoading = docsLoading || foldersLoading;
+  const isLoading = docsLoading || foldersLoading || sharedLoading;
+  
+  // Check if folders are ready for upload operations
+  const isFolderReady = activeTab === "shared" ? true : 
+    (activeTab === "system" ? !!systemFolder : !!personalFolder);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab as "system" | "personal" | "shared");
+    setFolderPath([]);
+    setCurrentFolderId(null);
+    setSearchQuery("");
+    setCategoryFilter("");
+  };
 
   return (
     <DashboardLayout>
@@ -335,7 +431,10 @@ export default function DocumentsPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
               <DialogTrigger asChild>
-                <Button data-testid="button-upload-document">
+                <Button 
+                  data-testid="button-upload-document"
+                  disabled={activeTab === "shared" || !isFolderReady}
+                >
                   <Upload className="h-4 w-4 mr-2" />
                   Upload
                 </Button>
@@ -455,7 +554,11 @@ export default function DocumentsPage() {
 
             <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
               <DialogTrigger asChild>
-                <Button variant="outline" data-testid="button-new-folder">
+                <Button 
+                  variant="outline" 
+                  data-testid="button-new-folder"
+                  disabled={activeTab === "shared" || !isFolderReady}
+                >
                   <FolderPlus className="h-4 w-4 mr-2" />
                   New Folder
                 </Button>
@@ -508,6 +611,93 @@ export default function DocumentsPage() {
           </div>
         </div>
 
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col">
+          <TabsList className="w-fit mx-4 mt-4">
+            <TabsTrigger value="system" className="gap-2" data-testid="tab-system-resources">
+              <FolderCog className="h-4 w-4" />
+              System Resources
+            </TabsTrigger>
+            <TabsTrigger value="personal" className="gap-2" data-testid="tab-my-documents">
+              <FolderHeart className="h-4 w-4" />
+              My Documents
+            </TabsTrigger>
+            <TabsTrigger value="shared" className="gap-2" data-testid="tab-shared-with-me">
+              <Users className="h-4 w-4" />
+              Shared With Me
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="system" className="flex-1 flex flex-col mt-0 px-4">
+            {renderFiltersAndContent()}
+          </TabsContent>
+
+          <TabsContent value="personal" className="flex-1 flex flex-col mt-0 px-4">
+            {renderFiltersAndContent()}
+          </TabsContent>
+
+          <TabsContent value="shared" className="flex-1 flex flex-col mt-0 px-4">
+            {renderSharedDocuments()}
+          </TabsContent>
+        </Tabs>
+
+        {/* Share Document Dialog */}
+        <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Share Document</DialogTitle>
+              <DialogDescription>
+                Share this document with another user. They will receive a notification.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Share with User</Label>
+                <Select value={shareUserId} onValueChange={setShareUserId}>
+                  <SelectTrigger data-testid="select-share-user">
+                    <SelectValue placeholder="Select a user" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shareableUsers?.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName} ({u.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="share-message">Message (optional)</Label>
+                <Textarea
+                  id="share-message"
+                  value={shareMessage}
+                  onChange={(e) => setShareMessage(e.target.value)}
+                  placeholder="Add a message for the recipient..."
+                  data-testid="input-share-message"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowShareDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleShareDocument}
+                disabled={!shareUserId || shareDocumentMutation.isPending}
+                data-testid="button-confirm-share"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Share
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </DashboardLayout>
+  );
+
+  function renderFiltersAndContent() {
+    return (
+      <>
         <div className="flex flex-wrap items-center gap-4 mt-4">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -577,9 +767,8 @@ export default function DocumentsPage() {
             ))}
           </div>
         )}
-      </div>
 
-      <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 overflow-auto mt-4">
         {isLoading ? (
           <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
             {[...Array(8)].map((_, i) => (
@@ -711,7 +900,7 @@ export default function DocumentsPage() {
                                   <Download className="h-4 w-4 mr-2" />
                                   Download
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openShareDialog(doc)}>
                                   <Share2 className="h-4 w-4 mr-2" />
                                   Share
                                 </DropdownMenuItem>
@@ -780,7 +969,7 @@ export default function DocumentsPage() {
                                   <Download className="h-4 w-4 mr-2" />
                                   Download
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openShareDialog(doc)}>
                                   <Share2 className="h-4 w-4 mr-2" />
                                   Share
                                 </DropdownMenuItem>
@@ -805,7 +994,82 @@ export default function DocumentsPage() {
           </>
         )}
         </div>
+      </>
+    );
+  }
+
+  function renderSharedDocuments() {
+    if (sharedLoading) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      );
+    }
+
+    if (!sharedDocuments || sharedDocuments.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Users className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">No shared documents</h3>
+          <p className="text-muted-foreground max-w-md">
+            Documents shared with you by other users will appear here.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+        {sharedDocuments.map((doc) => (
+          <Card key={doc.id} data-testid={`card-shared-document-${doc.id}`}>
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-muted rounded-md">
+                  {getFileIcon(doc.mimeType, doc.fileType)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{doc.name}</p>
+                  {doc.description && (
+                    <p className="text-sm text-muted-foreground truncate">{doc.description}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <Avatar className="h-5 w-5">
+                      <AvatarImage src={doc.sharedBy.profileImageUrl || undefined} />
+                      <AvatarFallback className="text-xs">
+                        {doc.sharedBy.firstName?.[0]}{doc.sharedBy.lastName?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs text-muted-foreground">
+                      Shared by {doc.sharedBy.firstName} {doc.sharedBy.lastName}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDate(doc.sharedAt)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => downloadDocument(doc)}
+                  data-testid={`button-download-shared-${doc.id}`}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
-    </DashboardLayout>
-  );
+    );
+  }
 }

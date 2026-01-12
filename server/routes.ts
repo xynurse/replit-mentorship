@@ -2820,6 +2820,100 @@ export async function registerRoutes(
     }
   });
 
+  // Get or create system folder (public resources)
+  app.get("/api/folders/system", requireAuth, async (req, res, next) => {
+    try {
+      const folder = await storage.getOrCreateSystemFolder();
+      res.json(folder);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get or create personal folder for current user
+  app.get("/api/folders/personal", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const folder = await storage.getOrCreatePersonalFolder(userId);
+      res.json(folder);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get documents shared with current user
+  app.get("/api/documents/shared-with-me", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const sharedDocs = await storage.getSharedDocumentsForUser(userId);
+      res.json(sharedDocs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Share document with another user (with notification)
+  app.post("/api/documents/:id/share", requireAuth, async (req, res, next) => {
+    try {
+      const currentUserId = (req.user as any).id;
+      const currentUser = req.user as any;
+      const userRole = currentUser?.role || "";
+      const isAdmin = userRole === "ADMIN" || userRole === "SUPER_ADMIN";
+      
+      const doc = await storage.getDocument(req.params.id);
+      
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Check folder scope for SYSTEM documents - only admins can share
+      if (doc.folderId) {
+        const folder = await storage.getFolder(doc.folderId);
+        if (folder?.scope === "SYSTEM" && !isAdmin) {
+          return res.status(403).json({ message: "Only administrators can share system documents" });
+        }
+      }
+      
+      // Only owner or admin can share personal documents
+      if (doc.uploadedById !== currentUserId && !isAdmin) {
+        return res.status(403).json({ message: "Not authorized to share this document" });
+      }
+      
+      // Validate request body
+      const { userId, message } = req.body;
+      
+      if (!userId || typeof userId !== "string") {
+        return res.status(400).json({ message: "Valid user ID is required" });
+      }
+      
+      if (message !== undefined && typeof message !== "string") {
+        return res.status(400).json({ message: "Message must be a string" });
+      }
+      
+      const access = await storage.grantDocumentAccess({
+        documentId: req.params.id,
+        userId,
+        accessType: "VIEW",
+        grantedById: currentUserId,
+      });
+      
+      await storage.createNotification({
+        userId,
+        type: "DOCUMENT_SHARED",
+        title: "Document Shared",
+        message: `${currentUser.firstName} ${currentUser.lastName} shared a document with you: ${doc.name}${message ? ` - "${message}"` : ""}`,
+        priority: "NORMAL",
+        resourceType: "DOCUMENT",
+        resourceId: doc.id,
+        data: { documentId: doc.id, sharedById: currentUserId, message: message || null },
+      });
+      
+      res.status(201).json({ success: true, access });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // ============= TASK MANAGEMENT ROUTES =============
 
   // Get tasks with filtering
