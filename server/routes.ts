@@ -3010,6 +3010,39 @@ export async function registerRoutes(
         details: { title: task.title },
       });
       
+      // Send notification if task is assigned to another user
+      if (task.assignedToId && task.assignedToId !== user.id) {
+        const assignee = await storage.getUser(task.assignedToId);
+        if (assignee) {
+          // Create in-app notification
+          await storage.createNotification({
+            userId: task.assignedToId,
+            type: "TASK_ASSIGNED",
+            title: "New Task Assigned",
+            message: `${user.firstName} ${user.lastName} assigned you a task: ${task.title}`,
+            priority: "NORMAL",
+            relatedId: task.id,
+            relatedType: "task",
+          });
+          
+          // Send email notification
+          const { sendTaskAssignedEmail } = await import("./email");
+          const protocol = req.headers['x-forwarded-proto'] || 'https';
+          const host = req.headers.host || '';
+          const baseUrl = `${protocol}://${host}`;
+          
+          await sendTaskAssignedEmail({
+            email: assignee.email,
+            recipientName: `${assignee.firstName} ${assignee.lastName}`,
+            taskTitle: task.title,
+            taskDescription: task.description || undefined,
+            dueDate: task.dueDate ? new Date(task.dueDate).toLocaleDateString() : undefined,
+            assignedBy: `${user.firstName} ${user.lastName}`,
+            dashboardUrl: baseUrl,
+          }).catch((err: Error) => console.error('Failed to send task assignment email:', err));
+        }
+      }
+      
       res.status(201).json(task);
     } catch (error) {
       next(error);
