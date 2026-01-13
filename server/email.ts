@@ -2,6 +2,21 @@ import { Resend } from 'resend';
 
 let connectionSettings: any;
 
+// Get trusted base URL from environment (not from request headers to prevent injection)
+export function getTrustedBaseUrl(): string {
+  if (process.env.REPLIT_DEPLOYMENT_URL) {
+    return process.env.REPLIT_DEPLOYMENT_URL;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  if (process.env.REPLIT_DOMAINS) {
+    return `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
+  }
+  // Fallback for local development
+  return 'https://localhost:5000';
+}
+
 async function getCredentials() {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY 

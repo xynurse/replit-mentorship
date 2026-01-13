@@ -2250,10 +2250,8 @@ export async function registerRoutes(
       // Send notifications to other participants (for direct messages)
       const conversation = await storage.getConversation(id);
       if (sender && conversation && conversation.type === "DIRECT") {
-        const { sendNewMessageEmail } = await import("./email");
-        const protocol = req.headers['x-forwarded-proto'] || 'https';
-        const host = req.headers.host || '';
-        const baseUrl = `${protocol}://${host}`;
+        const { sendNewMessageEmail, getTrustedBaseUrl } = await import("./email");
+        const baseUrl = getTrustedBaseUrl();
         
         for (const participant of participants) {
           if (participant.userId !== userId) {
@@ -2500,10 +2498,8 @@ export async function registerRoutes(
       if (validatedData.visibility === 'PUBLIC' && validatedData.folderId) {
         const folder = await storage.getFolder(validatedData.folderId);
         if (folder && folder.isSystemFolder) {
-          const { sendDocumentUploadedEmail } = await import("./email");
-          const protocol = req.headers['x-forwarded-proto'] || 'https';
-          const host = req.headers.host || '';
-          const baseUrl = `${protocol}://${host}`;
+          const { sendDocumentUploadedEmail, getTrustedBaseUrl } = await import("./email");
+          const baseUrl = getTrustedBaseUrl();
           
           // Get all active users
           const allUsers = await storage.getAllUsers({ isActive: true });
@@ -3105,10 +3101,8 @@ export async function registerRoutes(
           });
           
           // Send email notification
-          const { sendTaskAssignedEmail } = await import("./email");
-          const protocol = req.headers['x-forwarded-proto'] || 'https';
-          const host = req.headers.host || '';
-          const baseUrl = `${protocol}://${host}`;
+          const { sendTaskAssignedEmail, getTrustedBaseUrl } = await import("./email");
+          const baseUrl = getTrustedBaseUrl();
           
           await sendTaskAssignedEmail({
             email: assignee.email,
@@ -3346,6 +3340,41 @@ export async function registerRoutes(
       });
       
       const goal = await storage.createGoal(validatedData);
+      
+      // Notify mentor when mentee creates a new goal (via matchId)
+      if (user.role === 'MENTEE' && goal.matchId) {
+        const matchWithUsers = await storage.getMatchWithUsers(goal.matchId);
+        if (matchWithUsers && matchWithUsers.mentorId && matchWithUsers.mentorId !== user.id) {
+          const mentor = matchWithUsers.mentor;
+          if (mentor) {
+            const { sendGoalUpdateEmail, getTrustedBaseUrl } = await import("./email");
+            const baseUrl = getTrustedBaseUrl();
+            
+            // Create in-app notification
+            await storage.createNotification({
+              userId: mentor.id,
+              type: "GOAL_FEEDBACK",
+              title: "New Goal Created",
+              message: `${user.firstName} ${user.lastName} created a new goal: ${goal.title}`,
+              priority: "NORMAL",
+              resourceId: goal.id,
+              resourceType: "GOAL",
+            });
+            
+            // Send email notification
+            await sendGoalUpdateEmail({
+              email: mentor.email,
+              recipientName: `${mentor.firstName} ${mentor.lastName}`,
+              goalTitle: goal.title,
+              updateType: 'new_goal',
+              preview: goal.description || undefined,
+              updatedBy: `${user.firstName} ${user.lastName}`,
+              dashboardUrl: baseUrl,
+            }).catch((err: Error) => console.error('Failed to send goal update email:', err));
+          }
+        }
+      }
+      
       res.status(201).json(goal);
     } catch (error) {
       next(error);
@@ -3416,6 +3445,37 @@ export async function registerRoutes(
         mentorApproved: true,
         mentorFeedback: req.body.feedback || null,
       });
+      
+      // Notify goal owner about mentor feedback/approval
+      if (goal.ownerId && goal.ownerId !== user.id) {
+        const owner = await storage.getUser(goal.ownerId);
+        if (owner) {
+          const { sendGoalUpdateEmail, getTrustedBaseUrl } = await import("./email");
+          const baseUrl = getTrustedBaseUrl();
+          
+          // Create in-app notification
+          await storage.createNotification({
+            userId: owner.id,
+            type: "GOAL_APPROVED",
+            title: "Goal Approved",
+            message: `${user.firstName} ${user.lastName} approved your goal: ${goal.title}`,
+            priority: "NORMAL",
+            resourceId: goal.id,
+            resourceType: "GOAL",
+          });
+          
+          // Send email notification
+          await sendGoalUpdateEmail({
+            email: owner.email,
+            recipientName: `${owner.firstName} ${owner.lastName}`,
+            goalTitle: goal.title,
+            updateType: req.body.feedback ? 'new_comment' : 'goal_modified',
+            preview: req.body.feedback || 'Your goal has been approved by your mentor.',
+            updatedBy: `${user.firstName} ${user.lastName}`,
+            dashboardUrl: baseUrl,
+          }).catch((err: Error) => console.error('Failed to send goal approval email:', err));
+        }
+      }
       
       res.json(updatedGoal);
     } catch (error) {
@@ -3689,10 +3749,8 @@ export async function registerRoutes(
       
       // Send notifications to all participants (except creator) for meetings
       if (type === "MEETING" && validParticipantIds.length > 1) {
-        const { sendCalendarInviteEmail } = await import("./email");
-        const protocol = req.headers['x-forwarded-proto'] || 'https';
-        const host = req.headers.host || '';
-        const baseUrl = `${protocol}://${host}`;
+        const { sendCalendarInviteEmail, getTrustedBaseUrl } = await import("./email");
+        const baseUrl = getTrustedBaseUrl();
         
         const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
         const durationStr = duration >= 60 ? `${Math.floor(duration / 60)}h ${duration % 60}m` : `${duration} minutes`;
