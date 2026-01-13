@@ -3036,17 +3036,30 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Not authorized to update this task" });
       }
       
+      // Process date fields - convert strings to Date objects or null
+      const updateData = { ...req.body };
+      const dateFields = ['dueDate', 'reminderDate', 'completedAt', 'verifiedAt'];
+      for (const field of dateFields) {
+        if (updateData[field] !== undefined) {
+          if (updateData[field] === null || updateData[field] === '') {
+            updateData[field] = null;
+          } else if (typeof updateData[field] === 'string') {
+            updateData[field] = new Date(updateData[field]);
+          }
+        }
+      }
+      
       // Track changes for activity log
       const changes: any = {};
       const allowedFields = ['title', 'description', 'status', 'priority', 'dueDate', 'startDate', 'estimatedHours', 'actualHours', 'category', 'tags', 'assignedToId', 'verifiedById', 'verifiedAt', 'completedAt'];
       
       for (const field of allowedFields) {
-        if (req.body[field] !== undefined && req.body[field] !== (task as any)[field]) {
-          changes[field] = { from: (task as any)[field], to: req.body[field] };
+        if (updateData[field] !== undefined && updateData[field] !== (task as any)[field]) {
+          changes[field] = { from: (task as any)[field], to: updateData[field] };
         }
       }
       
-      const updatedTask = await storage.updateTask(req.params.id, req.body);
+      const updatedTask = await storage.updateTask(req.params.id, updateData);
       
       // Log activity if there were changes
       if (Object.keys(changes).length > 0) {

@@ -352,7 +352,7 @@ export default function TasksPage() {
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<Task> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
       return apiRequest("PATCH", `/api/tasks/${id}`, data);
     },
     onSuccess: () => {
@@ -382,7 +382,7 @@ export default function TasksPage() {
       id: task.id,
       data: {
         status: task.status === "COMPLETED" ? "TODO" : "COMPLETED",
-        completedAt: task.status === "COMPLETED" ? null : new Date(),
+        completedAt: task.status === "COMPLETED" ? null : new Date().toISOString(),
       },
     });
   };
@@ -400,7 +400,7 @@ export default function TasksPage() {
         description: data.description || null,
         priority: data.priority,
         category: data.category,
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null,
         estimatedHours: data.estimatedHours || null,
       },
     });
