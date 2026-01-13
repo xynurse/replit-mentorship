@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertTaskSchema, insertTaskCommentSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema } from "@shared/schema";
 import { z } from "zod";
 import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
 import { registerObjectStorageRoutes, ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
@@ -4696,6 +4696,368 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Certificate not found" });
       }
       res.json(certificate);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // =====================
+  // Mentor Community Board Routes
+  // =====================
+
+  // Check community board access
+  app.get("/api/community/access", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentors and admins can access the community board
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.json({ hasAccess: false, reason: "NOT_MENTOR" });
+      }
+      
+      const access = await storage.getCommunityBoardAccess(user.id);
+      
+      if (!access) {
+        // Auto-grant access to mentors who don't have a record yet
+        if (user.role === "MENTOR") {
+          await storage.grantCommunityBoardAccess(user.id);
+          return res.json({ hasAccess: true, status: "ACTIVE" });
+        }
+        // Admins always have access
+        if (["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+          return res.json({ hasAccess: true, status: "ADMIN" });
+        }
+        return res.json({ hasAccess: false, reason: "NO_ACCESS" });
+      }
+      
+      if (access.status === "REVOKED") {
+        return res.json({ 
+          hasAccess: false, 
+          reason: "REVOKED",
+          revokedAt: access.revokedAt,
+          revokedReason: access.revokedReason
+        });
+      }
+      
+      return res.json({ hasAccess: true, status: access.status });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Get all community board access records
+  app.get("/api/admin/community/access", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const accessRecords = await storage.getAllCommunityBoardAccess();
+      res.json(accessRecords);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Grant community board access
+  app.post("/api/admin/community/access/:userId/grant", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const admin = req.user as any;
+      const access = await storage.grantCommunityBoardAccess(req.params.userId, admin.id);
+      res.json(access);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Revoke community board access
+  app.post("/api/admin/community/access/:userId/revoke", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const admin = req.user as any;
+      const { reason } = req.body;
+      const access = await storage.revokeCommunityBoardAccess(req.params.userId, admin.id, reason);
+      res.json(access);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get thread categories
+  app.get("/api/community/categories", requireAuth, async (req, res, next) => {
+    try {
+      const categories = await storage.getThreadCategories(true);
+      res.json(categories);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Manage thread categories
+  app.post("/api/admin/community/categories", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const validatedData = insertThreadCategorySchema.parse(req.body);
+      const category = await storage.createThreadCategory(validatedData);
+      res.status(201).json(category);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/admin/community/categories/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const category = await storage.updateThreadCategory(req.params.id, req.body);
+      res.json(category);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get community threads
+  app.get("/api/community/threads", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Check access for non-admins
+      if (!["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (!access || access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access denied" });
+        }
+      }
+      
+      const { categoryId, search, sortBy, limit, offset } = req.query;
+      
+      const threads = await storage.getCommunityThreads({
+        categoryId: categoryId as string,
+        search: search as string,
+        sortBy: sortBy as 'recent' | 'created' | 'replies',
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
+      
+      res.json(threads);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single thread with details
+  app.get("/api/community/threads/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Check access for non-admins
+      if (!["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (!access || access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access denied" });
+        }
+      }
+      
+      const thread = await storage.getCommunityThread(req.params.id);
+      if (!thread) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+      
+      // Increment view count
+      await storage.incrementThreadViewCount(req.params.id);
+      
+      // Get replies
+      const replies = await storage.getThreadReplies(req.params.id);
+      
+      res.json({ ...thread, replies });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create new thread
+  app.post("/api/community/threads", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Check access for non-admins
+      if (!["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (!access || access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access denied" });
+        }
+      }
+      
+      const validatedData = insertCommunityThreadSchema.parse({
+        ...req.body,
+        authorId: user.id,
+      });
+      
+      const thread = await storage.createCommunityThread(validatedData);
+      res.status(201).json(thread);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update thread (author only within 24 hours, or admin)
+  app.patch("/api/community/threads/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const thread = await storage.getCommunityThread(req.params.id);
+      
+      if (!thread) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+      
+      // Check if user can edit (author within 24 hours or admin)
+      const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(user.role);
+      const isAuthor = thread.authorId === user.id;
+      const withinEditWindow = thread.createdAt && (Date.now() - new Date(thread.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+      
+      if (!isAdmin && !(isAuthor && withinEditWindow)) {
+        return res.status(403).json({ message: "Cannot edit this thread. Editing is only allowed within 24 hours of creation." });
+      }
+      
+      const { title, content, categoryId } = req.body;
+      const updated = await storage.updateCommunityThread(req.params.id, { title, content, categoryId });
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete thread (author only within 24 hours, or admin)
+  app.delete("/api/community/threads/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const thread = await storage.getCommunityThread(req.params.id);
+      
+      if (!thread) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+      
+      // Check if user can delete (author within 24 hours or admin)
+      const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(user.role);
+      const isAuthor = thread.authorId === user.id;
+      const withinEditWindow = thread.createdAt && (Date.now() - new Date(thread.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+      
+      if (!isAdmin && !(isAuthor && withinEditWindow)) {
+        return res.status(403).json({ message: "Cannot delete this thread. Deletion is only allowed within 24 hours of creation." });
+      }
+      
+      await storage.deleteCommunityThread(req.params.id);
+      res.json({ message: "Thread deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Pin/Unpin thread
+  app.post("/api/community/threads/:id/pin", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const thread = await storage.pinThread(req.params.id, user.id);
+      res.json(thread);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/community/threads/:id/unpin", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const thread = await storage.unpinThread(req.params.id);
+      res.json(thread);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get thread replies
+  app.get("/api/community/threads/:id/replies", requireAuth, async (req, res, next) => {
+    try {
+      const replies = await storage.getThreadReplies(req.params.id);
+      res.json(replies);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create reply
+  app.post("/api/community/threads/:id/replies", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Check access for non-admins
+      if (!["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (!access || access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access denied" });
+        }
+      }
+      
+      const thread = await storage.getCommunityThread(req.params.id);
+      if (!thread) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+      
+      if (thread.isLocked) {
+        return res.status(403).json({ message: "This thread is locked" });
+      }
+      
+      const validatedData = insertThreadReplySchema.parse({
+        threadId: req.params.id,
+        authorId: user.id,
+        content: req.body.content,
+        parentReplyId: req.body.parentReplyId,
+      });
+      
+      const reply = await storage.createThreadReply(validatedData);
+      res.status(201).json(reply);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update reply (author only within 24 hours, or admin)
+  app.patch("/api/community/replies/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const reply = await storage.getThreadReply(req.params.id);
+      
+      if (!reply) {
+        return res.status(404).json({ message: "Reply not found" });
+      }
+      
+      // Check if user can edit (author within 24 hours or admin)
+      const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(user.role);
+      const isAuthor = reply.authorId === user.id;
+      const withinEditWindow = reply.createdAt && (Date.now() - new Date(reply.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+      
+      if (!isAdmin && !(isAuthor && withinEditWindow)) {
+        return res.status(403).json({ message: "Cannot edit this reply. Editing is only allowed within 24 hours of creation." });
+      }
+      
+      const updated = await storage.updateThreadReply(req.params.id, req.body.content);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete reply (author only within 24 hours, or admin)
+  app.delete("/api/community/replies/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const reply = await storage.getThreadReply(req.params.id);
+      
+      if (!reply) {
+        return res.status(404).json({ message: "Reply not found" });
+      }
+      
+      // Check if user can delete (author within 24 hours or admin)
+      const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(user.role);
+      const isAuthor = reply.authorId === user.id;
+      const withinEditWindow = reply.createdAt && (Date.now() - new Date(reply.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+      
+      if (!isAdmin && !(isAuthor && withinEditWindow)) {
+        return res.status(403).json({ message: "Cannot delete this reply. Deletion is only allowed within 24 hours of creation." });
+      }
+      
+      await storage.deleteThreadReply(req.params.id);
+      res.json({ message: "Reply deleted" });
     } catch (error) {
       next(error);
     }
