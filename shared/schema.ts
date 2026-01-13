@@ -1316,3 +1316,115 @@ export const insertOnboardingProgressSchema = createInsertSchema(onboardingProgr
 
 export type OnboardingProgress = typeof onboardingProgress.$inferSelect;
 export type InsertOnboardingProgress = z.infer<typeof insertOnboardingProgressSchema>;
+
+// Community Board Access Control
+export const communityBoardAccessStatusEnum = pgEnum("community_board_access_status", [
+  "ACTIVE",
+  "REVOKED"
+]);
+
+export const communityBoardAccess = pgTable("community_board_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  status: communityBoardAccessStatusEnum("status").default("ACTIVE"),
+  revokedAt: timestamp("revoked_at"),
+  revokedBy: varchar("revoked_by").references(() => users.id),
+  revokedReason: text("revoked_reason"),
+  grantedAt: timestamp("granted_at").defaultNow(),
+  grantedBy: varchar("granted_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCommunityBoardAccessSchema = createInsertSchema(communityBoardAccess).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CommunityBoardAccess = typeof communityBoardAccess.$inferSelect;
+export type InsertCommunityBoardAccess = z.infer<typeof insertCommunityBoardAccessSchema>;
+
+// Community Thread Categories
+export const threadCategories = pgTable("thread_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  color: text("color").default("#0D9488"),
+  icon: text("icon"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertThreadCategorySchema = createInsertSchema(threadCategories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ThreadCategory = typeof threadCategories.$inferSelect;
+export type InsertThreadCategory = z.infer<typeof insertThreadCategorySchema>;
+
+// Community Threads
+export const communityThreads = pgTable("community_threads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  categoryId: varchar("category_id").references(() => threadCategories.id),
+  isPinned: boolean("is_pinned").default(false),
+  pinnedAt: timestamp("pinned_at"),
+  pinnedBy: varchar("pinned_by").references(() => users.id),
+  isLocked: boolean("is_locked").default(false),
+  lockedAt: timestamp("locked_at"),
+  lockedBy: varchar("locked_by").references(() => users.id),
+  replyCount: integer("reply_count").default(0),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  lastReplyById: varchar("last_reply_by_id").references(() => users.id),
+  viewCount: integer("view_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const insertCommunityThreadSchema = createInsertSchema(communityThreads).omit({
+  id: true,
+  replyCount: true,
+  viewCount: true,
+  lastActivityAt: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export type CommunityThread = typeof communityThreads.$inferSelect;
+export type InsertCommunityThread = z.infer<typeof insertCommunityThreadSchema>;
+
+// Thread Replies
+export const threadReplies = pgTable("thread_replies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  threadId: varchar("thread_id").notNull().references(() => communityThreads.id),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  parentReplyId: varchar("parent_reply_id"),
+  isEdited: boolean("is_edited").default(false),
+  editedAt: timestamp("edited_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const insertThreadReplySchema = createInsertSchema(threadReplies).omit({
+  id: true,
+  isEdited: true,
+  editedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export type ThreadReply = typeof threadReplies.$inferSelect;
+export type InsertThreadReply = z.infer<typeof insertThreadReplySchema>;
