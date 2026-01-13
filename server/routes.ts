@@ -3021,8 +3021,8 @@ export async function registerRoutes(
             title: "New Task Assigned",
             message: `${user.firstName} ${user.lastName} assigned you a task: ${task.title}`,
             priority: "NORMAL",
-            relatedId: task.id,
-            relatedType: "task",
+            resourceId: task.id,
+            resourceType: "TASK",
           });
           
           // Send email notification
@@ -3607,6 +3607,57 @@ export async function registerRoutes(
         matchId: matchId || undefined,
         createdById: user.id,
       }, validParticipantIds);
+      
+      // Send notifications to all participants (except creator) for meetings
+      if (type === "MEETING" && validParticipantIds.length > 1) {
+        const { sendCalendarInviteEmail } = await import("./email");
+        const protocol = req.headers['x-forwarded-proto'] || 'https';
+        const host = req.headers.host || '';
+        const baseUrl = `${protocol}://${host}`;
+        
+        const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+        const durationStr = duration >= 60 ? `${Math.floor(duration / 60)}h ${duration % 60}m` : `${duration} minutes`;
+        const dateTimeStr = start.toLocaleString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZoneName: 'short'
+        });
+        
+        for (const participantId of validParticipantIds) {
+          if (participantId !== user.id) {
+            const participant = await storage.getUser(participantId);
+            if (participant) {
+              // Create in-app notification
+              await storage.createNotification({
+                userId: participantId,
+                type: "MEETING_SCHEDULED",
+                title: "Meeting Scheduled",
+                message: `${user.firstName} ${user.lastName} scheduled a meeting: ${title} on ${start.toLocaleDateString()}`,
+                priority: "NORMAL",
+                resourceId: event.id,
+                resourceType: "CALENDAR_EVENT",
+              });
+              
+              // Send email notification
+              await sendCalendarInviteEmail({
+                email: participant.email,
+                recipientName: `${participant.firstName} ${participant.lastName}`,
+                eventTitle: title,
+                dateTime: dateTimeStr,
+                duration: durationStr,
+                organizerName: `${user.firstName} ${user.lastName}`,
+                description: description || undefined,
+                meetingLink: meetingUrl || undefined,
+                dashboardUrl: baseUrl,
+              }).catch((err: Error) => console.error('Failed to send calendar invite email:', err));
+            }
+          }
+        }
+      }
       
       res.status(201).json(event);
     } catch (error) {
