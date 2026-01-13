@@ -17,6 +17,7 @@ import {
   ListTodo,
   Target,
   Award,
+  UsersRound,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
@@ -71,11 +72,14 @@ const getNavItems = (role: UserRole) => {
     { title: "Admin Panel", url: "/admin", icon: Shield },
   ];
 
+  const communityItem = { title: "Community", url: "/community", icon: UsersRound };
+
   if (role === "SUPER_ADMIN" || role === "ADMIN") {
     return [
       ...baseItems.slice(0, 3),
       { title: "Goals", url: "/goals", icon: Target },
       ...baseItems.slice(3),
+      communityItem,
       ...adminItems
     ];
   }
@@ -85,6 +89,7 @@ const getNavItems = (role: UserRole) => {
       ...baseItems,
       { title: "My Mentees", url: "/connections", icon: Users },
       { title: "Mentee Goals", url: "/goals", icon: Target },
+      communityItem,
     ];
   }
 

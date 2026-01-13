@@ -4781,6 +4781,21 @@ export async function registerRoutes(
   // Get thread categories
   app.get("/api/community/categories", requireAuth, async (req, res, next) => {
     try {
+      const user = req.user as any;
+      
+      // Only mentors and admins can access community categories
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors
+      if (user.role === "MENTOR") {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
       const categories = await storage.getThreadCategories(true);
       res.json(categories);
     } catch (error) {
@@ -4813,11 +4828,16 @@ export async function registerRoutes(
     try {
       const user = req.user as any;
       
-      // Check access for non-admins
-      if (!["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+      // Only mentors and admins can access community board
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors (admins always have access)
+      if (user.role === "MENTOR") {
         const access = await storage.getCommunityBoardAccess(user.id);
-        if (!access || access.status === "REVOKED") {
-          return res.status(403).json({ message: "Community board access denied" });
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
         }
       }
       
@@ -4842,11 +4862,16 @@ export async function registerRoutes(
     try {
       const user = req.user as any;
       
-      // Check access for non-admins
-      if (!["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+      // Only mentors and admins can access community board
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors
+      if (user.role === "MENTOR") {
         const access = await storage.getCommunityBoardAccess(user.id);
-        if (!access || access.status === "REVOKED") {
-          return res.status(403).json({ message: "Community board access denied" });
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
         }
       }
       
@@ -4872,11 +4897,16 @@ export async function registerRoutes(
     try {
       const user = req.user as any;
       
-      // Check access for non-admins
-      if (!["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+      // Only mentors and admins can create threads
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors
+      if (user.role === "MENTOR") {
         const access = await storage.getCommunityBoardAccess(user.id);
-        if (!access || access.status === "REVOKED") {
-          return res.status(403).json({ message: "Community board access denied" });
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
         }
       }
       
@@ -4896,6 +4926,20 @@ export async function registerRoutes(
   app.patch("/api/community/threads/:id", requireAuth, async (req, res, next) => {
     try {
       const user = req.user as any;
+      
+      // Only mentors and admins can access community board
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors
+      if (user.role === "MENTOR") {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
       const thread = await storage.getCommunityThread(req.params.id);
       
       if (!thread) {
@@ -4923,6 +4967,20 @@ export async function registerRoutes(
   app.delete("/api/community/threads/:id", requireAuth, async (req, res, next) => {
     try {
       const user = req.user as any;
+      
+      // Only mentors and admins can access community board
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors
+      if (user.role === "MENTOR") {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
       const thread = await storage.getCommunityThread(req.params.id);
       
       if (!thread) {
@@ -4968,6 +5026,21 @@ export async function registerRoutes(
   // Get thread replies
   app.get("/api/community/threads/:id/replies", requireAuth, async (req, res, next) => {
     try {
+      const user = req.user as any;
+      
+      // Only mentors and admins can access community board
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors
+      if (user.role === "MENTOR") {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
       const replies = await storage.getThreadReplies(req.params.id);
       res.json(replies);
     } catch (error) {
@@ -4980,11 +5053,16 @@ export async function registerRoutes(
     try {
       const user = req.user as any;
       
-      // Check access for non-admins
-      if (!["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+      // Only mentors and admins can create replies
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors
+      if (user.role === "MENTOR") {
         const access = await storage.getCommunityBoardAccess(user.id);
-        if (!access || access.status === "REVOKED") {
-          return res.status(403).json({ message: "Community board access denied" });
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
         }
       }
       
@@ -5015,6 +5093,20 @@ export async function registerRoutes(
   app.patch("/api/community/replies/:id", requireAuth, async (req, res, next) => {
     try {
       const user = req.user as any;
+      
+      // Only mentors and admins can access community board
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors
+      if (user.role === "MENTOR") {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
       const reply = await storage.getThreadReply(req.params.id);
       
       if (!reply) {
@@ -5041,6 +5133,20 @@ export async function registerRoutes(
   app.delete("/api/community/replies/:id", requireAuth, async (req, res, next) => {
     try {
       const user = req.user as any;
+      
+      // Only mentors and admins can access community board
+      if (!["MENTOR", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Community board access denied", reason: "NOT_MENTOR" });
+      }
+      
+      // Check access status for mentors
+      if (user.role === "MENTOR") {
+        const access = await storage.getCommunityBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
       const reply = await storage.getThreadReply(req.params.id);
       
       if (!reply) {

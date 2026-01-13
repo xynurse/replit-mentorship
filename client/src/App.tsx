@@ -52,6 +52,8 @@ const OnboardingPage = lazy(() => import("@/pages/onboarding"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const ConnectionsPage = lazy(() => import("@/pages/connections"));
 const CalendarPage = lazy(() => import("@/pages/calendar"));
+const CommunityPage = lazy(() => import("@/pages/community"));
+const CommunityThreadPage = lazy(() => import("@/pages/community-thread"));
 
 function PageLoader() {
   return (
@@ -113,6 +115,8 @@ function Router() {
       <ProtectedRoute path="/settings" component={SettingsPage} />
       <ProtectedRoute path="/connections" component={ConnectionsPage} />
       <ProtectedRoute path="/calendar" component={CalendarPage} />
+      <ProtectedRoute path="/community" component={CommunityPage} />
+      <ProtectedRoute path="/community/:id" component={CommunityThreadPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <LazyRoute component={NotFound} />
     </Switch>
