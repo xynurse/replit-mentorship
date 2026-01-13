@@ -2247,6 +2247,43 @@ export async function registerRoutes(
       
       const sender = await storage.getUser(userId);
       
+      // Send notifications to other participants (for direct messages)
+      const conversation = await storage.getConversation(id);
+      if (sender && conversation && conversation.type === "DIRECT") {
+        const { sendNewMessageEmail } = await import("./email");
+        const protocol = req.headers['x-forwarded-proto'] || 'https';
+        const host = req.headers.host || '';
+        const baseUrl = `${protocol}://${host}`;
+        
+        for (const participant of participants) {
+          if (participant.userId !== userId) {
+            const recipient = await storage.getUser(participant.userId);
+            if (recipient) {
+              // Create in-app notification
+              await storage.createNotification({
+                userId: participant.userId,
+                type: "NEW_MESSAGE",
+                title: "New Message",
+                message: `${sender.firstName} ${sender.lastName} sent you a message`,
+                priority: "NORMAL",
+                resourceId: id,
+                resourceType: "MESSAGE",
+              });
+              
+              // Send email notification
+              await sendNewMessageEmail({
+                email: recipient.email,
+                recipientName: `${recipient.firstName} ${recipient.lastName}`,
+                senderName: `${sender.firstName} ${sender.lastName}`,
+                messagePreview: content.trim(),
+                timestamp: new Date().toLocaleString(),
+                dashboardUrl: baseUrl,
+              }).catch((err: Error) => console.error('Failed to send new message email:', err));
+            }
+          }
+        }
+      }
+      
       res.status(201).json({
         ...message,
         sender: sender ? { 
@@ -2452,12 +2489,54 @@ export async function registerRoutes(
   // Create document (after file upload)
   app.post("/api/documents", requireAuth, async (req, res, next) => {
     try {
-      const userId = (req.user as any).id;
+      const user = req.user as any;
       const validatedData = insertDocumentSchema.parse({
         ...req.body,
-        uploadedById: userId,
+        uploadedById: user.id,
       });
       const doc = await storage.createDocument(validatedData);
+      
+      // Send notifications for PUBLIC visibility documents in system folders
+      if (validatedData.visibility === 'PUBLIC' && validatedData.folderId) {
+        const folder = await storage.getFolder(validatedData.folderId);
+        if (folder && folder.isSystemFolder) {
+          const { sendDocumentUploadedEmail } = await import("./email");
+          const protocol = req.headers['x-forwarded-proto'] || 'https';
+          const host = req.headers.host || '';
+          const baseUrl = `${protocol}://${host}`;
+          
+          // Get all active users
+          const allUsers = await storage.getAllUsers({ isActive: true });
+          
+          // Send notifications to all users except the uploader
+          for (const recipient of allUsers) {
+            if (recipient.id !== user.id) {
+              // Create in-app notification
+              await storage.createNotification({
+                userId: recipient.id,
+                type: "DOCUMENT_SHARED",
+                title: "New Resource Available",
+                message: `A new document has been uploaded: ${doc.name}`,
+                priority: "LOW",
+                resourceId: doc.id,
+                resourceType: "DOCUMENT",
+              });
+              
+              // Send email notification
+              await sendDocumentUploadedEmail({
+                email: recipient.email,
+                recipientName: `${recipient.firstName} ${recipient.lastName}`,
+                documentTitle: doc.name,
+                description: doc.description || undefined,
+                uploadDate: new Date().toLocaleDateString(),
+                uploadedBy: `${user.firstName} ${user.lastName}`,
+                dashboardUrl: baseUrl,
+              }).catch((err: Error) => console.error('Failed to send document upload email:', err));
+            }
+          }
+        }
+      }
+      
       res.status(201).json(doc);
     } catch (error) {
       next(error);
@@ -3639,7 +3718,7 @@ export async function registerRoutes(
                 message: `${user.firstName} ${user.lastName} scheduled a meeting: ${title} on ${start.toLocaleDateString()}`,
                 priority: "NORMAL",
                 resourceId: event.id,
-                resourceType: "CALENDAR_EVENT",
+                resourceType: "MEETING",
               });
               
               // Send email notification
