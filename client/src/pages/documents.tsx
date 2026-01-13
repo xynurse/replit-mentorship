@@ -427,8 +427,8 @@ export default function DocumentsPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold" data-testid="text-page-title">Document Library</h1>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
             <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
               <DialogTrigger asChild>
                 <Button 
@@ -608,6 +608,7 @@ export default function DocumentsPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
         </div>
 
@@ -1041,7 +1042,7 @@ export default function DocumentsPage() {
                   )}
                   <div className="flex items-center gap-2 mt-2">
                     <Avatar className="h-5 w-5">
-                      <AvatarImage src={doc.sharedBy.profileImageUrl || undefined} />
+                      <AvatarImage src={doc.sharedBy.profileImage || undefined} />
                       <AvatarFallback className="text-xs">
                         {doc.sharedBy.firstName?.[0]}{doc.sharedBy.lastName?.[0]}
                       </AvatarFallback>
