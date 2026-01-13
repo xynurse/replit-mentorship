@@ -8,6 +8,7 @@ import {
   searchHistory, savedSearches, surveys, surveyResponses, onboardingProgress, certificates,
   mentorProfiles, professionalProfiles, mentorshipRoles, menteeProfiles, mentorProfilesExtended,
   calendarEvents, calendarEventParticipants,
+  communityBoardAccess, threadCategories, communityThreads, threadReplies,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -31,7 +32,11 @@ import {
   type MentorshipRole, type InsertMentorshipRole,
   type MenteeProfile, type InsertMenteeProfile,
   type MentorProfileExtended, type InsertMentorProfileExtended,
-  type CalendarEvent, type InsertCalendarEvent, type CalendarEventParticipant, type InsertCalendarEventParticipant
+  type CalendarEvent, type InsertCalendarEvent, type CalendarEventParticipant, type InsertCalendarEventParticipant,
+  type CommunityBoardAccess, type InsertCommunityBoardAccess,
+  type ThreadCategory, type InsertThreadCategory,
+  type CommunityThread, type InsertCommunityThread,
+  type ThreadReply, type InsertThreadReply
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -2858,6 +2863,260 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMentorProfileExtended(userId: string): Promise<void> {
     await db.delete(mentorProfilesExtended).where(eq(mentorProfilesExtended.userId, userId));
+  }
+
+  // Community Board Access
+  async getCommunityBoardAccess(userId: string): Promise<CommunityBoardAccess | undefined> {
+    const [access] = await db.select().from(communityBoardAccess).where(eq(communityBoardAccess.userId, userId));
+    return access || undefined;
+  }
+
+  async grantCommunityBoardAccess(userId: string, grantedBy?: string): Promise<CommunityBoardAccess> {
+    const existing = await this.getCommunityBoardAccess(userId);
+    if (existing) {
+      const [updated] = await db.update(communityBoardAccess)
+        .set({ status: 'ACTIVE', revokedAt: null, revokedBy: null, revokedReason: null, updatedAt: new Date() })
+        .where(eq(communityBoardAccess.userId, userId))
+        .returning();
+      return updated;
+    }
+    const [access] = await db.insert(communityBoardAccess).values({
+      userId,
+      status: 'ACTIVE',
+      grantedBy,
+      grantedAt: new Date()
+    }).returning();
+    return access;
+  }
+
+  async revokeCommunityBoardAccess(userId: string, revokedBy: string, reason?: string): Promise<CommunityBoardAccess | undefined> {
+    const [access] = await db.update(communityBoardAccess)
+      .set({ 
+        status: 'REVOKED', 
+        revokedAt: new Date(), 
+        revokedBy, 
+        revokedReason: reason,
+        updatedAt: new Date() 
+      })
+      .where(eq(communityBoardAccess.userId, userId))
+      .returning();
+    return access || undefined;
+  }
+
+  async getAllCommunityBoardAccess(): Promise<(CommunityBoardAccess & { user: User })[]> {
+    const results = await db.select()
+      .from(communityBoardAccess)
+      .innerJoin(users, eq(communityBoardAccess.userId, users.id))
+      .orderBy(desc(communityBoardAccess.createdAt));
+    return results.map(r => ({ ...r.community_board_access, user: r.users }));
+  }
+
+  // Thread Categories
+  async getThreadCategories(activeOnly: boolean = true): Promise<ThreadCategory[]> {
+    if (activeOnly) {
+      return await db.select().from(threadCategories)
+        .where(eq(threadCategories.isActive, true))
+        .orderBy(asc(threadCategories.sortOrder));
+    }
+    return await db.select().from(threadCategories).orderBy(asc(threadCategories.sortOrder));
+  }
+
+  async getThreadCategory(id: string): Promise<ThreadCategory | undefined> {
+    const [category] = await db.select().from(threadCategories).where(eq(threadCategories.id, id));
+    return category || undefined;
+  }
+
+  async createThreadCategory(data: InsertThreadCategory): Promise<ThreadCategory> {
+    const [category] = await db.insert(threadCategories).values(data).returning();
+    return category;
+  }
+
+  async updateThreadCategory(id: string, data: Partial<ThreadCategory>): Promise<ThreadCategory | undefined> {
+    const [category] = await db.update(threadCategories)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(threadCategories.id, id))
+      .returning();
+    return category || undefined;
+  }
+
+  // Community Threads
+  async getCommunityThreads(options?: {
+    categoryId?: string;
+    search?: string;
+    sortBy?: 'recent' | 'created' | 'replies';
+    limit?: number;
+    offset?: number;
+  }): Promise<(CommunityThread & { author: User; category?: ThreadCategory; lastReplyBy?: User })[]> {
+    const conditions = [isNull(communityThreads.deletedAt)];
+    
+    if (options?.categoryId) {
+      conditions.push(eq(communityThreads.categoryId, options.categoryId));
+    }
+    
+    if (options?.search) {
+      const searchTerm = `%${options.search}%`;
+      conditions.push(
+        or(
+          like(communityThreads.title, searchTerm),
+          like(communityThreads.content, searchTerm)
+        )!
+      );
+    }
+
+    const authorAlias = alias(users, 'author');
+    const lastReplyByAlias = alias(users, 'lastReplyBy');
+
+    let query = db.select({
+      thread: communityThreads,
+      author: authorAlias,
+      category: threadCategories,
+      lastReplyBy: lastReplyByAlias
+    })
+    .from(communityThreads)
+    .innerJoin(authorAlias, eq(communityThreads.authorId, authorAlias.id))
+    .leftJoin(threadCategories, eq(communityThreads.categoryId, threadCategories.id))
+    .leftJoin(lastReplyByAlias, eq(communityThreads.lastReplyById, lastReplyByAlias.id))
+    .where(and(...conditions));
+
+    const orderBy = options?.sortBy === 'created' 
+      ? desc(communityThreads.createdAt)
+      : options?.sortBy === 'replies'
+        ? desc(communityThreads.replyCount)
+        : desc(communityThreads.lastActivityAt);
+
+    const results = await query
+      .orderBy(desc(communityThreads.isPinned), orderBy)
+      .limit(options?.limit || 50)
+      .offset(options?.offset || 0);
+
+    return results.map(r => ({
+      ...r.thread,
+      author: r.author,
+      category: r.category || undefined,
+      lastReplyBy: r.lastReplyBy || undefined
+    }));
+  }
+
+  async getCommunityThread(id: string): Promise<(CommunityThread & { author: User; category?: ThreadCategory }) | undefined> {
+    const authorAlias = alias(users, 'author');
+    const [result] = await db.select({
+      thread: communityThreads,
+      author: authorAlias,
+      category: threadCategories
+    })
+    .from(communityThreads)
+    .innerJoin(authorAlias, eq(communityThreads.authorId, authorAlias.id))
+    .leftJoin(threadCategories, eq(communityThreads.categoryId, threadCategories.id))
+    .where(and(eq(communityThreads.id, id), isNull(communityThreads.deletedAt)));
+
+    if (!result) return undefined;
+    return {
+      ...result.thread,
+      author: result.author,
+      category: result.category || undefined
+    };
+  }
+
+  async createCommunityThread(data: InsertCommunityThread): Promise<CommunityThread> {
+    const [thread] = await db.insert(communityThreads).values({
+      ...data,
+      lastActivityAt: new Date()
+    }).returning();
+    return thread;
+  }
+
+  async updateCommunityThread(id: string, data: Partial<CommunityThread>): Promise<CommunityThread | undefined> {
+    const [thread] = await db.update(communityThreads)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(communityThreads.id, id))
+      .returning();
+    return thread || undefined;
+  }
+
+  async deleteCommunityThread(id: string): Promise<void> {
+    await db.update(communityThreads)
+      .set({ deletedAt: new Date() })
+      .where(eq(communityThreads.id, id));
+  }
+
+  async incrementThreadViewCount(id: string): Promise<void> {
+    await db.update(communityThreads)
+      .set({ viewCount: sql`${communityThreads.viewCount} + 1` })
+      .where(eq(communityThreads.id, id));
+  }
+
+  async pinThread(id: string, pinnedBy: string): Promise<CommunityThread | undefined> {
+    const [thread] = await db.update(communityThreads)
+      .set({ isPinned: true, pinnedAt: new Date(), pinnedBy, updatedAt: new Date() })
+      .where(eq(communityThreads.id, id))
+      .returning();
+    return thread || undefined;
+  }
+
+  async unpinThread(id: string): Promise<CommunityThread | undefined> {
+    const [thread] = await db.update(communityThreads)
+      .set({ isPinned: false, pinnedAt: null, pinnedBy: null, updatedAt: new Date() })
+      .where(eq(communityThreads.id, id))
+      .returning();
+    return thread || undefined;
+  }
+
+  // Thread Replies
+  async getThreadReplies(threadId: string): Promise<(ThreadReply & { author: User })[]> {
+    const authorAlias = alias(users, 'author');
+    const results = await db.select({
+      reply: threadReplies,
+      author: authorAlias
+    })
+    .from(threadReplies)
+    .innerJoin(authorAlias, eq(threadReplies.authorId, authorAlias.id))
+    .where(and(eq(threadReplies.threadId, threadId), isNull(threadReplies.deletedAt)))
+    .orderBy(asc(threadReplies.createdAt));
+
+    return results.map(r => ({ ...r.reply, author: r.author }));
+  }
+
+  async createThreadReply(data: InsertThreadReply): Promise<ThreadReply> {
+    const [reply] = await db.insert(threadReplies).values(data).returning();
+    
+    // Update thread reply count and last activity
+    await db.update(communityThreads)
+      .set({ 
+        replyCount: sql`${communityThreads.replyCount} + 1`,
+        lastActivityAt: new Date(),
+        lastReplyById: data.authorId,
+        updatedAt: new Date()
+      })
+      .where(eq(communityThreads.id, data.threadId));
+    
+    return reply;
+  }
+
+  async updateThreadReply(id: string, content: string): Promise<ThreadReply | undefined> {
+    const [reply] = await db.update(threadReplies)
+      .set({ content, isEdited: true, editedAt: new Date(), updatedAt: new Date() })
+      .where(eq(threadReplies.id, id))
+      .returning();
+    return reply || undefined;
+  }
+
+  async deleteThreadReply(id: string): Promise<void> {
+    const [reply] = await db.select().from(threadReplies).where(eq(threadReplies.id, id));
+    if (reply) {
+      await db.update(threadReplies)
+        .set({ deletedAt: new Date() })
+        .where(eq(threadReplies.id, id));
+      
+      // Decrement thread reply count
+      await db.update(communityThreads)
+        .set({ replyCount: sql`GREATEST(${communityThreads.replyCount} - 1, 0)` })
+        .where(eq(communityThreads.id, reply.threadId));
+    }
+  }
+
+  async getThreadReply(id: string): Promise<ThreadReply | undefined> {
+    const [reply] = await db.select().from(threadReplies).where(eq(threadReplies.id, id));
+    return reply || undefined;
   }
 }
 
