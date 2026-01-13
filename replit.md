@@ -138,10 +138,17 @@ Preferred communication style: Simple, everyday language.
 
 ### Email System
 - **Provider**: Resend (via Replit connector integration)
-- **Service**: server/email.ts - handles welcome email sending with Resend API
-- **Features**: Welcome emails with login credentials, temporary password generation
+- **Service**: server/email.ts - handles all email sending with Resend API
+- **Security**: `getTrustedBaseUrl()` helper prevents host header injection in email links
+- **Features**:
+  - Welcome emails with login credentials and temporary password
+  - Task assignment notifications (when assigned to another user)
+  - Calendar invite notifications (for meeting participants)
+  - Document upload notifications (PUBLIC documents in system folders)
+  - New message notifications (direct messages only)
+  - Goal update notifications (mentee creates → mentor notified; mentor approves → mentee notified)
 - **Admin UI**: "Send Welcome Email" button in user management for selected users
-- **Template**: Professional HTML email with login credentials and sign-in link
+- **Templates**: Professional HTML emails with SONSIEL branding
 
 ### Meeting Tracking System
 - **Admin Meetings Page**: `/admin/meetings` for tracking all mentor-mentee meetings
