@@ -1,0 +1,87 @@
+Notification Triggers:
+
+New Task Assigned
+
+Trigger: When a mentor assigns a new task to a mentee, or when an admin assigns a task to any user
+Recipient: The user to whom the task is assigned
+Email content should include:
+
+Task title
+Task description (truncated if lengthy)
+Due date (if applicable)
+Name of the person who assigned the task
+Direct link to the Tasks section of the dashboard
+
+
+Subject line format: [SONSIEL Mentorship] New Task Assigned: {Task Title}
+
+
+New Calendar Invite
+
+Trigger: When a meeting or event is scheduled that includes the user
+Recipient: All participants included in the calendar event
+Email content should include:
+
+Event title
+Date and time (with timezone)
+Duration
+Organizer name
+Meeting description/agenda (if provided)
+Virtual meeting link (if applicable)
+Direct link to the Calendar section
+
+
+Subject line format: [SONSIEL Mentorship] Meeting Scheduled: {Event Title} on {Date}
+
+
+New Document Uploaded
+
+Trigger: When a new document is uploaded to the public documents folder
+Recipient: All active platform users
+Email content should include:
+
+Document title/filename
+Brief description (if provided by uploader)
+Upload date
+Uploaded by (name or "Program Administrator")
+Direct link to the Documents section
+
+
+Subject line format: [SONSIEL Mentorship] New Resource Available: {Document Title}
+Note: Private document uploads should NOT trigger notifications to others
+
+
+New Message Received
+
+Trigger: When a user receives a direct message from another user on the platform
+Recipient: The message recipient
+Email content should include:
+
+Sender's name
+Message preview (first 100 characters, truncated)
+Timestamp
+Direct link to the Messages section
+
+
+Subject line format: [SONSIEL Mentorship] New Message from {Sender Name}
+Consider implementing a brief delay (5-10 minutes) to batch multiple messages from the same sender
+
+
+Goal Updates
+
+Trigger: When a new goal is created, when a goal is updated/modified, or when a mentor comments on a goal
+Recipient:
+
+For new/updated goals created by mentee: Notify the assigned mentor
+For mentor comments on goals: Notify the mentee
+
+
+Email content should include:
+
+Goal title
+Type of update (new goal, goal modified, new comment)
+Brief preview of the goal or comment
+Direct link to the Goals section
+
+
+Subject line format: [SONSIEL Mentorship] Goal Update: {Goal Title}

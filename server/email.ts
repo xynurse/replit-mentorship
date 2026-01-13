@@ -197,3 +197,397 @@ export async function sendPasswordResetEmail(data: PasswordResetEmailData): Prom
     return { success: false, error: error.message || 'Failed to send email' };
   }
 }
+
+// ============= NOTIFICATION EMAIL FUNCTIONS =============
+
+export interface TaskAssignedEmailData {
+  email: string;
+  recipientName: string;
+  taskTitle: string;
+  taskDescription?: string;
+  dueDate?: string;
+  assignedBy: string;
+  dashboardUrl: string;
+}
+
+export async function sendTaskAssignedEmail(data: TaskAssignedEmailData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    
+    const descriptionHtml = data.taskDescription 
+      ? `<p style="margin: 10px 0;"><strong>Description:</strong> ${data.taskDescription.length > 200 ? data.taskDescription.substring(0, 200) + '...' : data.taskDescription}</p>`
+      : '';
+    
+    const dueDateHtml = data.dueDate 
+      ? `<p style="margin: 10px 0;"><strong>Due Date:</strong> ${data.dueDate}</p>`
+      : '';
+
+    const result = await client.emails.send({
+      from: fromEmail || 'SONSIEL Mentorship Hub <noreply@sonsiel.org>',
+      to: data.email,
+      subject: `[SONSIEL Mentorship] New Task Assigned: ${data.taskTitle}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">New Task Assigned</h1>
+          </div>
+          
+          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <p style="font-size: 16px;">Hello ${data.recipientName},</p>
+            
+            <p>A new task has been assigned to you by <strong>${data.assignedBy}</strong>.</p>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+              <h3 style="margin: 0 0 15px 0; color: #667eea;">${data.taskTitle}</h3>
+              ${descriptionHtml}
+              ${dueDateHtml}
+              <p style="margin: 10px 0;"><strong>Assigned by:</strong> ${data.assignedBy}</p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.dashboardUrl}/tasks" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">View Task</a>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">You can manage all your tasks from your dashboard.</p>
+          </div>
+          
+          <p style="text-align: center; font-size: 12px; color: #9ca3af; margin-top: 20px;">
+            SONSIEL Mentorship Hub - Empowering Healthcare Professionals
+          </p>
+        </body>
+        </html>
+      `,
+    });
+
+    if (result.error) {
+      return { success: false, error: result.error.message };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to send task assigned email:', error);
+    return { success: false, error: error.message || 'Failed to send email' };
+  }
+}
+
+export interface CalendarInviteEmailData {
+  email: string;
+  recipientName: string;
+  eventTitle: string;
+  dateTime: string;
+  duration: string;
+  organizerName: string;
+  description?: string;
+  meetingLink?: string;
+  dashboardUrl: string;
+}
+
+export async function sendCalendarInviteEmail(data: CalendarInviteEmailData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    
+    const descriptionHtml = data.description 
+      ? `<p style="margin: 10px 0;"><strong>Agenda:</strong> ${data.description}</p>`
+      : '';
+    
+    const meetingLinkHtml = data.meetingLink 
+      ? `<p style="margin: 10px 0;"><strong>Meeting Link:</strong> <a href="${data.meetingLink}" style="color: #667eea;">${data.meetingLink}</a></p>`
+      : '';
+
+    const result = await client.emails.send({
+      from: fromEmail || 'SONSIEL Mentorship Hub <noreply@sonsiel.org>',
+      to: data.email,
+      subject: `[SONSIEL Mentorship] Meeting Scheduled: ${data.eventTitle} on ${data.dateTime.split(' ')[0]}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Meeting Scheduled</h1>
+          </div>
+          
+          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <p style="font-size: 16px;">Hello ${data.recipientName},</p>
+            
+            <p>You have been invited to a meeting by <strong>${data.organizerName}</strong>.</p>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+              <h3 style="margin: 0 0 15px 0; color: #667eea;">${data.eventTitle}</h3>
+              <p style="margin: 10px 0;"><strong>Date & Time:</strong> ${data.dateTime}</p>
+              <p style="margin: 10px 0;"><strong>Duration:</strong> ${data.duration}</p>
+              <p style="margin: 10px 0;"><strong>Organizer:</strong> ${data.organizerName}</p>
+              ${descriptionHtml}
+              ${meetingLinkHtml}
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.dashboardUrl}/calendar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">View Calendar</a>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">Add this event to your calendar to stay on track.</p>
+          </div>
+          
+          <p style="text-align: center; font-size: 12px; color: #9ca3af; margin-top: 20px;">
+            SONSIEL Mentorship Hub - Empowering Healthcare Professionals
+          </p>
+        </body>
+        </html>
+      `,
+    });
+
+    if (result.error) {
+      return { success: false, error: result.error.message };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to send calendar invite email:', error);
+    return { success: false, error: error.message || 'Failed to send email' };
+  }
+}
+
+export interface DocumentUploadedEmailData {
+  email: string;
+  recipientName: string;
+  documentTitle: string;
+  description?: string;
+  uploadDate: string;
+  uploadedBy: string;
+  dashboardUrl: string;
+}
+
+export async function sendDocumentUploadedEmail(data: DocumentUploadedEmailData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    
+    const descriptionHtml = data.description 
+      ? `<p style="margin: 10px 0;"><strong>Description:</strong> ${data.description}</p>`
+      : '';
+
+    const result = await client.emails.send({
+      from: fromEmail || 'SONSIEL Mentorship Hub <noreply@sonsiel.org>',
+      to: data.email,
+      subject: `[SONSIEL Mentorship] New Resource Available: ${data.documentTitle}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">New Resource Available</h1>
+          </div>
+          
+          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <p style="font-size: 16px;">Hello ${data.recipientName},</p>
+            
+            <p>A new document has been uploaded to the platform.</p>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+              <h3 style="margin: 0 0 15px 0; color: #667eea;">${data.documentTitle}</h3>
+              ${descriptionHtml}
+              <p style="margin: 10px 0;"><strong>Upload Date:</strong> ${data.uploadDate}</p>
+              <p style="margin: 10px 0;"><strong>Uploaded by:</strong> ${data.uploadedBy}</p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.dashboardUrl}/documents" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">View Documents</a>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">Access all resources in your Documents library.</p>
+          </div>
+          
+          <p style="text-align: center; font-size: 12px; color: #9ca3af; margin-top: 20px;">
+            SONSIEL Mentorship Hub - Empowering Healthcare Professionals
+          </p>
+        </body>
+        </html>
+      `,
+    });
+
+    if (result.error) {
+      return { success: false, error: result.error.message };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to send document uploaded email:', error);
+    return { success: false, error: error.message || 'Failed to send email' };
+  }
+}
+
+export interface NewMessageEmailData {
+  email: string;
+  recipientName: string;
+  senderName: string;
+  messagePreview: string;
+  timestamp: string;
+  dashboardUrl: string;
+}
+
+export async function sendNewMessageEmail(data: NewMessageEmailData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    
+    const truncatedMessage = data.messagePreview.length > 100 
+      ? data.messagePreview.substring(0, 100) + '...' 
+      : data.messagePreview;
+
+    const result = await client.emails.send({
+      from: fromEmail || 'SONSIEL Mentorship Hub <noreply@sonsiel.org>',
+      to: data.email,
+      subject: `[SONSIEL Mentorship] New Message from ${data.senderName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">New Message</h1>
+          </div>
+          
+          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <p style="font-size: 16px;">Hello ${data.recipientName},</p>
+            
+            <p>You have received a new message from <strong>${data.senderName}</strong>.</p>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+              <p style="margin: 0 0 10px 0; font-weight: 600;">From: ${data.senderName}</p>
+              <p style="margin: 10px 0; font-style: italic; color: #4b5563;">"${truncatedMessage}"</p>
+              <p style="margin: 10px 0 0 0; font-size: 12px; color: #9ca3af;">${data.timestamp}</p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.dashboardUrl}/messages" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">View Messages</a>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">Reply to continue the conversation.</p>
+          </div>
+          
+          <p style="text-align: center; font-size: 12px; color: #9ca3af; margin-top: 20px;">
+            SONSIEL Mentorship Hub - Empowering Healthcare Professionals
+          </p>
+        </body>
+        </html>
+      `,
+    });
+
+    if (result.error) {
+      return { success: false, error: result.error.message };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to send new message email:', error);
+    return { success: false, error: error.message || 'Failed to send email' };
+  }
+}
+
+export interface GoalUpdateEmailData {
+  email: string;
+  recipientName: string;
+  goalTitle: string;
+  updateType: 'new_goal' | 'goal_modified' | 'new_comment';
+  preview?: string;
+  updatedBy: string;
+  dashboardUrl: string;
+}
+
+export async function sendGoalUpdateEmail(data: GoalUpdateEmailData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    
+    const updateTypeLabels = {
+      'new_goal': 'New Goal Created',
+      'goal_modified': 'Goal Modified',
+      'new_comment': 'New Comment on Goal'
+    };
+    
+    const updateTypeDescriptions = {
+      'new_goal': 'A new goal has been created',
+      'goal_modified': 'A goal has been updated',
+      'new_comment': 'A new comment has been added to a goal'
+    };
+    
+    const previewHtml = data.preview 
+      ? `<p style="margin: 10px 0; font-style: italic; color: #4b5563;">"${data.preview.length > 200 ? data.preview.substring(0, 200) + '...' : data.preview}"</p>`
+      : '';
+
+    const result = await client.emails.send({
+      from: fromEmail || 'SONSIEL Mentorship Hub <noreply@sonsiel.org>',
+      to: data.email,
+      subject: `[SONSIEL Mentorship] Goal Update: ${data.goalTitle}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">${updateTypeLabels[data.updateType]}</h1>
+          </div>
+          
+          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <p style="font-size: 16px;">Hello ${data.recipientName},</p>
+            
+            <p>${updateTypeDescriptions[data.updateType]} by <strong>${data.updatedBy}</strong>.</p>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+              <h3 style="margin: 0 0 15px 0; color: #667eea;">${data.goalTitle}</h3>
+              <p style="margin: 10px 0;"><strong>Update Type:</strong> ${updateTypeLabels[data.updateType]}</p>
+              ${previewHtml}
+              <p style="margin: 10px 0;"><strong>Updated by:</strong> ${data.updatedBy}</p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.dashboardUrl}/goals" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">View Goals</a>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">Track progress on all goals from your dashboard.</p>
+          </div>
+          
+          <p style="text-align: center; font-size: 12px; color: #9ca3af; margin-top: 20px;">
+            SONSIEL Mentorship Hub - Empowering Healthcare Professionals
+          </p>
+        </body>
+        </html>
+      `,
+    });
+
+    if (result.error) {
+      return { success: false, error: result.error.message };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to send goal update email:', error);
+    return { success: false, error: error.message || 'Failed to send email' };
+  }
+}
