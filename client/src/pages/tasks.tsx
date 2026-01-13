@@ -128,6 +128,7 @@ const taskFormSchema = z.object({
   category: z.enum(["ADMIN_TASK", "MENTOR_TASK", "SELF_TASK", "GOAL_TASK"]).default("SELF_TASK"),
   dueDate: z.string().optional(),
   estimatedHours: z.union([z.coerce.number().positive(), z.literal("")]).optional().transform(val => val === "" ? undefined : val),
+  assignedToId: z.string().optional(),
 });
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
@@ -299,6 +300,7 @@ export default function TasksPage() {
       description: "",
       priority: "MEDIUM",
       category: "SELF_TASK",
+      assignedToId: "",
     },
   });
 
@@ -309,8 +311,46 @@ export default function TasksPage() {
       description: "",
       priority: "MEDIUM",
       category: "SELF_TASK",
+      assignedToId: "",
     },
   });
+
+  // Fetch user's matches to get mentees (for mentors) or mentors (for mentees)
+  interface MatchUser {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email?: string;
+  }
+  interface Match {
+    id: string;
+    status: string;
+    mentor?: MatchUser;
+    mentee?: MatchUser;
+  }
+  const { data: matches = [] } = useQuery<Match[]>({
+    queryKey: ["/api/matches/my"],
+  });
+
+  // Get assignable users based on user role
+  const assignableUsers = (() => {
+    if (!user) return [];
+    const isMentor = user.role === "MENTOR" || user.role === "ADMIN" || user.role === "SUPER_ADMIN";
+    
+    if (isMentor) {
+      // Mentors can assign to their mentees
+      return matches
+        .filter(m => m.status === "ACTIVE" && m.mentor?.id === user.id && m.mentee)
+        .map(m => ({
+          id: m.mentee!.id,
+          name: `${m.mentee!.firstName} ${m.mentee!.lastName}`,
+          type: "Mentee",
+        }));
+    } else {
+      // Mentees can only assign to themselves (handled by default)
+      return [];
+    }
+  })();
 
   const { data: tasks, isLoading } = useQuery<Task[]>({
     queryKey: ["/api/tasks", statusFilter, priorityFilter, categoryFilter, showOverdueOnly, searchQuery],
@@ -337,6 +377,7 @@ export default function TasksPage() {
         category: data.category,
         dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : undefined,
         estimatedHours: data.estimatedHours || undefined,
+        assignedToId: data.assignedToId || undefined,
       });
       return response.json();
     },
@@ -402,6 +443,7 @@ export default function TasksPage() {
         category: data.category,
         dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null,
         estimatedHours: data.estimatedHours || null,
+        assignedToId: data.assignedToId || null,
       },
     });
     setIsEditingTask(false);
@@ -416,6 +458,7 @@ export default function TasksPage() {
       category: (selectedTask.category as TaskCategory) || "SELF_TASK",
       dueDate: selectedTask.dueDate ? new Date(selectedTask.dueDate).toISOString().split("T")[0] : "",
       estimatedHours: selectedTask.estimatedHours || undefined,
+      assignedToId: selectedTask.assignedToId || "",
     });
     setIsEditingTask(true);
   };
@@ -874,6 +917,34 @@ export default function TasksPage() {
                 />
               </div>
 
+              {assignableUsers.length > 0 && (
+                <FormField
+                  control={form.control}
+                  name="assignedToId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Assign To</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-task-assignee">
+                            <SelectValue placeholder="Assign to yourself (default)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="">Myself</SelectItem>
+                          {assignableUsers.map((assignee) => (
+                            <SelectItem key={assignee.id} value={assignee.id}>
+                              {assignee.name} ({assignee.type})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <DialogFooter>
                 <Button
                   type="button"
@@ -1048,6 +1119,34 @@ export default function TasksPage() {
                       />
                     </div>
 
+                    {assignableUsers.length > 0 && (
+                      <FormField
+                        control={editForm.control}
+                        name="assignedToId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Assign To</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value || ""}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-edit-task-assignee">
+                                  <SelectValue placeholder="Assign to yourself (default)" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="">Myself</SelectItem>
+                                {assignableUsers.map((assignee) => (
+                                  <SelectItem key={assignee.id} value={assignee.id}>
+                                    {assignee.name} ({assignee.type})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
                     <DialogFooter>
                       <Button
                         type="button"
@@ -1093,6 +1192,20 @@ export default function TasksPage() {
                         </p>
                       </div>
                     </div>
+
+                    {selectedTask.assignedToId && (
+                      <div>
+                        <Label className="text-muted-foreground">Assigned To</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span>
+                            {selectedTask.assignedToId === user?.id 
+                              ? "Myself" 
+                              : assignableUsers.find(u => u.id === selectedTask.assignedToId)?.name || "Another user"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                       {selectedTask.dueDate && (
