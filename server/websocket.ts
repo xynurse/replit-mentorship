@@ -97,12 +97,59 @@ export function setupWebSocket(httpServer: HTTPServer, sessionMiddleware: Reques
 
         io.to(`conversation:${data.conversationId}`).emit("message:new", fullMessage);
 
-        for (const p of participants) {
-          if (p.userId !== userId) {
-            io.to(`user:${p.userId}`).emit("notification:unread", {
-              conversationId: data.conversationId,
-              messageId: message.id,
-            });
+        // Send notifications to other participants (for direct messages)
+        const conversation = await storage.getConversation(data.conversationId);
+        if (sender && conversation && conversation.type === "DIRECT") {
+          const { sendNewMessageEmail, getTrustedBaseUrl } = await import("./email");
+          const baseUrl = getTrustedBaseUrl();
+          
+          for (const p of participants) {
+            if (p.userId !== userId) {
+              const recipient = await storage.getUser(p.userId);
+              if (recipient) {
+                // Create in-app notification
+                await storage.createNotification({
+                  userId: p.userId,
+                  type: "NEW_MESSAGE",
+                  title: "New Message",
+                  message: `${sender.firstName} ${sender.lastName} sent you a message`,
+                  priority: "NORMAL",
+                  resourceId: data.conversationId,
+                  resourceType: "MESSAGE",
+                });
+                
+                // Send real-time notification via socket
+                io.to(`user:${p.userId}`).emit("notification:unread", {
+                  conversationId: data.conversationId,
+                  messageId: message.id,
+                });
+                
+                // Emit notification count update
+                io.to(`user:${p.userId}`).emit("notification:count", {});
+                
+                // Send email notification (fire-and-forget, don't block)
+                Promise.resolve().then(() => 
+                  sendNewMessageEmail({
+                    email: recipient.email,
+                    recipientName: `${recipient.firstName} ${recipient.lastName}`,
+                    senderName: `${sender.firstName} ${sender.lastName}`,
+                    messagePreview: data.content,
+                    timestamp: new Date().toLocaleString(),
+                    dashboardUrl: baseUrl,
+                  }).catch((err: Error) => console.error('Failed to send new message email:', err))
+                );
+              }
+            }
+          }
+        } else {
+          // For non-direct messages, just send socket notifications
+          for (const p of participants) {
+            if (p.userId !== userId) {
+              io.to(`user:${p.userId}`).emit("notification:unread", {
+                conversationId: data.conversationId,
+                messageId: message.id,
+              });
+            }
           }
         }
       } catch (error) {

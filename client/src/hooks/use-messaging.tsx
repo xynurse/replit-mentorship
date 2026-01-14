@@ -120,7 +120,22 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on("message:new", (message: MessageWithSender) => {
       setMessages(prev => {
+        // Check if we already have this exact message
         if (prev.some(m => m.id === message.id)) return prev;
+        // Replace any optimistic (temp) message with matching content from same sender
+        const tempMsgIndex = prev.findIndex(m => 
+          m.id && 
+          typeof m.id === 'string' && 
+          m.id.startsWith('temp-') && 
+          m.senderId === message.senderId && 
+          m.content === message.content &&
+          m.conversationId === message.conversationId
+        );
+        if (tempMsgIndex >= 0) {
+          const updated = [...prev];
+          updated[tempMsgIndex] = message;
+          return updated;
+        }
         return [...prev, message];
       });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
@@ -168,6 +183,16 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
     });
 
+    // Handle errors - remove any pending optimistic messages
+    newSocket.on("error", () => {
+      setMessages(prev => prev.filter(m => !(m.id && typeof m.id === 'string' && m.id.startsWith('temp-'))));
+    });
+
+    // Clean up optimistic messages on disconnect
+    newSocket.on("disconnect", () => {
+      setMessages(prev => prev.filter(m => !(m.id && typeof m.id === 'string' && m.id.startsWith('temp-'))));
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -186,14 +211,53 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
   }, [socket, isConnected, activeConversation]);
 
   const sendMessage = useCallback(async (content: string, replyToId?: string) => {
-    if (!socket || !isConnected || !activeConversation) {
-      const res = await apiRequest("POST", `/api/conversations/${activeConversation?.id}/messages`, {
-        content,
-        replyToId,
-      });
-      const message = await res.json();
-      setMessages(prev => [...prev, message]);
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    if (!activeConversation) return;
+    
+    // Create optimistic message for immediate display
+    const optimisticMessage = {
+      id: `temp-${Date.now()}`,
+      conversationId: activeConversation.id,
+      senderId: user?.id || "",
+      content,
+      messageType: "TEXT" as const,
+      replyToId: replyToId || null,
+      isEdited: false,
+      editedAt: null,
+      isDeleted: false,
+      deletedAt: null,
+      isPinned: false,
+      reactions: {},
+      metadata: {},
+      createdAt: new Date().toISOString(),
+      sender: user ? { 
+        id: user.id, 
+        firstName: user.firstName, 
+        lastName: user.lastName, 
+        profileImage: user.profileImage 
+      } : null,
+      attachments: [],
+    };
+    
+    // Add optimistic message immediately
+    setMessages(prev => [...prev, optimisticMessage as any]);
+    
+    if (!socket || !isConnected) {
+      // Fall back to REST API
+      try {
+        const res = await apiRequest("POST", `/api/conversations/${activeConversation.id}/messages`, {
+          content,
+          replyToId,
+        });
+        const message = await res.json();
+        // Replace optimistic message with real one
+        setMessages(prev => prev.map(m => 
+          m.id === optimisticMessage.id ? message : m
+        ));
+        queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      } catch (error) {
+        // Remove optimistic message on error
+        setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+      }
       return;
     }
 
@@ -202,7 +266,7 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
       content,
       replyToId,
     });
-  }, [socket, isConnected, activeConversation, queryClient]);
+  }, [socket, isConnected, activeConversation, user, queryClient]);
 
   const startTyping = useCallback(() => {
     if (!socket || !isConnected || !activeConversation) return;
