@@ -9,6 +9,7 @@ import {
   mentorProfiles, professionalProfiles, mentorshipRoles, menteeProfiles, mentorProfilesExtended,
   calendarEvents, calendarEventParticipants,
   communityBoardAccess, threadCategories, communityThreads, threadReplies,
+  menteeBoardAccess, menteeThreadCategories, menteeThreads, menteeThreadReplies,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -36,7 +37,11 @@ import {
   type CommunityBoardAccess, type InsertCommunityBoardAccess,
   type ThreadCategory, type InsertThreadCategory,
   type CommunityThread, type InsertCommunityThread,
-  type ThreadReply, type InsertThreadReply
+  type ThreadReply, type InsertThreadReply,
+  type MenteeBoardAccess, type InsertMenteeBoardAccess,
+  type MenteeThreadCategory, type InsertMenteeThreadCategory,
+  type MenteeThread, type InsertMenteeThread,
+  type MenteeThreadReply, type InsertMenteeThreadReply
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -3116,6 +3121,260 @@ export class DatabaseStorage implements IStorage {
 
   async getThreadReply(id: string): Promise<ThreadReply | undefined> {
     const [reply] = await db.select().from(threadReplies).where(eq(threadReplies.id, id));
+    return reply || undefined;
+  }
+
+  // Mentee Board Access
+  async getMenteeBoardAccess(userId: string): Promise<MenteeBoardAccess | undefined> {
+    const [access] = await db.select().from(menteeBoardAccess).where(eq(menteeBoardAccess.userId, userId));
+    return access || undefined;
+  }
+
+  async grantMenteeBoardAccess(userId: string, grantedBy?: string): Promise<MenteeBoardAccess> {
+    const existing = await this.getMenteeBoardAccess(userId);
+    if (existing) {
+      const [updated] = await db.update(menteeBoardAccess)
+        .set({ status: 'ACTIVE', revokedAt: null, revokedBy: null, revokedReason: null, updatedAt: new Date() })
+        .where(eq(menteeBoardAccess.userId, userId))
+        .returning();
+      return updated;
+    }
+    const [access] = await db.insert(menteeBoardAccess).values({
+      userId,
+      status: 'ACTIVE',
+      grantedBy,
+      grantedAt: new Date()
+    }).returning();
+    return access;
+  }
+
+  async revokeMenteeBoardAccess(userId: string, revokedBy: string, reason?: string): Promise<MenteeBoardAccess | undefined> {
+    const [access] = await db.update(menteeBoardAccess)
+      .set({ 
+        status: 'REVOKED', 
+        revokedAt: new Date(), 
+        revokedBy, 
+        revokedReason: reason,
+        updatedAt: new Date() 
+      })
+      .where(eq(menteeBoardAccess.userId, userId))
+      .returning();
+    return access || undefined;
+  }
+
+  async getAllMenteeBoardAccess(): Promise<(MenteeBoardAccess & { user: User })[]> {
+    const results = await db.select()
+      .from(menteeBoardAccess)
+      .innerJoin(users, eq(menteeBoardAccess.userId, users.id))
+      .orderBy(desc(menteeBoardAccess.createdAt));
+    return results.map(r => ({ ...r.mentee_board_access, user: r.users }));
+  }
+
+  // Mentee Thread Categories
+  async getMenteeThreadCategories(activeOnly: boolean = true): Promise<MenteeThreadCategory[]> {
+    if (activeOnly) {
+      return await db.select().from(menteeThreadCategories)
+        .where(eq(menteeThreadCategories.isActive, true))
+        .orderBy(asc(menteeThreadCategories.sortOrder));
+    }
+    return await db.select().from(menteeThreadCategories).orderBy(asc(menteeThreadCategories.sortOrder));
+  }
+
+  async getMenteeThreadCategory(id: string): Promise<MenteeThreadCategory | undefined> {
+    const [category] = await db.select().from(menteeThreadCategories).where(eq(menteeThreadCategories.id, id));
+    return category || undefined;
+  }
+
+  async createMenteeThreadCategory(data: InsertMenteeThreadCategory): Promise<MenteeThreadCategory> {
+    const [category] = await db.insert(menteeThreadCategories).values(data).returning();
+    return category;
+  }
+
+  async updateMenteeThreadCategory(id: string, data: Partial<MenteeThreadCategory>): Promise<MenteeThreadCategory | undefined> {
+    const [category] = await db.update(menteeThreadCategories)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(menteeThreadCategories.id, id))
+      .returning();
+    return category || undefined;
+  }
+
+  // Mentee Threads
+  async getMenteeThreads(options?: {
+    categoryId?: string;
+    search?: string;
+    sortBy?: 'recent' | 'created' | 'replies';
+    limit?: number;
+    offset?: number;
+  }): Promise<(MenteeThread & { author: User; category?: MenteeThreadCategory; lastReplyBy?: User })[]> {
+    const conditions = [isNull(menteeThreads.deletedAt)];
+    
+    if (options?.categoryId) {
+      conditions.push(eq(menteeThreads.categoryId, options.categoryId));
+    }
+    
+    if (options?.search) {
+      const searchTerm = `%${options.search}%`;
+      conditions.push(
+        or(
+          like(menteeThreads.title, searchTerm),
+          like(menteeThreads.content, searchTerm)
+        )!
+      );
+    }
+
+    const authorAlias = alias(users, 'author');
+    const lastReplyByAlias = alias(users, 'lastReplyBy');
+
+    let query = db.select({
+      thread: menteeThreads,
+      author: authorAlias,
+      category: menteeThreadCategories,
+      lastReplyBy: lastReplyByAlias
+    })
+    .from(menteeThreads)
+    .innerJoin(authorAlias, eq(menteeThreads.authorId, authorAlias.id))
+    .leftJoin(menteeThreadCategories, eq(menteeThreads.categoryId, menteeThreadCategories.id))
+    .leftJoin(lastReplyByAlias, eq(menteeThreads.lastReplyById, lastReplyByAlias.id))
+    .where(and(...conditions));
+
+    const orderBy = options?.sortBy === 'created' 
+      ? desc(menteeThreads.createdAt)
+      : options?.sortBy === 'replies'
+        ? desc(menteeThreads.replyCount)
+        : desc(menteeThreads.lastActivityAt);
+
+    const results = await query
+      .orderBy(desc(menteeThreads.isPinned), orderBy)
+      .limit(options?.limit || 50)
+      .offset(options?.offset || 0);
+
+    return results.map(r => ({
+      ...r.thread,
+      author: r.author,
+      category: r.category || undefined,
+      lastReplyBy: r.lastReplyBy || undefined
+    }));
+  }
+
+  async getMenteeThread(id: string): Promise<(MenteeThread & { author: User; category?: MenteeThreadCategory }) | undefined> {
+    const authorAlias = alias(users, 'author');
+    const [result] = await db.select({
+      thread: menteeThreads,
+      author: authorAlias,
+      category: menteeThreadCategories
+    })
+    .from(menteeThreads)
+    .innerJoin(authorAlias, eq(menteeThreads.authorId, authorAlias.id))
+    .leftJoin(menteeThreadCategories, eq(menteeThreads.categoryId, menteeThreadCategories.id))
+    .where(and(eq(menteeThreads.id, id), isNull(menteeThreads.deletedAt)));
+
+    if (!result) return undefined;
+    return {
+      ...result.thread,
+      author: result.author,
+      category: result.category || undefined
+    };
+  }
+
+  async createMenteeThread(data: InsertMenteeThread): Promise<MenteeThread> {
+    const [thread] = await db.insert(menteeThreads).values({
+      ...data,
+      lastActivityAt: new Date()
+    }).returning();
+    return thread;
+  }
+
+  async updateMenteeThread(id: string, data: Partial<MenteeThread>): Promise<MenteeThread | undefined> {
+    const [thread] = await db.update(menteeThreads)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(menteeThreads.id, id))
+      .returning();
+    return thread || undefined;
+  }
+
+  async deleteMenteeThread(id: string): Promise<void> {
+    await db.update(menteeThreads)
+      .set({ deletedAt: new Date() })
+      .where(eq(menteeThreads.id, id));
+  }
+
+  async incrementMenteeThreadViewCount(id: string): Promise<void> {
+    await db.update(menteeThreads)
+      .set({ viewCount: sql`${menteeThreads.viewCount} + 1` })
+      .where(eq(menteeThreads.id, id));
+  }
+
+  async pinMenteeThread(id: string, pinnedBy: string): Promise<MenteeThread | undefined> {
+    const [thread] = await db.update(menteeThreads)
+      .set({ isPinned: true, pinnedAt: new Date(), pinnedBy, updatedAt: new Date() })
+      .where(eq(menteeThreads.id, id))
+      .returning();
+    return thread || undefined;
+  }
+
+  async unpinMenteeThread(id: string): Promise<MenteeThread | undefined> {
+    const [thread] = await db.update(menteeThreads)
+      .set({ isPinned: false, pinnedAt: null, pinnedBy: null, updatedAt: new Date() })
+      .where(eq(menteeThreads.id, id))
+      .returning();
+    return thread || undefined;
+  }
+
+  // Mentee Thread Replies
+  async getMenteeThreadReplies(threadId: string): Promise<(MenteeThreadReply & { author: User })[]> {
+    const authorAlias = alias(users, 'author');
+    const results = await db.select({
+      reply: menteeThreadReplies,
+      author: authorAlias
+    })
+    .from(menteeThreadReplies)
+    .innerJoin(authorAlias, eq(menteeThreadReplies.authorId, authorAlias.id))
+    .where(and(eq(menteeThreadReplies.threadId, threadId), isNull(menteeThreadReplies.deletedAt)))
+    .orderBy(asc(menteeThreadReplies.createdAt));
+
+    return results.map(r => ({ ...r.reply, author: r.author }));
+  }
+
+  async createMenteeThreadReply(data: InsertMenteeThreadReply): Promise<MenteeThreadReply> {
+    const [reply] = await db.insert(menteeThreadReplies).values(data).returning();
+    
+    // Update thread reply count and last activity
+    await db.update(menteeThreads)
+      .set({ 
+        replyCount: sql`${menteeThreads.replyCount} + 1`,
+        lastActivityAt: new Date(),
+        lastReplyById: data.authorId,
+        updatedAt: new Date()
+      })
+      .where(eq(menteeThreads.id, data.threadId));
+    
+    return reply;
+  }
+
+  async updateMenteeThreadReply(id: string, content: string): Promise<MenteeThreadReply | undefined> {
+    const [reply] = await db.update(menteeThreadReplies)
+      .set({ content, isEdited: true, editedAt: new Date(), updatedAt: new Date() })
+      .where(eq(menteeThreadReplies.id, id))
+      .returning();
+    return reply || undefined;
+  }
+
+  async deleteMenteeThreadReply(id: string): Promise<void> {
+    const [reply] = await db.select().from(menteeThreadReplies).where(eq(menteeThreadReplies.id, id));
+    if (reply) {
+      await db.update(menteeThreadReplies)
+        .set({ deletedAt: new Date() })
+        .where(eq(menteeThreadReplies.id, id));
+      
+      // Decrement thread reply count
+      await db.update(menteeThreads)
+        .set({ replyCount: sql`GREATEST(${menteeThreads.replyCount} - 1, 0)` })
+        .where(eq(menteeThreads.id, reply.threadId));
+    }
+  }
+
+  async getMenteeThreadReply(id: string): Promise<MenteeThreadReply | undefined> {
+    const [reply] = await db.select().from(menteeThreadReplies).where(eq(menteeThreadReplies.id, id));
     return reply || undefined;
   }
 }

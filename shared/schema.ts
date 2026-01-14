@@ -1428,3 +1428,115 @@ export const insertThreadReplySchema = createInsertSchema(threadReplies).omit({
 
 export type ThreadReply = typeof threadReplies.$inferSelect;
 export type InsertThreadReply = z.infer<typeof insertThreadReplySchema>;
+
+// Mentee Board Access Control
+export const menteeBoardAccessStatusEnum = pgEnum("mentee_board_access_status", [
+  "ACTIVE",
+  "REVOKED"
+]);
+
+export const menteeBoardAccess = pgTable("mentee_board_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  status: menteeBoardAccessStatusEnum("status").default("ACTIVE"),
+  revokedAt: timestamp("revoked_at"),
+  revokedBy: varchar("revoked_by").references(() => users.id),
+  revokedReason: text("revoked_reason"),
+  grantedAt: timestamp("granted_at").defaultNow(),
+  grantedBy: varchar("granted_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMenteeBoardAccessSchema = createInsertSchema(menteeBoardAccess).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MenteeBoardAccess = typeof menteeBoardAccess.$inferSelect;
+export type InsertMenteeBoardAccess = z.infer<typeof insertMenteeBoardAccessSchema>;
+
+// Mentee Thread Categories
+export const menteeThreadCategories = pgTable("mentee_thread_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  color: text("color").default("#6366F1"),
+  icon: text("icon"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMenteeThreadCategorySchema = createInsertSchema(menteeThreadCategories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MenteeThreadCategory = typeof menteeThreadCategories.$inferSelect;
+export type InsertMenteeThreadCategory = z.infer<typeof insertMenteeThreadCategorySchema>;
+
+// Mentee Community Threads
+export const menteeThreads = pgTable("mentee_threads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  categoryId: varchar("category_id").references(() => menteeThreadCategories.id),
+  isPinned: boolean("is_pinned").default(false),
+  pinnedAt: timestamp("pinned_at"),
+  pinnedBy: varchar("pinned_by").references(() => users.id),
+  isLocked: boolean("is_locked").default(false),
+  lockedAt: timestamp("locked_at"),
+  lockedBy: varchar("locked_by").references(() => users.id),
+  replyCount: integer("reply_count").default(0),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  lastReplyById: varchar("last_reply_by_id").references(() => users.id),
+  viewCount: integer("view_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const insertMenteeThreadSchema = createInsertSchema(menteeThreads).omit({
+  id: true,
+  replyCount: true,
+  viewCount: true,
+  lastActivityAt: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export type MenteeThread = typeof menteeThreads.$inferSelect;
+export type InsertMenteeThread = z.infer<typeof insertMenteeThreadSchema>;
+
+// Mentee Thread Replies
+export const menteeThreadReplies = pgTable("mentee_thread_replies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  threadId: varchar("thread_id").notNull().references(() => menteeThreads.id),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  parentReplyId: varchar("parent_reply_id"),
+  isEdited: boolean("is_edited").default(false),
+  editedAt: timestamp("edited_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const insertMenteeThreadReplySchema = createInsertSchema(menteeThreadReplies).omit({
+  id: true,
+  isEdited: true,
+  editedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export type MenteeThreadReply = typeof menteeThreadReplies.$inferSelect;
+export type InsertMenteeThreadReply = z.infer<typeof insertMenteeThreadReplySchema>;
