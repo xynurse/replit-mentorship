@@ -22,6 +22,7 @@ import {
   UserCheck,
   Link2,
   Calendar,
+  UsersRound,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -63,6 +64,7 @@ const adminMenuItems = [
   { title: "Connections", url: "/admin/connections", icon: Link2 },
   { title: "Mentor Profiles", url: "/admin/mentor-profiles", icon: UserCog },
   { title: "Mentee Profiles", url: "/admin/mentee-profiles", icon: UserCheck },
+  { title: "Community", url: "/admin/community", icon: UsersRound },
   { title: "Cohorts", url: "/admin/cohorts", icon: GraduationCap },
   { title: "Applications", url: "/admin/applications", icon: ClipboardList },
   { title: "Task Analytics", url: "/admin/tasks", icon: ListTodo },
