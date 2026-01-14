@@ -18,6 +18,7 @@ import {
   Target,
   Award,
   UsersRound,
+  GraduationCap,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
@@ -72,14 +73,16 @@ const getNavItems = (role: UserRole) => {
     { title: "Admin Panel", url: "/admin", icon: Shield },
   ];
 
-  const communityItem = { title: "Community", url: "/community", icon: UsersRound };
+  const mentorCommunityItem = { title: "Mentor Community", url: "/community", icon: UsersRound };
+  const menteeCommunityItem = { title: "Mentee Community", url: "/mentee-community", icon: GraduationCap };
 
   if (role === "SUPER_ADMIN" || role === "ADMIN") {
     return [
       ...baseItems.slice(0, 3),
       { title: "Goals", url: "/goals", icon: Target },
       ...baseItems.slice(3),
-      communityItem,
+      mentorCommunityItem,
+      menteeCommunityItem,
       ...adminItems
     ];
   }
@@ -89,16 +92,17 @@ const getNavItems = (role: UserRole) => {
       ...baseItems,
       { title: "My Mentees", url: "/connections", icon: Users },
       { title: "Mentee Goals", url: "/goals", icon: Target },
-      communityItem,
+      mentorCommunityItem,
     ];
   }
 
-  // Mentee - has their own Goals
+  // Mentee - has their own Goals and Community
   return [
     ...baseItems.slice(0, 3),
     { title: "Goals", url: "/goals", icon: Target },
     ...baseItems.slice(3),
     { title: "My Mentor", url: "/connections", icon: Users },
+    menteeCommunityItem,
   ];
 };
 
