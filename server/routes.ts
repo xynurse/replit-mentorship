@@ -507,9 +507,8 @@ export async function registerRoutes(
       const { sendWelcomeEmail } = await import("./email");
       const crypto = await import("crypto");
       
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const host = req.headers.host || 'localhost:5000';
-      const loginUrl = `${protocol}://${host}/login`;
+      // Use production URL for welcome emails
+      const loginUrl = 'https://mentorship.sonsiel.org/login';
 
       const results = {
         successful: [] as { userId: string; email: string }[],
