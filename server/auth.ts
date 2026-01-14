@@ -317,19 +317,28 @@ export function setupAuth(app: Express) {
   app.post("/api/reset-password", passwordResetRateLimiter, async (req, res, next) => {
     try {
       const { token, password } = req.body;
+      console.log(`[RESET PASSWORD DEBUG] Attempting to reset password with token: ${token ? token.substring(0, 10) + '...' : 'missing'}`);
       
       if (!token || !password) {
+        console.log(`[RESET PASSWORD DEBUG] FAILED - Token or password missing. Token: ${!!token}, Password: ${!!password}`);
         return res.status(400).json({ message: "Token and password are required" });
       }
 
       if (password.length < 8) {
+        console.log(`[RESET PASSWORD DEBUG] FAILED - Password too short (${password.length} chars)`);
         return res.status(400).json({ message: "Password must be at least 8 characters" });
       }
 
       const user = await storage.getUserByPasswordResetToken(token);
+      console.log(`[RESET PASSWORD DEBUG] User found by token: ${!!user}`);
+      
       if (!user) {
+        console.log(`[RESET PASSWORD DEBUG] FAILED - Invalid or expired reset token`);
         return res.status(400).json({ message: "Invalid or expired reset token" });
       }
+      
+      console.log(`[RESET PASSWORD DEBUG] Resetting password for user: ${user.firstName} ${user.lastName} (${user.email})`);
+      console.log(`[RESET PASSWORD DEBUG] Token expires: ${user.passwordResetExpires}, Current time: ${new Date().toISOString()}`);
 
       const hashedPassword = await hashPassword(password);
 
@@ -341,8 +350,10 @@ export function setupAuth(app: Express) {
         lockedUntil: null,
       });
 
+      console.log(`[RESET PASSWORD DEBUG] SUCCESS - Password reset completed for ${user.email}`);
       res.json({ message: "Password reset successful" });
     } catch (error) {
+      console.error(`[RESET PASSWORD DEBUG] ERROR - Exception:`, error);
       next(error);
     }
   });
