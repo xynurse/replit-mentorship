@@ -5169,6 +5169,448 @@ export async function registerRoutes(
     }
   });
 
+  // ================== MENTEE COMMUNITY BOARD ==================
+  
+  // Check mentee board access status
+  app.get("/api/mentee-community/access", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can access mentee community
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ 
+          hasAccess: false, 
+          reason: "NOT_MENTEE",
+          message: "Mentee Community Board is only accessible to mentees."
+        });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ 
+            hasAccess: false, 
+            reason: "REVOKED",
+            message: "Your access to the Mentee Community Board has been revoked."
+          });
+        }
+      }
+      
+      res.json({ hasAccess: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Grant mentee board access
+  app.post("/api/admin/mentee-community/access/:userId/grant", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const adminUser = req.user as any;
+      const access = await storage.grantMenteeBoardAccess(req.params.userId, adminUser.id);
+      res.json(access);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Revoke mentee board access
+  app.post("/api/admin/mentee-community/access/:userId/revoke", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const adminUser = req.user as any;
+      const { reason } = req.body;
+      const access = await storage.revokeMenteeBoardAccess(req.params.userId, adminUser.id, reason);
+      res.json(access);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Get all mentee board access records
+  app.get("/api/admin/mentee-community/access", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const accessRecords = await storage.getAllMenteeBoardAccess();
+      res.json(accessRecords);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get mentee thread categories
+  app.get("/api/mentee-community/categories", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can access mentee community categories
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const categories = await storage.getMenteeThreadCategories(true);
+      res.json(categories);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Manage mentee thread categories
+  app.post("/api/admin/mentee-community/categories", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const category = await storage.createMenteeThreadCategory(req.body);
+      res.status(201).json(category);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/admin/mentee-community/categories/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const category = await storage.updateMenteeThreadCategory(req.params.id, req.body);
+      res.json(category);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get mentee threads
+  app.get("/api/mentee-community/threads", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can access mentee community threads
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const { categoryId, search, sortBy } = req.query;
+      const threads = await storage.getMenteeThreads({
+        categoryId: categoryId as string,
+        search: search as string,
+        sortBy: sortBy as 'recent' | 'created' | 'replies'
+      });
+      res.json(threads);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single mentee thread
+  app.get("/api/mentee-community/threads/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can access mentee community
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const thread = await storage.getMenteeThread(req.params.id);
+      if (!thread) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+      
+      // Increment view count
+      await storage.incrementMenteeThreadViewCount(req.params.id);
+      
+      res.json(thread);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create new mentee thread
+  app.post("/api/mentee-community/threads", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can create threads
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const { title, content, categoryId } = req.body;
+      const thread = await storage.createMenteeThread({
+        title,
+        content,
+        categoryId,
+        authorId: user.id,
+      });
+      res.status(201).json(thread);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update mentee thread (author only within 24 hours, or admin)
+  app.patch("/api/mentee-community/threads/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can access mentee community
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const thread = await storage.getMenteeThread(req.params.id);
+      
+      if (!thread) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+      
+      // Check if user can edit (author within 24 hours or admin)
+      const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(user.role);
+      const isAuthor = thread.authorId === user.id;
+      const withinEditWindow = thread.createdAt && (Date.now() - new Date(thread.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+      
+      if (!isAdmin && !(isAuthor && withinEditWindow)) {
+        return res.status(403).json({ message: "Cannot edit this thread. Editing is only allowed within 24 hours of creation." });
+      }
+      
+      const { title, content, categoryId } = req.body;
+      const updated = await storage.updateMenteeThread(req.params.id, { title, content, categoryId });
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete mentee thread (author only within 24 hours, or admin)
+  app.delete("/api/mentee-community/threads/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can access mentee community
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const thread = await storage.getMenteeThread(req.params.id);
+      
+      if (!thread) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+      
+      // Check if user can delete (author within 24 hours or admin)
+      const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(user.role);
+      const isAuthor = thread.authorId === user.id;
+      const withinEditWindow = thread.createdAt && (Date.now() - new Date(thread.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+      
+      if (!isAdmin && !(isAuthor && withinEditWindow)) {
+        return res.status(403).json({ message: "Cannot delete this thread. Deletion is only allowed within 24 hours of creation." });
+      }
+      
+      await storage.deleteMenteeThread(req.params.id);
+      res.json({ message: "Thread deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Pin/Unpin mentee thread
+  app.post("/api/mentee-community/threads/:id/pin", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const thread = await storage.pinMenteeThread(req.params.id, user.id);
+      res.json(thread);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/mentee-community/threads/:id/unpin", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const thread = await storage.unpinMenteeThread(req.params.id);
+      res.json(thread);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get mentee thread replies
+  app.get("/api/mentee-community/threads/:id/replies", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can access mentee community
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const replies = await storage.getMenteeThreadReplies(req.params.id);
+      res.json(replies);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create mentee reply
+  app.post("/api/mentee-community/threads/:id/replies", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can create replies
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const { content, parentReplyId } = req.body;
+      const reply = await storage.createMenteeThreadReply({
+        threadId: req.params.id,
+        authorId: user.id,
+        content,
+        parentReplyId,
+      });
+      res.status(201).json(reply);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update mentee reply (author only within 24 hours, or admin)
+  app.patch("/api/mentee-community/replies/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can access mentee community
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const reply = await storage.getMenteeThreadReply(req.params.id);
+      
+      if (!reply) {
+        return res.status(404).json({ message: "Reply not found" });
+      }
+      
+      // Check if user can edit (author within 24 hours or admin)
+      const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(user.role);
+      const isAuthor = reply.authorId === user.id;
+      const withinEditWindow = reply.createdAt && (Date.now() - new Date(reply.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+      
+      if (!isAdmin && !(isAuthor && withinEditWindow)) {
+        return res.status(403).json({ message: "Cannot edit this reply. Editing is only allowed within 24 hours of creation." });
+      }
+      
+      const { content } = req.body;
+      const updated = await storage.updateMenteeThreadReply(req.params.id, content);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete mentee reply (author only within 24 hours, or admin)
+  app.delete("/api/mentee-community/replies/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Only mentees and admins can access mentee community
+      if (!["MENTEE", "ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+        return res.status(403).json({ message: "Mentee community board access denied", reason: "NOT_MENTEE" });
+      }
+      
+      // Check access status for mentees
+      if (user.role === "MENTEE") {
+        const access = await storage.getMenteeBoardAccess(user.id);
+        if (access && access.status === "REVOKED") {
+          return res.status(403).json({ message: "Mentee community board access revoked", reason: "REVOKED" });
+        }
+      }
+      
+      const reply = await storage.getMenteeThreadReply(req.params.id);
+      
+      if (!reply) {
+        return res.status(404).json({ message: "Reply not found" });
+      }
+      
+      // Check if user can delete (author within 24 hours or admin)
+      const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(user.role);
+      const isAuthor = reply.authorId === user.id;
+      const withinEditWindow = reply.createdAt && (Date.now() - new Date(reply.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+      
+      if (!isAdmin && !(isAuthor && withinEditWindow)) {
+        return res.status(403).json({ message: "Cannot delete this reply. Deletion is only allowed within 24 hours of creation." });
+      }
+      
+      await storage.deleteMenteeThreadReply(req.params.id);
+      res.json({ message: "Reply deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return httpServer;
 }
 
