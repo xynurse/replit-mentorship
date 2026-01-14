@@ -103,34 +103,47 @@ export function setupAuth(app: Express) {
       { usernameField: "email" },
       async (email, password, done) => {
         try {
+          const normalizedEmail = email.toLowerCase().trim();
+          console.log(`[LOGIN DEBUG] Attempting login for email: "${normalizedEmail}" (original: "${email}")`);
+          
           const user = await storage.getUserByEmail(email);
           
           if (!user) {
+            console.log(`[LOGIN DEBUG] FAILED - User not found for email: "${normalizedEmail}"`);
             return done(null, false, { message: "Invalid email or password" });
           }
+          
+          console.log(`[LOGIN DEBUG] User found: ${user.firstName} ${user.lastName} (ID: ${user.id})`);
+          console.log(`[LOGIN DEBUG] Account status - isActive: ${user.isActive}, lockedUntil: ${user.lockedUntil}, failedAttempts: ${user.failedLoginAttempts}`);
+          console.log(`[LOGIN DEBUG] Password hash exists: ${!!user.password}, hash length: ${user.password?.length || 0}`);
 
           if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
             const minutesRemaining = Math.ceil(
               (new Date(user.lockedUntil).getTime() - Date.now()) / 60000
             );
+            console.log(`[LOGIN DEBUG] FAILED - Account locked for ${minutesRemaining} more minutes`);
             return done(null, false, { 
               message: `Account locked. Try again in ${minutesRemaining} minutes.` 
             });
           }
 
           if (!user.isActive) {
+            console.log(`[LOGIN DEBUG] FAILED - Account is deactivated`);
             return done(null, false, { message: "Account is deactivated" });
           }
 
           const isValid = await comparePasswords(password, user.password);
+          console.log(`[LOGIN DEBUG] Password comparison result: ${isValid}`);
           
           if (!isValid) {
+            console.log(`[LOGIN DEBUG] FAILED - Invalid password for user: ${user.email}`);
             await storage.incrementFailedLoginAttempts(user.id);
             
             const updatedUser = await storage.getUser(user.id);
             if (updatedUser && updatedUser.failedLoginAttempts && updatedUser.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
               const lockUntil = new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000);
               await storage.lockAccount(user.id, lockUntil);
+              console.log(`[LOGIN DEBUG] Account locked due to too many failed attempts`);
               return done(null, false, { 
                 message: `Too many failed attempts. Account locked for ${LOCKOUT_DURATION_MINUTES} minutes.` 
               });
@@ -139,11 +152,13 @@ export function setupAuth(app: Express) {
             return done(null, false, { message: "Invalid email or password" });
           }
 
+          console.log(`[LOGIN DEBUG] SUCCESS - Login successful for: ${user.email}`);
           await storage.resetFailedLoginAttempts(user.id);
           await storage.updateUser(user.id, { lastLoginAt: new Date() });
 
           return done(null, user);
         } catch (error) {
+          console.error(`[LOGIN DEBUG] ERROR - Exception during login:`, error);
           return done(error);
         }
       }
