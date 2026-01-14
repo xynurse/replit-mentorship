@@ -264,16 +264,22 @@ export function setupAuth(app: Express) {
   app.post("/api/forgot-password", passwordResetRateLimiter, async (req, res, next) => {
     try {
       const { email } = req.body;
+      console.log(`[PASSWORD RESET DEBUG] Reset requested for email: "${email}"`);
+      
       if (!email) {
+        console.log(`[PASSWORD RESET DEBUG] FAILED - No email provided`);
         return res.status(400).json({ message: "Email is required" });
       }
 
       const user = await storage.getUserByEmail(email);
+      console.log(`[PASSWORD RESET DEBUG] User found: ${!!user}`);
       
       // Always return success to prevent email enumeration attacks
       res.json({ message: "If an account exists, a password reset email has been sent." });
 
       if (user) {
+        console.log(`[PASSWORD RESET DEBUG] Processing reset for user: ${user.firstName} ${user.lastName} (${user.email})`);
+        
         const resetToken = generateToken();
         const resetExpires = new Date(Date.now() + 60 * 60 * 1000);
 
@@ -281,16 +287,11 @@ export function setupAuth(app: Express) {
           passwordResetToken: resetToken,
           passwordResetExpires: resetExpires,
         });
+        console.log(`[PASSWORD RESET DEBUG] Reset token saved to database, expires: ${resetExpires.toISOString()}`);
 
-        // Build the reset URL - use path parameter format to match frontend route
-        const baseUrl = process.env.REPLIT_DEPLOYMENT_URL
-          ? process.env.REPLIT_DEPLOYMENT_URL
-          : process.env.REPLIT_DEV_DOMAIN 
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-            : process.env.REPLIT_DOMAINS
-              ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-              : 'http://localhost:5000';
-        const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
+        // Use production URL for password reset emails
+        const resetUrl = `https://mentorship.sonsiel.org/reset-password/${resetToken}`;
+        console.log(`[PASSWORD RESET DEBUG] Reset URL generated: ${resetUrl}`);
 
         // Send the password reset email
         const emailResult = await sendPasswordResetEmail({
@@ -300,12 +301,15 @@ export function setupAuth(app: Express) {
         });
 
         if (!emailResult.success) {
-          console.error(`Failed to send password reset email to ${email}:`, emailResult.error);
+          console.error(`[PASSWORD RESET DEBUG] FAILED - Email send error for ${email}:`, emailResult.error);
         } else {
-          console.log(`Password reset email sent to ${email}`);
+          console.log(`[PASSWORD RESET DEBUG] SUCCESS - Password reset email sent to ${email}`);
         }
+      } else {
+        console.log(`[PASSWORD RESET DEBUG] No user found for email: "${email}" - no email sent`);
       }
     } catch (error) {
+      console.error(`[PASSWORD RESET DEBUG] ERROR - Exception:`, error);
       next(error);
     }
   });
