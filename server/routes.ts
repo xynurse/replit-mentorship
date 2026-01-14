@@ -2315,6 +2315,39 @@ export async function registerRoutes(
     }
   });
 
+  // Delete a message
+  app.delete("/api/conversations/:conversationId/messages/:messageId", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const userRole = (req.user as any).role;
+      const { conversationId, messageId } = req.params;
+      
+      const participants = await storage.getConversationParticipants(conversationId);
+      if (!participants.some(p => p.userId === userId)) {
+        return res.status(403).json({ message: "Not authorized to access this conversation" });
+      }
+      
+      const message = await storage.getMessage(messageId);
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+      
+      if (message.conversationId !== conversationId) {
+        return res.status(400).json({ message: "Message does not belong to this conversation" });
+      }
+      
+      const isAdmin = userRole === "SUPER_ADMIN" || userRole === "ADMIN";
+      if (message.senderId !== userId && !isAdmin) {
+        return res.status(403).json({ message: "Not authorized to delete this message" });
+      }
+      
+      await storage.deleteMessage(messageId);
+      res.json({ message: "Message deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Get online users
   app.get("/api/users/online", requireAuth, async (req, res, next) => {
     try {
@@ -3848,12 +3881,13 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Event not found" });
       }
       
-      if (event.createdById !== user.id) {
+      const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+      if (event.createdById !== user.id && !isAdmin) {
         return res.status(403).json({ message: "Not authorized to delete this event" });
       }
       
       await storage.deleteCalendarEvent(req.params.id);
-      res.status(204).send();
+      res.json({ message: "Event deleted" });
     } catch (error) {
       next(error);
     }

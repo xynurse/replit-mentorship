@@ -1255,14 +1255,19 @@ export default function TasksPage() {
                       variant="destructive"
                       onClick={() => {
                         if (confirm("Are you sure you want to delete this task?")) {
-                          deleteTaskMutation.mutate(selectedTask.id);
-                          setShowDetailDialog(false);
+                          deleteTaskMutation.mutate(selectedTask.id, {
+                            onSuccess: () => {
+                              setShowDetailDialog(false);
+                              setSelectedTask(null);
+                            },
+                          });
                         }
                       }}
+                      disabled={deleteTaskMutation.isPending}
                       data-testid="button-delete-task"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
+                      {deleteTaskMutation.isPending ? "Deleting..." : "Delete"}
                     </Button>
                     <Button variant="outline" onClick={handleEditTask} data-testid="button-edit-task">
                       <Edit className="h-4 w-4 mr-2" />

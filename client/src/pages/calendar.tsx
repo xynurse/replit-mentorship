@@ -140,7 +140,7 @@ export default function CalendarPage() {
         const error = await response.json().catch(() => ({ message: "Failed to delete event" }));
         throw new Error(error.message || "Failed to delete event");
       }
-      return response.json();
+      return { success: true };
     },
     onSuccess: () => {
       toast({

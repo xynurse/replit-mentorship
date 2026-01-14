@@ -37,7 +37,7 @@ interface MessagingContextType {
   addReaction: (messageId: string, emoji: string) => void;
   removeReaction: (messageId: string, emoji: string) => void;
   editMessage: (messageId: string, content: string) => void;
-  deleteMessage: (messageId: string) => void;
+  deleteMessage: (messageId: string) => Promise<void>;
 }
 
 const MessagingContext = createContext<MessagingContextType | null>(null);
@@ -262,9 +262,19 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
     socket.emit("message:edit", { conversationId: activeConversation.id, messageId, content });
   }, [socket, isConnected, activeConversation]);
 
-  const deleteMessage = useCallback((messageId: string) => {
-    if (!socket || !isConnected || !activeConversation) return;
-    socket.emit("message:delete", { conversationId: activeConversation.id, messageId });
+  const deleteMessage = useCallback(async (messageId: string) => {
+    if (!activeConversation) return;
+    
+    if (socket && isConnected) {
+      socket.emit("message:delete", { conversationId: activeConversation.id, messageId });
+    } else {
+      try {
+        await apiRequest("DELETE", `/api/conversations/${activeConversation.id}/messages/${messageId}`);
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+      } catch (error) {
+        console.error("Failed to delete message:", error);
+      }
+    }
   }, [socket, isConnected, activeConversation]);
 
   return (
