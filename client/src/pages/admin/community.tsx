@@ -314,6 +314,7 @@ function MentorAccessTab() {
                     <Checkbox
                       checked={selectedUsers.has(mentor.id)}
                       onCheckedChange={() => toggleSelect(mentor.id)}
+                      data-testid={`checkbox-mentor-${mentor.id}`}
                     />
                   </TableCell>
                   <TableCell>
@@ -617,6 +618,7 @@ function MenteeAccessTab() {
                     <Checkbox
                       checked={selectedUsers.has(mentee.id)}
                       onCheckedChange={() => toggleSelect(mentee.id)}
+                      data-testid={`checkbox-mentee-${mentee.id}`}
                     />
                   </TableCell>
                   <TableCell>
