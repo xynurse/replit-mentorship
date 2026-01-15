@@ -155,8 +155,13 @@ export interface PasswordResetEmailData {
 
 export async function sendPasswordResetEmail(data: PasswordResetEmailData): Promise<{ success: boolean; error?: string }> {
   try {
-    const { client, fromEmail } = await getResendClient();
+    console.log(`[EMAIL DEBUG] sendPasswordResetEmail called for: ${data.email}`);
+    console.log(`[EMAIL DEBUG] Reset URL: ${data.resetUrl}`);
     
+    const { client, fromEmail } = await getResendClient();
+    console.log(`[EMAIL DEBUG] Resend client obtained, fromEmail: ${fromEmail}`);
+    
+    console.log(`[EMAIL DEBUG] Calling Resend API to send email...`);
     const result = await client.emails.send({
       from: fromEmail || 'SONSIEL Mentorship Hub <noreply@sonsiel.org>',
       to: data.email,
@@ -201,14 +206,18 @@ export async function sendPasswordResetEmail(data: PasswordResetEmailData): Prom
         </html>
       `,
     });
+    
+    console.log(`[EMAIL DEBUG] Resend API response:`, JSON.stringify(result, null, 2));
 
     if (result.error) {
+      console.error(`[EMAIL DEBUG] Resend API returned error:`, result.error);
       return { success: false, error: result.error.message };
     }
 
+    console.log(`[EMAIL DEBUG] Email sent successfully! ID: ${result.data?.id}`);
     return { success: true };
   } catch (error: any) {
-    console.error('Failed to send password reset email:', error);
+    console.error('[EMAIL DEBUG] Exception in sendPasswordResetEmail:', error);
     return { success: false, error: error.message || 'Failed to send email' };
   }
 }
