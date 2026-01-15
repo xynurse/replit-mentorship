@@ -18,31 +18,64 @@ export function getTrustedBaseUrl(): string {
 }
 
 async function getCredentials() {
+  console.log('[EMAIL CREDENTIALS] Getting Resend credentials...');
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  console.log('[EMAIL CREDENTIALS] Hostname:', hostname || 'NOT SET');
+  
   const xReplitToken = process.env.REPL_IDENTITY 
     ? 'repl ' + process.env.REPL_IDENTITY 
     : process.env.WEB_REPL_RENEWAL 
     ? 'depl ' + process.env.WEB_REPL_RENEWAL 
     : null;
 
+  console.log('[EMAIL CREDENTIALS] Token type:', process.env.REPL_IDENTITY ? 'repl' : process.env.WEB_REPL_RENEWAL ? 'depl' : 'NONE');
+
   if (!xReplitToken) {
+    console.error('[EMAIL CREDENTIALS] ERROR: X_REPLIT_TOKEN not found for repl/depl');
     throw new Error('X_REPLIT_TOKEN not found for repl/depl');
   }
 
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
-    {
+  if (!hostname) {
+    console.error('[EMAIL CREDENTIALS] ERROR: REPLIT_CONNECTORS_HOSTNAME not set');
+    throw new Error('REPLIT_CONNECTORS_HOSTNAME not set');
+  }
+
+  try {
+    const url = 'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend';
+    console.log('[EMAIL CREDENTIALS] Fetching from:', url);
+    
+    const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
         'X_REPLIT_TOKEN': xReplitToken
       }
+    });
+    
+    console.log('[EMAIL CREDENTIALS] Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[EMAIL CREDENTIALS] ERROR response:', errorText);
+      throw new Error(`Failed to get Resend credentials: ${response.status}`);
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
+    
+    const data = await response.json();
+    console.log('[EMAIL CREDENTIALS] Response data items count:', data.items?.length || 0);
+    
+    connectionSettings = data.items?.[0];
 
-  if (!connectionSettings || (!connectionSettings.settings.api_key)) {
-    throw new Error('Resend not connected');
+    if (!connectionSettings || (!connectionSettings.settings?.api_key)) {
+      console.error('[EMAIL CREDENTIALS] ERROR: Resend not connected or missing API key');
+      console.error('[EMAIL CREDENTIALS] connectionSettings:', JSON.stringify(connectionSettings, null, 2));
+      throw new Error('Resend not connected');
+    }
+    
+    console.log('[EMAIL CREDENTIALS] Success! fromEmail:', connectionSettings.settings.from_email);
+    return { apiKey: connectionSettings.settings.api_key, fromEmail: connectionSettings.settings.from_email };
+  } catch (error: any) {
+    console.error('[EMAIL CREDENTIALS] Exception:', error.message);
+    throw error;
   }
-  return { apiKey: connectionSettings.settings.api_key, fromEmail: connectionSettings.settings.from_email };
 }
 
 async function getResendClient() {

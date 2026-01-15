@@ -274,9 +274,6 @@ export function setupAuth(app: Express) {
       const user = await storage.getUserByEmail(email);
       console.log(`[PASSWORD RESET DEBUG] User found: ${!!user}`);
       
-      // Always return success to prevent email enumeration attacks
-      res.json({ message: "If an account exists, a password reset email has been sent." });
-
       if (user) {
         console.log(`[PASSWORD RESET DEBUG] Processing reset for user: ${user.firstName} ${user.lastName} (${user.email})`);
         
@@ -293,21 +290,32 @@ export function setupAuth(app: Express) {
         const resetUrl = `https://mentorship.sonsiel.org/reset-password/${resetToken}`;
         console.log(`[PASSWORD RESET DEBUG] Reset URL generated: ${resetUrl}`);
 
-        // Send the password reset email
-        const emailResult = await sendPasswordResetEmail({
-          email: user.email,
-          firstName: user.firstName,
-          resetUrl,
-        });
+        // Send the password reset email - wait for it to complete
+        try {
+          const emailResult = await sendPasswordResetEmail({
+            email: user.email,
+            firstName: user.firstName,
+            resetUrl,
+          });
 
-        if (!emailResult.success) {
-          console.error(`[PASSWORD RESET DEBUG] FAILED - Email send error for ${email}:`, emailResult.error);
-        } else {
+          if (!emailResult.success) {
+            console.error(`[PASSWORD RESET DEBUG] FAILED - Email send error for ${email}:`, emailResult.error);
+            // Return error to user so they know something went wrong
+            return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
+          }
+          
           console.log(`[PASSWORD RESET DEBUG] SUCCESS - Password reset email sent to ${email}`);
+        } catch (emailError: any) {
+          console.error(`[PASSWORD RESET DEBUG] EXCEPTION - Email send error for ${email}:`, emailError.message);
+          return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
         }
       } else {
         console.log(`[PASSWORD RESET DEBUG] No user found for email: "${email}" - no email sent`);
       }
+      
+      // Always return success message to prevent email enumeration
+      // But we've already handled real errors above
+      res.json({ message: "If an account exists, a password reset email has been sent." });
     } catch (error) {
       console.error(`[PASSWORD RESET DEBUG] ERROR - Exception:`, error);
       next(error);
