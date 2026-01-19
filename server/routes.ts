@@ -360,10 +360,11 @@ export async function registerRoutes(
         isActive: true,
         isVerified: false,
         isProfileComplete: false,
+        mustChangePassword: true,
       });
 
       const { password: _, ...safeUser } = user;
-      res.status(201).json(safeUser);
+      res.status(201).json({ ...safeUser, tempPassword: password });
     } catch (error: any) {
       // Handle duplicate email constraint error
       if (error?.message?.includes('duplicate key') && error?.message?.includes('email')) {
@@ -463,6 +464,7 @@ export async function registerRoutes(
             isActive: true,
             isVerified: false,
             isProfileComplete: false,
+            mustChangePassword: true,
           });
 
           const { password: _, ...safeUser } = user;
