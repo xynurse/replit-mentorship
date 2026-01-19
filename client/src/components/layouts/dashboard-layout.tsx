@@ -287,6 +287,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
 
             <div className="flex items-center gap-2">
+              {(user.role === "SUPER_ADMIN" || user.role === "ADMIN") && (
+                <Link href="/admin">
+                  <Button variant="outline" size="sm" className="gap-2" data-testid="button-admin-view">
+                    <Shield className="h-4 w-4" />
+                    <span className="hidden sm:inline">Admin View</span>
+                  </Button>
+                </Link>
+              )}
               <ThemeToggle />
               
               <NotificationBell />

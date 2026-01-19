@@ -23,6 +23,7 @@ import {
   Link2,
   Calendar,
   UsersRound,
+  Eye,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -188,6 +189,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             </div>
             
             <div className="flex items-center gap-2">
+              <Link href="/">
+                <Button variant="outline" size="sm" className="gap-2" data-testid="button-user-view">
+                  <Eye className="h-4 w-4" />
+                  <span className="hidden sm:inline">User View</span>
+                </Button>
+              </Link>
               <ThemeToggle />
               <Button variant="ghost" size="icon" className="relative" data-testid="button-notifications">
                 <Bell className="h-5 w-5" />
