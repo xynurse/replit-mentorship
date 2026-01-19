@@ -398,7 +398,20 @@ export function setupAuth(app: Express) {
       });
 
       console.log(`[CHANGE PASSWORD] SUCCESS - Password changed for ${user.email}`);
-      res.json({ message: "Password changed successfully" });
+      
+      // Log the user out so they can log in fresh with their new password
+      req.logout((err) => {
+        if (err) {
+          console.error(`[CHANGE PASSWORD] Logout error:`, err);
+        }
+        req.session.destroy((sessionErr) => {
+          if (sessionErr) {
+            console.error(`[CHANGE PASSWORD] Session destroy error:`, sessionErr);
+          }
+          res.clearCookie("connect.sid");
+          res.json({ message: "Password changed successfully. Please log in with your new password." });
+        });
+      });
     } catch (error) {
       console.error(`[CHANGE PASSWORD] ERROR:`, error);
       next(error);

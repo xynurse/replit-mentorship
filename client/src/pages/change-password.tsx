@@ -5,6 +5,7 @@ import { Loader2, Eye, EyeOff, Lock, Shield } from "lucide-react";
 import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
+import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -52,7 +53,10 @@ export default function ChangePasswordPage() {
 
   useEffect(() => {
     if (changePasswordMutation.isSuccess) {
-      setLocation("/");
+      // Clear the user cache and redirect to login page
+      queryClient.setQueryData(["/api/user"], null);
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      setLocation("/auth");
     }
   }, [changePasswordMutation.isSuccess, setLocation]);
 
