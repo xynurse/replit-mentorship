@@ -57,7 +57,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   emailExists(email: string): Promise<boolean>;
   deleteUser(id: string): Promise<boolean>;
-  createUser(user: Partial<InsertUser> & { email: string; password: string; firstName: string; lastName: string; role: string }): Promise<User>;
+  createUser(user: Partial<InsertUser> & { email: string; password: string; firstName: string; lastName: string; role: string } & Partial<User>): Promise<User>;
   updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
   getUserByVerificationToken(token: string): Promise<User | undefined>;
   getUserByPasswordResetToken(token: string): Promise<User | undefined>;
@@ -428,7 +428,7 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async createUser(insertUser: Partial<InsertUser> & { email: string; password: string; firstName: string; lastName: string; role: string }): Promise<User> {
+  async createUser(insertUser: Partial<InsertUser> & { email: string; password: string; firstName: string; lastName: string; role: string } & Partial<User>): Promise<User> {
     const [user] = await db
       .insert(users)
       .values({
