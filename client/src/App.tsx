@@ -13,6 +13,7 @@ const LoginPage = lazy(() => import("@/pages/login"));
 const RegisterPage = lazy(() => import("@/pages/register"));
 const ForgotPasswordPage = lazy(() => import("@/pages/forgot-password"));
 const ResetPasswordPage = lazy(() => import("@/pages/reset-password"));
+const ChangePasswordPage = lazy(() => import("@/pages/change-password"));
 const CompleteProfilePage = lazy(() => import("@/pages/complete-profile"));
 const MentorshipProfileSetupPage = lazy(() => import("@/pages/mentorship-profile-setup"));
 const HomePage = lazy(() => import("@/pages/home"));
@@ -83,6 +84,7 @@ function Router() {
       <LazyRoute path="/register" component={RegisterPage} />
       <LazyRoute path="/forgot-password" component={ForgotPasswordPage} />
       <LazyRoute path="/reset-password/:token" component={ResetPasswordPage} />
+      <ProtectedRoute path="/change-password" component={ChangePasswordPage} requireCompleteProfile={false} />
       <ProtectedRoute path="/complete-profile" component={CompleteProfilePage} requireCompleteProfile={false} />
       <ProtectedRoute path="/profile/setup" component={MentorshipProfileSetupPage} requireCompleteProfile={false} />
       <AdminRoute path="/admin" component={AdminDashboard} />

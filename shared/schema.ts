@@ -123,6 +123,7 @@ export const users = pgTable("users", {
   passwordResetExpires: timestamp("password_reset_expires"),
   failedLoginAttempts: integer("failed_login_attempts").default(0),
   lockedUntil: timestamp("locked_until"),
+  mustChangePassword: boolean("must_change_password").default(false),
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

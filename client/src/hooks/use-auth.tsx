@@ -17,6 +17,7 @@ type AuthContextType = {
   registerMutation: UseMutationResult<SelectUser, Error, RegisterInput>;
   forgotPasswordMutation: UseMutationResult<{ message: string }, Error, { email: string }>;
   resetPasswordMutation: UseMutationResult<{ message: string }, Error, { token: string; password: string }>;
+  changePasswordMutation: UseMutationResult<{ message: string }, Error, { currentPassword: string; newPassword: string }>;
   completeProfileMutation: UseMutationResult<SelectUser, Error, CompleteProfileInput>;
 };
 
@@ -136,6 +137,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const changePasswordMutation = useMutation({
+    mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
+      const res = await apiRequest("POST", "/api/change-password", data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      // Refresh user data to clear mustChangePassword flag
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      toast({
+        title: "Password changed",
+        description: "Your password has been updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Password change failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const completeProfileMutation = useMutation({
     mutationFn: async (data: CompleteProfileInput) => {
       const res = await apiRequest("POST", "/api/complete-profile", data);
@@ -168,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         registerMutation,
         forgotPasswordMutation,
         resetPasswordMutation,
+        changePasswordMutation,
         completeProfileMutation,
       }}
     >

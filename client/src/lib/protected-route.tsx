@@ -51,6 +51,10 @@ export function ProtectedRoute({
     return <Route path={path}><Redirect to="/login" /></Route>;
   }
 
+  if (user.mustChangePassword && path !== "/change-password") {
+    return <Route path={path}><Redirect to="/change-password" /></Route>;
+  }
+
   if (requireCompleteProfile && !user.isProfileComplete && path !== "/complete-profile") {
     return <Route path={path}><Redirect to="/complete-profile" /></Route>;
   }
@@ -79,6 +83,10 @@ export function AdminRoute({
 
   if (!user) {
     return <Route path={path}><Redirect to="/login" /></Route>;
+  }
+
+  if (user.mustChangePassword) {
+    return <Route path={path}><Redirect to="/change-password" /></Route>;
   }
 
   if (!user.isProfileComplete) {

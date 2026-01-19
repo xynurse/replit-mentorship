@@ -366,6 +366,45 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Endpoint for forced password change (first login with temporary password)
+  app.post("/api/change-password", requireAuth, async (req, res, next) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Current password and new password are required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      const user = await storage.getUser(req.user!.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Verify current password
+      const isValid = await comparePasswords(currentPassword, user.password);
+      if (!isValid) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      // Hash and save new password, clear mustChangePassword flag
+      const hashedPassword = await hashPassword(newPassword);
+      await storage.updateUser(user.id, {
+        password: hashedPassword,
+        mustChangePassword: false,
+      });
+
+      console.log(`[CHANGE PASSWORD] SUCCESS - Password changed for ${user.email}`);
+      res.json({ message: "Password changed successfully" });
+    } catch (error) {
+      console.error(`[CHANGE PASSWORD] ERROR:`, error);
+      next(error);
+    }
+  });
+
   app.get("/api/verify-email/:token", async (req, res, next) => {
     try {
       const { token } = req.params;
