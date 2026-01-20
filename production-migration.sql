@@ -50,19 +50,30 @@ VALUES
 ON CONFLICT (email) DO NOTHING;
 
 -- =====================================================
--- STEP 3: DOCUMENTS (5 Track Guides)
+-- STEP 3A: SYSTEM FOLDER (Required for documents)
+-- =====================================================
+-- Create the system folder for public resources
+
+INSERT INTO folders (id, name, scope, is_system_folder, parent_id, created_at, updated_at)
+VALUES 
+  ('4bedbfdd-1c12-44ef-b368-cd9e5f8c750f', 'System Resources', 'SYSTEM', true, NULL, '2026-01-05 19:15:00.000000', '2026-01-05 19:15:00.000000')
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================
+-- STEP 3B: DOCUMENTS (5 Track Guides)
 -- =====================================================
 -- Note: These documents are stored in Replit Object Storage
 -- The file URLs point to the shared object storage, accessible in production
+-- Documents are assigned to the system folder for visibility
 
-INSERT INTO documents (id, name, description, file_url, file_type, mime_type, file_size, visibility, created_at)
+INSERT INTO documents (id, name, description, file_url, file_type, mime_type, file_size, visibility, folder_id, category, created_at)
 VALUES 
-  ('121e3325-9976-4011-a873-1a3164af53bb', 'Leader Track - Guide', NULL, '/objects/uploads/8576c847-41b2-4622-b13a-0ab1bf5405ab', NULL, 'application/pdf', 290097, 'PUBLIC', '2026-01-05 19:16:32.364118'),
-  ('893c2d10-a8d0-498b-bc38-65d927ba9b93', 'Innovator Track - Guide', NULL, '/objects/uploads/6d932166-dd0e-466c-8778-d9e687416cff', NULL, 'application/pdf', 285898, 'PUBLIC', '2026-01-05 19:16:52.590899'),
-  ('8e6e9a97-9c8b-48c3-94fc-7668d55f4d13', 'Intrapreneur Track - Guide', NULL, '/objects/uploads/ae9f69bf-d405-47be-a27a-07333a64d496', NULL, 'application/pdf', 278451, 'PUBLIC', '2026-01-05 19:17:16.448554'),
-  ('0186825c-4d76-4938-8649-86753d8844bb', 'Entrepreneur Track - Guide', NULL, '/objects/uploads/7a3d5914-698b-4ec4-a529-f181b1b58bb6', NULL, 'application/pdf', 282058, 'PUBLIC', '2026-01-05 19:17:38.603069'),
-  ('fb250072-2f4d-475b-a976-aa342b0eb0bd', 'Scientist Track - Guide', NULL, '/objects/uploads/4a46b6ff-4c7f-4f77-a176-70c7f24d87a7', NULL, 'application/pdf', 289608, 'PUBLIC', '2026-01-05 19:18:13.745388')
-ON CONFLICT (id) DO NOTHING;
+  ('121e3325-9976-4011-a873-1a3164af53bb', 'Leader Track - Guide', 'Track guide for Leaders', '/objects/uploads/8576c847-41b2-4622-b13a-0ab1bf5405ab', NULL, 'application/pdf', 290097, 'PUBLIC', '4bedbfdd-1c12-44ef-b368-cd9e5f8c750f', 'RESOURCE', '2026-01-05 19:16:32.364118'),
+  ('893c2d10-a8d0-498b-bc38-65d927ba9b93', 'Innovator Track - Guide', 'Track guide for Innovators', '/objects/uploads/6d932166-dd0e-466c-8778-d9e687416cff', NULL, 'application/pdf', 285898, 'PUBLIC', '4bedbfdd-1c12-44ef-b368-cd9e5f8c750f', 'RESOURCE', '2026-01-05 19:16:52.590899'),
+  ('8e6e9a97-9c8b-48c3-94fc-7668d55f4d13', 'Intrapreneur Track - Guide', 'Track guide for Intrapreneurs', '/objects/uploads/ae9f69bf-d405-47be-a27a-07333a64d496', NULL, 'application/pdf', 278451, 'PUBLIC', '4bedbfdd-1c12-44ef-b368-cd9e5f8c750f', 'RESOURCE', '2026-01-05 19:17:16.448554'),
+  ('0186825c-4d76-4938-8649-86753d8844bb', 'Entrepreneur Track - Guide', 'Track guide for Entrepreneurs', '/objects/uploads/7a3d5914-698b-4ec4-a529-f181b1b58bb6', NULL, 'application/pdf', 282058, 'PUBLIC', '4bedbfdd-1c12-44ef-b368-cd9e5f8c750f', 'RESOURCE', '2026-01-05 19:17:38.603069'),
+  ('fb250072-2f4d-475b-a976-aa342b0eb0bd', 'Scientist Track - Guide', 'Track guide for Scientists', '/objects/uploads/4a46b6ff-4c7f-4f77-a176-70c7f24d87a7', NULL, 'application/pdf', 289608, 'PUBLIC', '4bedbfdd-1c12-44ef-b368-cd9e5f8c750f', 'RESOURCE', '2026-01-05 19:18:13.745388')
+ON CONFLICT (id) DO UPDATE SET folder_id = EXCLUDED.folder_id, category = EXCLUDED.category;
 
 -- =====================================================
 -- STEP 4: MENTOR COMMUNITY CATEGORIES (9 categories)
