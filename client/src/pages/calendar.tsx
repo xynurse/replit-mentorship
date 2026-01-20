@@ -12,12 +12,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar as CalendarIcon, Clock, MapPin, Plus, ChevronLeft, ChevronRight, Ban, Users, Video, ExternalLink, Pencil, Trash2, X } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, MapPin, Plus, ChevronLeft, ChevronRight, Ban, Users, Video, ExternalLink, Pencil, Trash2, X, Target } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, addMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { CalendarEvent, User } from "@shared/schema";
+import type { CalendarEvent, User, Goal } from "@shared/schema";
 
 type PublicUserInfo = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'profileImage'>;
 
@@ -26,9 +26,10 @@ interface DisplayEvent {
   title: string;
   date: Date;
   endDate?: Date;
-  type: "task" | "meeting" | "block";
+  type: "task" | "meeting" | "block" | "goal";
   status?: string;
   location?: string;
+  progress?: number;
 }
 
 export default function CalendarPage() {
@@ -70,6 +71,10 @@ export default function CalendarPage() {
 
   const { data: calendarEvents = [], isLoading: isLoadingEvents } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/calendar-events"],
+  });
+
+  const { data: goals = [], isLoading: isLoadingGoals } = useQuery<Goal[]>({
+    queryKey: ["/api/goals"],
   });
 
   const { data: messageableUsers = [] } = useQuery<PublicUserInfo[]>({
@@ -238,7 +243,18 @@ export default function CalendarPage() {
     location: e.location || undefined,
   }));
 
-  const allEvents = [...taskEvents, ...calendarDisplayEvents];
+  const goalEvents: DisplayEvent[] = goals
+    .filter(g => g.targetDate)
+    .map(g => ({
+      id: g.id,
+      title: `Goal: ${g.title}`,
+      date: new Date(g.targetDate!),
+      type: "goal" as const,
+      status: g.status || undefined,
+      progress: g.progress || 0,
+    }));
+
+  const allEvents = [...taskEvents, ...calendarDisplayEvents, ...goalEvents];
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -446,6 +462,7 @@ export default function CalendarPage() {
                   const hasMeetings = dayEvents.some(e => e.type === "meeting");
                   const hasTasks = dayEvents.some(e => e.type === "task");
                   const hasBlocks = dayEvents.some(e => e.type === "block");
+                  const hasGoals = dayEvents.some(e => e.type === "goal");
                   
                   return (
                     <button
@@ -483,6 +500,14 @@ export default function CalendarPage() {
                               className={cn(
                                 "w-1.5 h-1.5 rounded-full",
                                 isSelected ? "bg-primary-foreground" : "bg-orange-500"
+                              )}
+                            />
+                          )}
+                          {hasGoals && (
+                            <div
+                              className={cn(
+                                "w-1.5 h-1.5 rounded-full",
+                                isSelected ? "bg-primary-foreground" : "bg-purple-500"
                               )}
                             />
                           )}
@@ -550,23 +575,36 @@ export default function CalendarPage() {
                     {selectedDateEvents.map((event) => (
                       <button
                         key={event.id}
-                        onClick={() => event.type !== "task" && openEventDetail(event.id)}
+                        onClick={() => event.type !== "task" && event.type !== "goal" && openEventDetail(event.id)}
                         className={cn(
                           "w-full text-left p-3 rounded-md hover-elevate",
-                          event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" : "bg-muted/50",
-                          event.type !== "task" && "cursor-pointer"
+                          event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" :
+                          event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
+                          event.type !== "task" && event.type !== "goal" && "cursor-pointer"
                         )}
                         data-testid={`event-${event.id}`}
-                        disabled={event.type === "task"}
+                        disabled={event.type === "task" || event.type === "goal"}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm truncate">{event.title}</p>
                             <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              <span>{format(event.date, "h:mm a")}</span>
-                              {event.endDate && (
-                                <span>- {format(event.endDate, "h:mm a")}</span>
+                              {event.type === "goal" ? (
+                                <>
+                                  <Target className="h-3 w-3" />
+                                  <span>Target: {format(event.date, "MMM d, yyyy")}</span>
+                                  {event.progress !== undefined && (
+                                    <span className="text-purple-600 dark:text-purple-400">({event.progress}% complete)</span>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="h-3 w-3" />
+                                  <span>{format(event.date, "h:mm a")}</span>
+                                  {event.endDate && (
+                                    <span>- {format(event.endDate, "h:mm a")}</span>
+                                  )}
+                                </>
                               )}
                             </div>
                             {event.type === "meeting" && event.location && (
@@ -577,10 +615,10 @@ export default function CalendarPage() {
                             )}
                           </div>
                           <Badge 
-                            variant={event.type === "meeting" ? "default" : event.type === "block" ? "secondary" : "outline"}
-                            className="text-xs shrink-0"
+                            variant={event.type === "meeting" ? "default" : event.type === "block" ? "secondary" : event.type === "goal" ? "outline" : "outline"}
+                            className={cn("text-xs shrink-0", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400")}
                           >
-                            {event.type === "task" ? "Task" : event.type === "block" ? "Blocked" : "Meeting"}
+                            {event.type === "task" ? "Task" : event.type === "block" ? "Blocked" : event.type === "goal" ? "Goal" : "Meeting"}
                           </Badge>
                         </div>
                       </button>
@@ -632,32 +670,46 @@ export default function CalendarPage() {
                   .map((event) => (
                     <button
                       key={`${event.type}-${event.id}`}
-                      onClick={() => event.type !== "task" && openEventDetail(event.id)}
+                      onClick={() => event.type !== "task" && event.type !== "goal" && openEventDetail(event.id)}
                       className={cn(
                         "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate",
-                        event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" : "bg-muted/50",
-                        event.type !== "task" && "cursor-pointer"
+                        event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" :
+                        event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
+                        event.type !== "task" && event.type !== "goal" && "cursor-pointer"
                       )}
                       data-testid={`upcoming-${event.type}-${event.id}`}
-                      disabled={event.type === "task"}
+                      disabled={event.type === "task" || event.type === "goal"}
                     >
                       <div className="flex items-center gap-3">
                         <div className={cn(
                           "w-2 h-2 rounded-full",
                           event.type === "meeting" ? "bg-blue-500" : 
                           event.type === "block" ? "bg-orange-500" :
+                          event.type === "goal" ? "bg-purple-500" :
                           event.status === "COMPLETED" ? "bg-green-500" : "bg-primary"
                         )} />
                         <div>
                           <span className="font-medium text-sm">{event.title}</span>
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Blocked" : "Task"}
+                          <Badge 
+                            variant="outline" 
+                            className={cn("ml-2 text-xs", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400")}
+                          >
+                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Blocked" : event.type === "goal" ? "Goal" : "Task"}
                           </Badge>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <CalendarIcon className="h-4 w-4" />
-                        <span>{format(event.date, "MMM d, h:mm a")}</span>
+                        {event.type === "goal" ? (
+                          <>
+                            <Target className="h-4 w-4" />
+                            <span>{format(event.date, "MMM d, yyyy")}</span>
+                          </>
+                        ) : (
+                          <>
+                            <CalendarIcon className="h-4 w-4" />
+                            <span>{format(event.date, "MMM d, h:mm a")}</span>
+                          </>
+                        )}
                       </div>
                     </button>
                   ))}
