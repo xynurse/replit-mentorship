@@ -65,12 +65,52 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================
+-- STEP 4: MENTOR COMMUNITY CATEGORIES (9 categories)
+-- =====================================================
+-- These are required for the mentor discussion board dropdown
+
+INSERT INTO thread_categories (id, name, slug, description, color, icon, sort_order, is_active)
+VALUES 
+  ('35cacde0-02c2-4dc1-80b6-3c92fddf3531', 'Best Practices', 'best-practices', 'Share and discuss best practices in healthcare mentorship', '#0D9488', 'lightbulb', 1, true),
+  ('ee81b80c-5316-4cae-9bbc-982a47cbf368', 'Questions', 'questions', 'Ask questions and get answers from the community', '#3B82F6', 'help-circle', 2, true),
+  ('86c77c71-d0f3-47e2-adad-e70f275b730a', 'Resources', 'resources', 'Share useful resources, articles, and tools', '#8B5CF6', 'book-open', 3, true),
+  ('f3243307-6754-4745-87b4-0e78f8356e98', 'Track: Scientist', 'track-scientist', 'Discussions specific to the Scientist track', '#10B981', 'flask-conical', 4, true),
+  ('19d4ca03-acb9-4f95-a06b-6c3cf24a8eb3', 'Track: Innovator', 'track-innovator', 'Discussions specific to the Innovator track', '#F59E0B', 'sparkles', 5, true),
+  ('018b9588-ec6f-4d14-96f4-563e0af7e778', 'Track: Entrepreneur', 'track-entrepreneur', 'Discussions specific to the Entrepreneur track', '#EF4444', 'rocket', 6, true),
+  ('20942208-49ef-43fa-a9ed-84819cbe9402', 'Track: Intrapreneur', 'track-intrapreneur', 'Discussions specific to the Intrapreneur track', '#6366F1', 'building', 7, true),
+  ('b5453787-67ff-42d5-89d2-a36fc2e7c92d', 'Track: Leader', 'track-leader', 'Discussions specific to the Leader track', '#EC4899', 'crown', 8, true),
+  ('9721dafb-f3dc-479d-bea5-b197845cb9af', 'General Discussion', 'general', 'General conversations and community building', '#6B7280', 'message-square', 9, true)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================
+-- STEP 5: MENTEE COMMUNITY CATEGORIES (11 categories)
+-- =====================================================
+-- These are required for the mentee discussion board dropdown
+
+INSERT INTO mentee_thread_categories (id, name, slug, description, color, icon, sort_order, is_active)
+VALUES 
+  ('c8a3bc8a-a829-4eab-885b-3ba03c669ec4', 'Introductions', 'introductions', 'Introduce yourself to fellow mentees', '#6366F1', 'UserPlus', 1, true),
+  ('55a4aa76-85a6-476e-b9b6-ae4acd2c42d9', 'Goal Setting & SMART Goals', 'goal-setting', 'Discuss goal setting strategies and SMART goals', '#8B5CF6', 'Target', 2, true),
+  ('4b7709c7-d717-4f88-8883-3644945f1d6b', 'Scientist Track', 'scientist-track', 'Discussions for mentees on the Scientist track', '#10B981', 'Microscope', 3, true),
+  ('43372a93-14ed-491a-ae1e-aeba42866792', 'Innovator Track', 'innovator-track', 'Discussions for mentees on the Innovator track', '#F59E0B', 'Lightbulb', 4, true),
+  ('7b6b0d5d-e847-4b0f-8024-f1a3685a0251', 'Entrepreneur Track', 'entrepreneur-track', 'Discussions for mentees on the Entrepreneur track', '#EF4444', 'Rocket', 5, true),
+  ('ae813ca8-fb93-4707-a9f1-a3ad13d30797', 'Intrapreneur Track', 'intrapreneur-track', 'Discussions for mentees on the Intrapreneur track', '#3B82F6', 'Building', 6, true),
+  ('9486daec-810d-4315-b797-65209521f526', 'Leader Track', 'leader-track', 'Discussions for mentees on the Leader track', '#EC4899', 'Crown', 7, true),
+  ('8ca032af-5479-491c-aa0b-d6921d9072f2', 'Career Questions', 'career-questions', 'Ask and answer career-related questions', '#14B8A6', 'Briefcase', 8, true),
+  ('1b3664fb-1af0-4362-9017-09a25c0891ef', 'Resources & Recommendations', 'resources', 'Share helpful resources and recommendations', '#0EA5E9', 'BookOpen', 9, true),
+  ('3eb17079-1d19-4925-8ed0-5c63b6dea219', 'Wins & Celebrations', 'wins-celebrations', 'Celebrate your achievements and milestones', '#F97316', 'Trophy', 10, true),
+  ('b5be06e6-0891-4713-a5c1-03a1d72008b3', 'General Discussion', 'general', 'General discussions and off-topic conversations', '#6B7280', 'MessageCircle', 11, true)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================
 -- SUMMARY
 -- =====================================================
 -- Total Mentors: 11
 -- Total Mentees: 19
 -- Total Users: 30
 -- Total Documents: 5 (Track Guides)
+-- Total Mentor Categories: 9
+-- Total Mentee Categories: 11
 --
 -- IMPORTANT NOTES:
 -- 1. Users have their existing password hashes preserved from development
@@ -82,6 +122,7 @@ ON CONFLICT (id) DO NOTHING;
 --    between development and production, so they will work automatically
 -- 5. Documents do not have uploaded_by_id set (optional field) since
 --    the original uploader's user ID may differ between environments
+-- 6. Categories are needed for the discussion board dropdowns
 --
 -- HOW TO RUN:
 -- 1. Go to Database in Replit
