@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Users, Calendar, MoreHorizontal, Edit, Eye, Loader2 } from "lucide-react";
+import { Plus, Users, Calendar, MoreHorizontal, Edit, Eye, Loader2, UserPlus } from "lucide-react";
 import { useLocation } from "wouter";
 import {
   DropdownMenu,
@@ -73,6 +73,9 @@ export default function AdminCohorts() {
   const [, navigate] = useLocation();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
+  const [bulkAssignCohortId, setBulkAssignCohortId] = useState("");
+  const [bulkAssignRole, setBulkAssignRole] = useState<"MENTOR" | "MENTEE" | "ALL">("ALL");
 
   const { data: cohorts = [], isLoading } = useQuery<Cohort[]>({
     queryKey: ["/api/cohorts"],
@@ -81,6 +84,34 @@ export default function AdminCohorts() {
   const { data: tracks = [] } = useQuery<Track[]>({
     queryKey: ["/api/tracks"],
   });
+  
+  const bulkAssignMutation = useMutation({
+    mutationFn: async ({ cohortId, role }: { cohortId: string; role?: string }) => {
+      const response = await apiRequest("POST", `/api/cohorts/${cohortId}/bulk-assign`, { role });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "Users assigned successfully", 
+        description: data.message 
+      });
+      setIsBulkAssignOpen(false);
+      setBulkAssignCohortId("");
+      setBulkAssignRole("ALL");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to assign users", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleBulkAssign = () => {
+    if (!bulkAssignCohortId) {
+      toast({ title: "Please select a cohort", variant: "destructive" });
+      return;
+    }
+    const role = bulkAssignRole === "ALL" ? undefined : bulkAssignRole;
+    bulkAssignMutation.mutate({ cohortId: bulkAssignCohortId, role });
+  };
 
   const form = useForm<CohortFormValues>({
     resolver: zodResolver(cohortFormSchema),
@@ -127,10 +158,16 @@ export default function AdminCohorts() {
             <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Cohort Management</h1>
             <p className="text-muted-foreground">Create and manage mentorship cohorts</p>
           </div>
-          <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-cohort">
-            <Plus className="mr-2 h-4 w-4" />
-            Create Cohort
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsBulkAssignOpen(true)} data-testid="button-bulk-assign">
+              <UserPlus className="mr-2 h-4 w-4" />
+              Bulk Assign Users
+            </Button>
+            <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-cohort">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Cohort
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -417,6 +454,66 @@ export default function AdminCohorts() {
                 </DialogFooter>
               </form>
             </Form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isBulkAssignOpen} onOpenChange={setIsBulkAssignOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Bulk Assign Users to Cohort</DialogTitle>
+              <DialogDescription>
+                Assign all mentors, mentees, or both to a cohort at once
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Select Cohort</label>
+                <Select value={bulkAssignCohortId} onValueChange={setBulkAssignCohortId}>
+                  <SelectTrigger data-testid="select-bulk-cohort">
+                    <SelectValue placeholder="Choose a cohort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cohorts.map((cohort) => (
+                      <SelectItem key={cohort.id} value={cohort.id}>
+                        {cohort.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">User Type</label>
+                <Select value={bulkAssignRole} onValueChange={(v) => setBulkAssignRole(v as any)}>
+                  <SelectTrigger data-testid="select-bulk-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Mentors & Mentees</SelectItem>
+                    <SelectItem value="MENTOR">Mentors Only</SelectItem>
+                    <SelectItem value="MENTEE">Mentees Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsBulkAssignOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleBulkAssign} 
+                disabled={bulkAssignMutation.isPending || !bulkAssignCohortId}
+                data-testid="button-confirm-bulk-assign"
+              >
+                {bulkAssignMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Assigning...
+                  </>
+                ) : (
+                  "Assign Users"
+                )}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

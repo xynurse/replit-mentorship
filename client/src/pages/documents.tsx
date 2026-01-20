@@ -65,6 +65,8 @@ import {
   FolderHeart,
   Users,
   Send,
+  Edit,
+  Loader2,
 } from "lucide-react";
 
 type SharedDocument = Document & { sharedBy: User; sharedAt: Date };
@@ -127,6 +129,13 @@ export default function DocumentsPage() {
   const [shareDocumentId, setShareDocumentId] = useState<string | null>(null);
   const [shareUserId, setShareUserId] = useState<string>("");
   const [shareMessage, setShareMessage] = useState("");
+  
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<Document | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editCategory, setEditCategory] = useState<DocumentCategory>("OTHER");
+  const [editVisibility, setEditVisibility] = useState<DocumentVisibility>("PRIVATE");
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
@@ -293,6 +302,27 @@ export default function DocumentsPage() {
     },
   });
 
+  const updateDocumentMutation = useMutation({
+    mutationFn: async (data: { id: string; name?: string; description?: string; category?: DocumentCategory; visibility?: DocumentVisibility }) => {
+      const res = await apiRequest("PATCH", `/api/documents/${data.id}`, {
+        name: data.name,
+        description: data.description,
+        category: data.category,
+        visibility: data.visibility,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      toast({ title: "Document updated successfully" });
+      setShowEditDialog(false);
+      setEditingDocument(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to update document", variant: "destructive" });
+    },
+  });
+
   const handleShareDocument = () => {
     if (!shareDocumentId || !shareUserId) return;
     shareDocumentMutation.mutate({
@@ -302,9 +332,29 @@ export default function DocumentsPage() {
     });
   };
 
+  const handleUpdateDocument = () => {
+    if (!editingDocument) return;
+    updateDocumentMutation.mutate({
+      id: editingDocument.id,
+      name: editName,
+      description: editDescription,
+      category: editCategory,
+      visibility: editVisibility,
+    });
+  };
+
   const openShareDialog = (doc: Document) => {
     setShareDocumentId(doc.id);
     setShowShareDialog(true);
+  };
+
+  const openEditDialog = (doc: Document) => {
+    setEditingDocument(doc);
+    setEditName(doc.name);
+    setEditDescription(doc.description || "");
+    setEditCategory(doc.category as DocumentCategory);
+    setEditVisibility(doc.visibility as DocumentVisibility);
+    setShowEditDialog(true);
   };
 
   const downloadDocument = async (doc: Document) => {
@@ -692,6 +742,89 @@ export default function DocumentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Edit Document Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Document</DialogTitle>
+              <DialogDescription>
+                Update the document details. File content cannot be changed.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Document Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Enter document name"
+                  data-testid="input-edit-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Enter document description..."
+                  data-testid="input-edit-description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={editCategory} onValueChange={(v) => setEditCategory(v as DocumentCategory)}>
+                  <SelectTrigger data-testid="select-edit-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Visibility</Label>
+                <Select value={editVisibility} onValueChange={(v) => setEditVisibility(v as DocumentVisibility)}>
+                  <SelectTrigger data-testid="select-edit-visibility">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VISIBILITY_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateDocument}
+                disabled={!editName || updateDocumentMutation.isPending}
+                data-testid="button-save-document"
+              >
+                {updateDocumentMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
@@ -897,11 +1030,15 @@ export default function DocumentsPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => downloadDocument(doc)}>
+                                <DropdownMenuItem onClick={() => downloadDocument(doc)} data-testid={`button-download-doc-${doc.id}`}>
                                   <Download className="h-4 w-4 mr-2" />
                                   Download
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openShareDialog(doc)}>
+                                <DropdownMenuItem onClick={() => openEditDialog(doc)} data-testid={`button-edit-doc-${doc.id}`}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openShareDialog(doc)} data-testid={`button-share-doc-${doc.id}`}>
                                   <Share2 className="h-4 w-4 mr-2" />
                                   Share
                                 </DropdownMenuItem>
@@ -909,6 +1046,7 @@ export default function DocumentsPage() {
                                 <DropdownMenuItem
                                   onClick={() => deleteDocumentMutation.mutate(doc.id)}
                                   className="text-destructive"
+                                  data-testid={`button-delete-doc-${doc.id}`}
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
                                   Delete
@@ -969,6 +1107,10 @@ export default function DocumentsPage() {
                                 <DropdownMenuItem onClick={() => downloadDocument(doc)}>
                                   <Download className="h-4 w-4 mr-2" />
                                   Download
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEditDialog(doc)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => openShareDialog(doc)}>
                                   <Share2 className="h-4 w-4 mr-2" />

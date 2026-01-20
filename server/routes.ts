@@ -1613,6 +1613,81 @@ export async function registerRoutes(
     }
   });
 
+  // Bulk assign users to a cohort by role
+  app.post("/api/cohorts/:cohortId/bulk-assign", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { cohortId } = req.params;
+      const { role, userIds, trackId } = req.body;
+      
+      // Verify cohort exists
+      const cohort = await storage.getCohort(cohortId);
+      if (!cohort) {
+        return res.status(404).json({ message: "Cohort not found" });
+      }
+      
+      // Get users to assign (either specified userIds or all users of a role)
+      let usersToAssign: any[] = [];
+      if (userIds && userIds.length > 0) {
+        // Assign specific users
+        const allUsers = await storage.getAllUsers({ isActive: true });
+        usersToAssign = allUsers.filter(u => userIds.includes(u.id));
+      } else if (role) {
+        // Assign all users of a specific role
+        usersToAssign = await storage.getAllUsers({ role, isActive: true });
+      } else {
+        return res.status(400).json({ message: "Either role or userIds is required" });
+      }
+      
+      const results = { added: 0, skipped: 0, errors: [] as string[] };
+      
+      for (const user of usersToAssign) {
+        try {
+          // Check if user is already a member
+          const existing = await storage.getMembershipByUserAndCohort(user.id, cohortId);
+          if (existing) {
+            results.skipped++;
+            continue;
+          }
+          
+          // Determine role based on user's actual role
+          const memberRole = user.role === 'MENTOR' ? 'MENTOR' : 'MENTEE';
+          
+          // Create membership
+          await storage.createMembership({
+            cohortId,
+            userId: user.id,
+            role: memberRole,
+            trackId: trackId || null,
+            applicationStatus: 'APPROVED',
+            matchStatus: 'UNMATCHED',
+            joinedAt: new Date(),
+          });
+          
+          results.added++;
+        } catch (err: any) {
+          results.errors.push(`Failed to add ${user.email}: ${err.message}`);
+        }
+      }
+      
+      res.json({ 
+        message: `Added ${results.added} users to cohort, ${results.skipped} already members`,
+        ...results 
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get cohort members
+  app.get("/api/cohorts/:cohortId/members", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const members = await storage.getCohortMembershipsWithUsers(req.params.cohortId);
+      res.json(members);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/applications", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
       const { status } = req.query;
