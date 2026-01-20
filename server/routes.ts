@@ -2918,6 +2918,29 @@ export async function registerRoutes(
     }
   });
 
+  // Get or create system folder (public resources)
+  // NOTE: This must come BEFORE /api/folders/:id to avoid matching "system" as an id
+  app.get("/api/folders/system", requireAuth, async (req, res, next) => {
+    try {
+      const folder = await storage.getOrCreateSystemFolder();
+      res.json(folder);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get or create personal folder for current user
+  // NOTE: This must come BEFORE /api/folders/:id to avoid matching "personal" as an id
+  app.get("/api/folders/personal", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const folder = await storage.getOrCreatePersonalFolder(userId);
+      res.json(folder);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Get single folder
   app.get("/api/folders/:id", requireAuth, async (req, res, next) => {
     try {
@@ -3070,27 +3093,6 @@ export async function registerRoutes(
     try {
       const folderList = await storage.getFolders({});
       res.json(folderList);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Get or create system folder (public resources)
-  app.get("/api/folders/system", requireAuth, async (req, res, next) => {
-    try {
-      const folder = await storage.getOrCreateSystemFolder();
-      res.json(folder);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Get or create personal folder for current user
-  app.get("/api/folders/personal", requireAuth, async (req, res, next) => {
-    try {
-      const userId = (req.user as any).id;
-      const folder = await storage.getOrCreatePersonalFolder(userId);
-      res.json(folder);
     } catch (error) {
       next(error);
     }
