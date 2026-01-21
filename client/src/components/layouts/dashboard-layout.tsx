@@ -76,9 +76,9 @@ const getNavItems = (role: UserRole) => {
 
   if (role === "SUPER_ADMIN" || role === "ADMIN") {
     return [
-      ...baseItems.slice(0, 3),
+      ...baseItems.slice(0, 2),
       { title: "Goals", url: "/goals", icon: Target },
-      ...baseItems.slice(3),
+      ...baseItems.slice(2),
       mentorCommunityItem,
       menteeCommunityItem,
       ...adminItems
@@ -96,9 +96,9 @@ const getNavItems = (role: UserRole) => {
 
   // Mentee - has their own Goals and Community
   return [
-    ...baseItems.slice(0, 3),
+    ...baseItems.slice(0, 2),
     { title: "Goals", url: "/goals", icon: Target },
-    ...baseItems.slice(3),
+    ...baseItems.slice(2),
     { title: "My Mentor", url: "/connections", icon: Users },
     menteeCommunityItem,
   ];

@@ -26,7 +26,7 @@ interface DisplayEvent {
   title: string;
   date: Date;
   endDate?: Date;
-  type: "task" | "meeting" | "block" | "goal";
+  type: "meeting" | "block" | "goal";
   status?: string;
   location?: string;
   progress?: number;
@@ -64,10 +64,6 @@ export default function CalendarPage() {
     location: "",
   });
   const [editParticipants, setEditParticipants] = useState<string[]>([]);
-
-  const { data: tasks = [], isLoading: isLoadingTasks } = useQuery<any[]>({
-    queryKey: ["/api/tasks"],
-  });
 
   const { data: calendarEvents = [], isLoading: isLoadingEvents } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/calendar-events"],
@@ -223,16 +219,6 @@ export default function CalendarPage() {
     createEventMutation.mutate(eventData);
   };
 
-  const taskEvents: DisplayEvent[] = tasks
-    .filter(t => t.dueDate)
-    .map(t => ({
-      id: t.id,
-      title: t.title,
-      date: new Date(t.dueDate),
-      type: "task" as const,
-      status: t.status,
-    }));
-
   const calendarDisplayEvents: DisplayEvent[] = calendarEvents.map(e => ({
     id: e.id,
     title: e.title,
@@ -254,7 +240,7 @@ export default function CalendarPage() {
       progress: g.progress || 0,
     }));
 
-  const allEvents = [...taskEvents, ...calendarDisplayEvents, ...goalEvents];
+  const allEvents = [...calendarDisplayEvents, ...goalEvents];
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -367,7 +353,7 @@ export default function CalendarPage() {
 
   if (!user) return null;
 
-  const isLoading = isLoadingTasks || isLoadingEvents;
+  const isLoading = isLoadingEvents;
 
   return (
     <DashboardLayout>
@@ -460,7 +446,6 @@ export default function CalendarPage() {
                   const isSelected = selectedDate && isSameDay(day, selectedDate);
                   const isTodayDate = isToday(day);
                   const hasMeetings = dayEvents.some(e => e.type === "meeting");
-                  const hasTasks = dayEvents.some(e => e.type === "task");
                   const hasBlocks = dayEvents.some(e => e.type === "block");
                   const hasGoals = dayEvents.some(e => e.type === "goal");
                   
@@ -484,14 +469,6 @@ export default function CalendarPage() {
                               className={cn(
                                 "w-1.5 h-1.5 rounded-full",
                                 isSelected ? "bg-primary-foreground" : "bg-blue-500"
-                              )}
-                            />
-                          )}
-                          {hasTasks && (
-                            <div
-                              className={cn(
-                                "w-1.5 h-1.5 rounded-full",
-                                isSelected ? "bg-primary-foreground" : "bg-primary"
                               )}
                             />
                           )}
@@ -524,12 +501,12 @@ export default function CalendarPage() {
                   <span>Meetings</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                  <span>Tasks</span>
-                </div>
-                <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-orange-500" />
                   <span>Blocked</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-purple-500" />
+                  <span>Goals</span>
                 </div>
               </div>
             </CardContent>
@@ -575,15 +552,15 @@ export default function CalendarPage() {
                     {selectedDateEvents.map((event) => (
                       <button
                         key={event.id}
-                        onClick={() => event.type !== "task" && event.type !== "goal" && openEventDetail(event.id)}
+                        onClick={() => event.type !== "goal" && openEventDetail(event.id)}
                         className={cn(
                           "w-full text-left p-3 rounded-md hover-elevate",
                           event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" :
                           event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
-                          event.type !== "task" && event.type !== "goal" && "cursor-pointer"
+                          event.type !== "goal" && "cursor-pointer"
                         )}
                         data-testid={`event-${event.id}`}
-                        disabled={event.type === "task" || event.type === "goal"}
+                        disabled={event.type === "goal"}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -615,10 +592,10 @@ export default function CalendarPage() {
                             )}
                           </div>
                           <Badge 
-                            variant={event.type === "meeting" ? "default" : event.type === "block" ? "secondary" : event.type === "goal" ? "outline" : "outline"}
+                            variant={event.type === "meeting" ? "default" : event.type === "block" ? "secondary" : "outline"}
                             className={cn("text-xs shrink-0", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400")}
                           >
-                            {event.type === "task" ? "Task" : event.type === "block" ? "Blocked" : event.type === "goal" ? "Goal" : "Meeting"}
+                            {event.type === "block" ? "Blocked" : event.type === "goal" ? "Goal" : "Meeting"}
                           </Badge>
                         </div>
                       </button>
@@ -652,7 +629,7 @@ export default function CalendarPage() {
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Upcoming</CardTitle>
-            <CardDescription>Meetings, tasks, and blocked time coming up</CardDescription>
+            <CardDescription>Meetings, goals, and blocked time coming up</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -670,23 +647,22 @@ export default function CalendarPage() {
                   .map((event) => (
                     <button
                       key={`${event.type}-${event.id}`}
-                      onClick={() => event.type !== "task" && event.type !== "goal" && openEventDetail(event.id)}
+                      onClick={() => event.type !== "goal" && openEventDetail(event.id)}
                       className={cn(
                         "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate",
                         event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" :
                         event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
-                        event.type !== "task" && event.type !== "goal" && "cursor-pointer"
+                        event.type !== "goal" && "cursor-pointer"
                       )}
                       data-testid={`upcoming-${event.type}-${event.id}`}
-                      disabled={event.type === "task" || event.type === "goal"}
+                      disabled={event.type === "goal"}
                     >
                       <div className="flex items-center gap-3">
                         <div className={cn(
                           "w-2 h-2 rounded-full",
                           event.type === "meeting" ? "bg-blue-500" : 
                           event.type === "block" ? "bg-orange-500" :
-                          event.type === "goal" ? "bg-purple-500" :
-                          event.status === "COMPLETED" ? "bg-green-500" : "bg-primary"
+                          "bg-purple-500"
                         )} />
                         <div>
                           <span className="font-medium text-sm">{event.title}</span>
@@ -694,7 +670,7 @@ export default function CalendarPage() {
                             variant="outline" 
                             className={cn("ml-2 text-xs", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400")}
                           >
-                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Blocked" : event.type === "goal" ? "Goal" : "Task"}
+                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Blocked" : "Goal"}
                           </Badge>
                         </div>
                       </div>
