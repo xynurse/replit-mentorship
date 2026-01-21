@@ -25,7 +25,6 @@ const AdminCohorts = lazy(() => import("@/pages/admin/cohorts"));
 const AdminApplications = lazy(() => import("@/pages/admin/applications"));
 const AdminMatchingPage = lazy(() => import("@/pages/admin/matching"));
 const AdminDocuments = lazy(() => import("@/pages/admin/documents"));
-const AdminTasks = lazy(() => import("@/pages/admin/tasks"));
 const AdminAnalytics = lazy(() => import("@/pages/admin/analytics"));
 const AdminAuditLogs = lazy(() => import("@/pages/admin/audit-logs"));
 const AdminErrorLogs = lazy(() => import("@/pages/admin/error-logs"));
@@ -45,7 +44,6 @@ const ApplyPage = lazy(() => import("@/pages/apply"));
 const CertificatesPage = lazy(() => import("@/pages/certificates"));
 const MessagesPage = lazy(() => import("@/pages/messages"));
 const DocumentsPage = lazy(() => import("@/pages/documents"));
-const TasksPage = lazy(() => import("@/pages/tasks"));
 const GoalsPage = lazy(() => import("@/pages/goals"));
 const NotificationsPage = lazy(() => import("@/pages/notifications"));
 const PrivacyPage = lazy(() => import("@/pages/privacy"));
@@ -94,7 +92,6 @@ function Router() {
       <AdminRoute path="/admin/applications" component={AdminApplications} />
       <AdminRoute path="/admin/matching/:cohortId" component={AdminMatchingPage} />
       <AdminRoute path="/admin/documents" component={AdminDocuments} />
-      <AdminRoute path="/admin/tasks" component={AdminTasks} />
       <AdminRoute path="/admin/analytics" component={AdminAnalytics} />
       <AdminRoute path="/admin/audit-logs" component={AdminAuditLogs} />
       <AdminRoute path="/admin/error-logs" component={AdminErrorLogs} />
@@ -111,7 +108,6 @@ function Router() {
       <LazyRoute path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
-      <ProtectedRoute path="/tasks" component={TasksPage} />
       <ProtectedRoute path="/goals" component={GoalsPage} />
       <ProtectedRoute path="/notifications" component={NotificationsPage} />
       <ProtectedRoute path="/privacy" component={PrivacyPage} />

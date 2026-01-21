@@ -14,7 +14,6 @@ import {
   ChevronDown,
   Shield,
   UserCog,
-  ListTodo,
   Target,
   Award,
   UsersRound,
@@ -62,7 +61,6 @@ const getNavItems = (role: UserRole) => {
   const baseItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Search", url: "/search", icon: Search },
-    { title: "Tasks", url: "/tasks", icon: ListTodo },
     { title: "Messages", url: "/messages", icon: MessageSquare },
     { title: "Calendar", url: "/calendar", icon: Calendar },
     { title: "Documents", url: "/documents", icon: FileText },
