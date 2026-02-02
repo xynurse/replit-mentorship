@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { MentorshipMatch, Task, Goal, User, Notification } from "@shared/schema";
+import type { MentorshipMatch, Goal, User, Notification, MeetingLog } from "@shared/schema";
 
 type PublicUserInfo = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'profileImage' | 'bio' | 'jobTitle' | 'organizationName' | 'linkedInUrl'>;
 
@@ -36,12 +36,12 @@ export default function HomePage() {
     queryKey: ["/api/matches/my"],
   });
 
-  const { data: tasks = [], isLoading: loadingTasks } = useQuery<Task[]>({
-    queryKey: ["/api/tasks"],
-  });
-
   const { data: goals = [], isLoading: loadingGoals } = useQuery<Goal[]>({
     queryKey: ["/api/goals"],
+  });
+
+  const { data: meetings = [], isLoading: loadingMeetings } = useQuery<MeetingLog[]>({
+    queryKey: ["/api/meetings"],
   });
 
   const { data: notifications = [], isLoading: loadingNotifications } = useQuery<Notification[]>({
@@ -54,13 +54,12 @@ export default function HomePage() {
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
   const activeMatches = matches.filter(m => m.status === "ACTIVE");
-  const upcomingTasks = tasks.filter(t => t.status !== "COMPLETED" && t.dueDate && new Date(t.dueDate) > new Date());
-  const completedTasks = tasks.filter(t => t.status === "COMPLETED");
   const completedGoals = goals.filter(g => g.status === "COMPLETED");
   const inProgressGoals = goals.filter(g => g.status === "IN_PROGRESS");
   const unreadNotifications = notifications.filter(n => !n.isRead);
+  const upcomingMeetings = meetings.filter(m => m.scheduledDate && new Date(m.scheduledDate) > new Date());
 
-  const isLoading = loadingMatches || loadingTasks || loadingGoals || loadingNotifications;
+  const isLoading = loadingMatches || loadingGoals || loadingNotifications || loadingMeetings;
 
   return (
     <DashboardLayout>
@@ -104,9 +103,9 @@ export default function HomePage() {
                 icon={<Users className="h-5 w-5" />}
               />
               <StatCard
-                title="Upcoming Tasks"
-                value={String(upcomingTasks.length)}
-                change={upcomingTasks.length > 0 ? "Tasks pending" : "All caught up"}
+                title="Upcoming Meetings"
+                value={String(upcomingMeetings.length)}
+                change={upcomingMeetings.length > 0 ? "Sessions scheduled" : "No meetings scheduled"}
                 icon={<Calendar className="h-5 w-5" />}
               />
               <StatCard
@@ -127,59 +126,6 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-                <div>
-                  <CardTitle className="text-lg">Upcoming Tasks</CardTitle>
-                  <CardDescription>Tasks that need your attention</CardDescription>
-                </div>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/tasks">
-                    View all
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {loadingTasks ? (
-                  <div className="space-y-4">
-                    {[1, 2].map((i) => (
-                      <Skeleton key={i} className="h-16 w-full" />
-                    ))}
-                  </div>
-                ) : upcomingTasks.length > 0 ? (
-                  <div className="space-y-4">
-                    {upcomingTasks.slice(0, 3).map((task) => (
-                      <div key={task.id} className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${task.priority === "HIGH" || task.priority === "URGENT" ? "bg-destructive" : "bg-primary"}`} />
-                          <div>
-                            <p className="font-medium text-sm">{task.title}</p>
-                            {task.dueDate && (
-                              <p className="text-xs text-muted-foreground">
-                                Due: {new Date(task.dueDate).toLocaleDateString()}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <Badge variant="outline" className="text-xs">
-                          {(task.status || "TODO").replace("_", " ")}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No upcoming tasks</p>
-                    <Link href="/tasks">
-                      <Button variant="ghost" size="sm" className="mt-2">Create a task</Button>
-                    </Link>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                 <div>
@@ -231,15 +177,6 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <>
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">Tasks Completed</span>
-                        <span className="text-sm text-muted-foreground">
-                          {completedTasks.length}/{tasks.length}
-                        </span>
-                      </div>
-                      <Progress value={tasks.length > 0 ? (completedTasks.length / tasks.length) * 100 : 0} className="h-2" />
-                    </div>
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">Goals Achieved</span>
@@ -409,8 +346,8 @@ function ActivityItem({
 
 function getNotificationIcon(type: string) {
   switch (type) {
-    case "TASK_COMPLETED":
     case "GOAL_APPROVED":
+    case "GOAL_COMPLETED":
       return <CheckCircle className="h-4 w-4 text-primary" />;
     case "NEW_MESSAGE":
       return <MessageSquare className="h-4 w-4 text-primary" />;

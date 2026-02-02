@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, UserCheck, Handshake, ClipboardList, Calendar, AlertTriangle, ArrowRight, Activity } from "lucide-react";
+import { Users, UserCheck, Handshake, ClipboardList, Calendar, ArrowRight, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +13,6 @@ interface DashboardStats {
   activeMatches: number;
   pendingApplications: number;
   upcomingMeetings: number;
-  overdueTasks: number;
 }
 
 function StatCard({ title, value, icon: Icon, description, href, variant = "default" }: {
@@ -158,13 +157,7 @@ export default function AdminDashboard() {
               value={stats?.upcomingMeetings || 0}
               icon={Calendar}
               description="This week"
-            />
-            <StatCard
-              title="Overdue Tasks"
-              value={stats?.overdueTasks || 0}
-              icon={AlertTriangle}
-              description="Need attention"
-              variant="warning"
+              href="/admin/meetings"
             />
           </div>
         )}
