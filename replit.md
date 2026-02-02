@@ -160,13 +160,43 @@ Preferred communication style: Simple, everyday language.
 - **Storage Method**: `getAllMeetingsWithDetails()` - Joins meetings with mentor/mentee user data
 - **Schema Table**: meetingLogs (shared/schema.ts)
 
+### Mentorship Journal System
+- **Purpose**: Allow mentees to track growth, learnings, and reflections with mentor feedback
+- **Frontend Page**: client/src/pages/journal.tsx - Full CRUD with mood tracking, visibility controls, and mentor feedback
+- **Schema Table**: journalEntries (shared/schema.ts) with userId, title, content, mood, visibility, keyLearnings, challenges, nextSteps, tags, mentorFeedback
+- **Visibility Levels**: PRIVATE (only author), MENTOR_ONLY (shared with assigned mentor), PUBLIC (all users)
+- **Mood Tracking**: HAPPY, NEUTRAL, STRUGGLING with emoji indicators
+- **Mentor Features**: Mentors see "Mentee Entries" tab with entries shared by their assigned mentees, can add feedback
+- **API Endpoints**:
+  - `GET /api/journal` - Get user's own journal entries
+  - `GET /api/journal/mentee-entries` - Get entries shared with mentor (for mentors/admins)
+  - `POST /api/journal` - Create new journal entry
+  - `PATCH /api/journal/:id` - Update journal entry (with Zod validation)
+  - `DELETE /api/journal/:id` - Delete journal entry
+  - `POST /api/journal/:id/feedback` - Add mentor feedback to entry
+- **Storage Methods**: getJournalEntry, getJournalEntriesByUser, getJournalEntriesForMentor, createJournalEntry, updateJournalEntry, deleteJournalEntry, addMentorFeedback
+
 ### PDF Export System
 - **Library**: jsPDF with html2canvas for client-side PDF generation
 - **Utility Location**: client/src/lib/pdf-export.ts
 - **SONSIEL Branding**: Teal header with logo, footer with date and page numbers
 - **Goals Export**: Button on Goals page to export all goals with progress, milestones, and feedback
 - **Profile Export**: Button on Settings page to export user profile information
+- **Impact Report Export**: Button on Journal page (mentees only) to export comprehensive mentorship impact report
 - **Export Functions**: 
   - `exportGoalsToPDF(goals, user)` - Export goals with SMART details and milestones
   - `exportProfileToPDF(user)` - Export user profile with organization and contact info
+  - `exportImpactReportToPDF(data)` - Export mentorship impact report with goals, meetings, journal entries, and statistics
   - `exportElementToPDF(elementId, filename)` - Generic HTML element to PDF conversion
+
+### Admin Analytics Dashboard
+- **Page Location**: client/src/pages/admin/analytics.tsx
+- **Metrics Categories**: User, Cohort, Match, Meeting, Task, Goal, Engagement, Journal
+- **Journal Metrics**: Total entries, entries this month, shared entries, entries with mentor feedback
+- **Trends**: User growth, match activity, task completion, goal progress, meeting activity over configurable time periods
+- **Track/Cohort Analytics**: Breakdown by mentorship tracks and cohorts
+- **API Endpoints**: 
+  - `GET /api/analytics/dashboard` - Aggregate metrics across all categories
+  - `GET /api/analytics/trends` - Time-series data for charts
+  - `GET /api/analytics/tracks` - Per-track analytics
+  - `GET /api/analytics/cohorts` - Per-cohort analytics
