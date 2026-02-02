@@ -1541,3 +1541,37 @@ export const insertMenteeThreadReplySchema = createInsertSchema(menteeThreadRepl
 
 export type MenteeThreadReply = typeof menteeThreadReplies.$inferSelect;
 export type InsertMenteeThreadReply = z.infer<typeof insertMenteeThreadReplySchema>;
+
+// Journal Entry Types
+export const journalMoodEnum = pgEnum("journal_mood", ["EXCELLENT", "GOOD", "NEUTRAL", "CHALLENGING", "DIFFICULT"]);
+export const journalVisibilityEnum = pgEnum("journal_visibility", ["PRIVATE", "MENTOR_ONLY", "PUBLIC"]);
+
+// Mentorship Journal Entries
+export const journalEntries = pgTable("journal_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  matchId: varchar("match_id").references(() => mentorshipMatches.id),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  mood: journalMoodEnum("mood"),
+  visibility: journalVisibilityEnum("visibility").default("PRIVATE"),
+  tags: text("tags").array(),
+  keyLearnings: text("key_learnings"),
+  challenges: text("challenges"),
+  nextSteps: text("next_steps"),
+  mentorFeedback: text("mentor_feedback"),
+  mentorFeedbackAt: timestamp("mentor_feedback_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit({
+  id: true,
+  mentorFeedback: true,
+  mentorFeedbackAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type JournalEntry = typeof journalEntries.$inferSelect;
+export type InsertJournalEntry = z.infer<typeof insertJournalEntrySchema>;

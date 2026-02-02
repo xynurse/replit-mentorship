@@ -31,6 +31,7 @@ import {
   RefreshCw,
   ArrowUp,
   ArrowDown,
+  BookOpen,
 } from "lucide-react";
 import {
   LineChart,
@@ -97,6 +98,12 @@ interface DashboardMetrics {
     messagesThisMonth: number;
     totalDocuments: number;
     totalConversations: number;
+  };
+  journalMetrics: {
+    totalJournalEntries: number;
+    entriesThisMonth: number;
+    entriesWithMentorFeedback: number;
+    sharedEntries: number;
   };
 }
 
@@ -713,6 +720,33 @@ export default function AnalyticsDashboard() {
                       <div className="flex justify-between items-center py-2">
                         <span className="text-muted-foreground">Documents Uploaded</span>
                         <span className="font-semibold">{dashboard.engagementMetrics.totalDocuments}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <BookOpen className="h-4 w-4" />
+                        Journal Reflections
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex justify-between items-center py-2 border-b">
+                        <span className="text-muted-foreground">Total Journal Entries</span>
+                        <span className="font-semibold">{dashboard.journalMetrics?.totalJournalEntries || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b">
+                        <span className="text-muted-foreground">Entries This Month</span>
+                        <Badge>{dashboard.journalMetrics?.entriesThisMonth || 0}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b">
+                        <span className="text-muted-foreground">Shared with Mentors</span>
+                        <span className="font-semibold">{dashboard.journalMetrics?.sharedEntries || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-muted-foreground">With Mentor Feedback</span>
+                        <Badge variant="outline">{dashboard.journalMetrics?.entriesWithMentorFeedback || 0}</Badge>
                       </div>
                     </CardContent>
                   </Card>

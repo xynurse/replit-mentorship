@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema } from "@shared/schema";
 import { z } from "zod";
 import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
 import { registerObjectStorageRoutes, ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
@@ -5524,6 +5524,128 @@ export async function registerRoutes(
       
       await storage.deleteMenteeThreadReply(req.params.id);
       res.json({ message: "Reply deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ===== JOURNAL ENTRIES =====
+  
+  // Get user's own journal entries
+  app.get("/api/journal", requireAuth, async (req, res, next) => {
+    try {
+      const entries = await storage.getJournalEntries(req.user!.id);
+      res.json(entries);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get mentor's view of mentee journal entries
+  app.get("/api/journal/mentee-entries", requireRole("MENTOR", "ADMIN", "SUPER_ADMIN"), async (req, res, next) => {
+    try {
+      const entries = await storage.getJournalEntriesForMentor(req.user!.id);
+      res.json(entries);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single journal entry
+  app.get("/api/journal/:id", requireAuth, async (req, res, next) => {
+    try {
+      const entry = await storage.getJournalEntry(req.params.id);
+      if (!entry) {
+        return res.status(404).json({ message: "Journal entry not found" });
+      }
+      
+      // Only allow owner or mentor (if shared) to view
+      const isOwner = entry.userId === req.user!.id;
+      const isMentor = req.user!.role === "MENTOR" && (entry.visibility === "MENTOR_ONLY" || entry.visibility === "PUBLIC");
+      const isAdmin = req.user!.role === "ADMIN" || req.user!.role === "SUPER_ADMIN";
+      
+      if (!isOwner && !isMentor && !isAdmin) {
+        return res.status(403).json({ message: "Not authorized to view this entry" });
+      }
+      
+      res.json(entry);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create journal entry
+  app.post("/api/journal", requireAuth, async (req, res, next) => {
+    try {
+      const validated = insertJournalEntrySchema.parse({
+        ...req.body,
+        userId: req.user!.id,
+      });
+      const entry = await storage.createJournalEntry(validated);
+      res.status(201).json(entry);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update journal entry
+  app.patch("/api/journal/:id", requireAuth, async (req, res, next) => {
+    try {
+      const entry = await storage.getJournalEntry(req.params.id);
+      if (!entry) {
+        return res.status(404).json({ message: "Journal entry not found" });
+      }
+      if (entry.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to edit this entry" });
+      }
+      
+      const updateSchema = insertJournalEntrySchema.partial();
+      const validatedData = updateSchema.parse(req.body);
+      const updated = await storage.updateJournalEntry(req.params.id, validatedData);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete journal entry
+  app.delete("/api/journal/:id", requireAuth, async (req, res, next) => {
+    try {
+      const entry = await storage.getJournalEntry(req.params.id);
+      if (!entry) {
+        return res.status(404).json({ message: "Journal entry not found" });
+      }
+      if (entry.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to delete this entry" });
+      }
+      
+      await storage.deleteJournalEntry(req.params.id);
+      res.json({ message: "Journal entry deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Add mentor feedback to journal entry
+  app.post("/api/journal/:id/feedback", requireRole("MENTOR", "ADMIN", "SUPER_ADMIN"), async (req, res, next) => {
+    try {
+      const entry = await storage.getJournalEntry(req.params.id);
+      if (!entry) {
+        return res.status(404).json({ message: "Journal entry not found" });
+      }
+      
+      // Check if mentor has access to this entry
+      if (entry.visibility === "PRIVATE") {
+        return res.status(403).json({ message: "Cannot add feedback to private entries" });
+      }
+      
+      const { feedback } = req.body;
+      if (!feedback || typeof feedback !== 'string') {
+        return res.status(400).json({ message: "Feedback is required" });
+      }
+      
+      const updated = await storage.addMentorFeedback(req.params.id, feedback);
+      res.json(updated);
     } catch (error) {
       next(error);
     }

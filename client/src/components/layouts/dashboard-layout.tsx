@@ -18,6 +18,7 @@ import {
   Award,
   UsersRound,
   GraduationCap,
+  BookOpen,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
@@ -90,6 +91,7 @@ const getNavItems = (role: UserRole) => {
       ...baseItems,
       { title: "My Mentees", url: "/connections", icon: Users },
       { title: "Mentee Goals", url: "/goals", icon: Target },
+      { title: "Journal", url: "/journal", icon: BookOpen },
       mentorCommunityItem,
     ];
   }
@@ -98,6 +100,7 @@ const getNavItems = (role: UserRole) => {
   return [
     ...baseItems.slice(0, 2),
     { title: "Goals", url: "/goals", icon: Target },
+    { title: "Journal", url: "/journal", icon: BookOpen },
     ...baseItems.slice(2),
     { title: "My Mentor", url: "/connections", icon: Users },
     menteeCommunityItem,

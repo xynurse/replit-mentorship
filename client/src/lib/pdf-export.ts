@@ -422,3 +422,262 @@ function formatDate(date: string | Date | null | undefined): string {
     day: 'numeric' 
   });
 }
+
+export interface MeetingData {
+  scheduledDate?: string | Date | null;
+  format?: string | null;
+  agenda?: string | null;
+  notes?: string | null;
+  durationMinutes?: number | null;
+  status?: string | null;
+}
+
+export interface JournalData {
+  title: string;
+  content: string;
+  mood?: string | null;
+  keyLearnings?: string | null;
+  challenges?: string | null;
+  nextSteps?: string | null;
+  createdAt?: string | Date | null;
+}
+
+export interface ImpactReportData {
+  user: UserInfo;
+  mentor?: UserInfo | null;
+  mentorshipStartDate?: string | Date | null;
+  goals: GoalData[];
+  meetings: MeetingData[];
+  journalEntries: JournalData[];
+  programName?: string;
+}
+
+export function exportImpactReportToPDF(data: ImpactReportData) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margins = { left: 14, right: 14, top: 65, bottom: 20 };
+  const contentWidth = pageWidth - margins.left - margins.right;
+  let currentY = margins.top;
+  let pageNumber = 1;
+
+  function checkNewPage(neededHeight: number = 30) {
+    if (currentY + neededHeight > pageHeight - margins.bottom) {
+      addFooter(doc, pageNumber);
+      doc.addPage();
+      pageNumber++;
+      addHeader(doc, 'Mentorship Impact Report', `${data.user.firstName} ${data.user.lastName}`);
+      currentY = margins.top;
+    }
+  }
+
+  function addSectionHeader(title: string) {
+    checkNewPage(20);
+    doc.setFillColor(SONSIEL_TEAL);
+    doc.rect(margins.left, currentY, contentWidth, 8, 'F');
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text(title, margins.left + 3, currentY + 5.5);
+    currentY += 12;
+  }
+
+  addHeader(doc, 'Mentorship Impact Report', `${data.user.firstName} ${data.user.lastName}`);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(TEXT_PRIMARY);
+  doc.text(`Report Generated: ${formatDate(new Date())}`, margins.left, currentY);
+  currentY += 8;
+
+  if (data.programName) {
+    doc.text(`Program: ${data.programName}`, margins.left, currentY);
+    currentY += 6;
+  }
+
+  if (data.mentorshipStartDate) {
+    doc.text(`Mentorship Started: ${formatDate(data.mentorshipStartDate)}`, margins.left, currentY);
+    currentY += 6;
+  }
+
+  if (data.mentor) {
+    doc.text(`Mentor: ${data.mentor.firstName} ${data.mentor.lastName}`, margins.left, currentY);
+    currentY += 6;
+  }
+
+  currentY += 8;
+
+  addSectionHeader('Summary Statistics');
+  
+  const stats = [
+    { label: 'Goals Set', value: data.goals.length.toString() },
+    { label: 'Goals Completed', value: data.goals.filter(g => g.status === 'COMPLETED').length.toString() },
+    { label: 'Goals In Progress', value: data.goals.filter(g => g.status === 'IN_PROGRESS').length.toString() },
+    { label: 'Meetings Held', value: data.meetings.filter(m => m.status !== 'CANCELLED').length.toString() },
+    { label: 'Journal Entries', value: data.journalEntries.length.toString() },
+  ];
+
+  const avgProgress = data.goals.length > 0 
+    ? Math.round(data.goals.reduce((acc, g) => acc + (g.progress || 0), 0) / data.goals.length)
+    : 0;
+  stats.push({ label: 'Average Goal Progress', value: `${avgProgress}%` });
+
+  const statBoxWidth = contentWidth / 3;
+  const statBoxHeight = 20;
+  let statX = margins.left;
+  let statY = currentY;
+
+  stats.forEach((stat, i) => {
+    if (i > 0 && i % 3 === 0) {
+      statX = margins.left;
+      statY += statBoxHeight + 2;
+    }
+
+    doc.setFillColor(245, 245, 245);
+    doc.rect(statX, statY, statBoxWidth - 2, statBoxHeight, 'F');
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(SONSIEL_TEAL);
+    doc.text(stat.value, statX + (statBoxWidth - 2) / 2, statY + 9, { align: 'center' });
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(TEXT_SECONDARY);
+    doc.text(stat.label, statX + (statBoxWidth - 2) / 2, statY + 15, { align: 'center' });
+
+    statX += statBoxWidth;
+  });
+
+  currentY = statY + statBoxHeight + 12;
+
+  if (data.goals.length > 0) {
+    addSectionHeader('Goals Progress');
+    
+    data.goals.forEach((goal, index) => {
+      checkNewPage(35);
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(TEXT_PRIMARY);
+      doc.text(`${index + 1}. ${goal.title}`, margins.left, currentY);
+      currentY += 5;
+      
+      const statusColor = getStatusColor(goal.status);
+      doc.setFillColor(statusColor.r, statusColor.g, statusColor.b);
+      doc.roundedRect(margins.left, currentY, 25, 5, 1, 1, 'F');
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
+      doc.text(formatStatus(goal.status), margins.left + 12.5, currentY + 3.5, { align: 'center' });
+      
+      doc.setFontSize(8);
+      doc.setTextColor(TEXT_SECONDARY);
+      doc.text(`Progress: ${goal.progress || 0}%`, margins.left + 30, currentY + 3.5);
+
+      if (goal.targetDate) {
+        doc.text(`Target: ${formatDate(goal.targetDate)}`, margins.left + 65, currentY + 3.5);
+      }
+      
+      currentY += 10;
+
+      if (goal.description) {
+        doc.setFontSize(9);
+        doc.setTextColor(TEXT_PRIMARY);
+        const descLines = doc.splitTextToSize(goal.description, contentWidth);
+        doc.text(descLines.slice(0, 2), margins.left, currentY);
+        currentY += Math.min(descLines.length, 2) * 4 + 4;
+      }
+    });
+    currentY += 5;
+  }
+
+  if (data.meetings.length > 0) {
+    addSectionHeader('Meeting History');
+    
+    const completedMeetings = data.meetings.filter(m => m.status !== 'CANCELLED' && m.scheduledDate);
+    completedMeetings.slice(0, 10).forEach(meeting => {
+      checkNewPage(15);
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(TEXT_PRIMARY);
+      doc.text(formatDate(meeting.scheduledDate), margins.left, currentY);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(TEXT_SECONDARY);
+      if (meeting.format) {
+        doc.text(` - ${meeting.format}`, margins.left + 28, currentY);
+      }
+      if (meeting.durationMinutes) {
+        doc.text(`(${meeting.durationMinutes} min)`, margins.left + 55, currentY);
+      }
+      currentY += 5;
+
+      if (meeting.agenda) {
+        doc.setFontSize(8);
+        doc.setTextColor(TEXT_PRIMARY);
+        const agendaLines = doc.splitTextToSize(`Agenda: ${meeting.agenda}`, contentWidth);
+        doc.text(agendaLines.slice(0, 2), margins.left, currentY);
+        currentY += Math.min(agendaLines.length, 2) * 3.5 + 3;
+      }
+    });
+    currentY += 5;
+  }
+
+  if (data.journalEntries.length > 0) {
+    addSectionHeader('Reflection Highlights');
+    
+    data.journalEntries.slice(0, 5).forEach(entry => {
+      checkNewPage(25);
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(TEXT_PRIMARY);
+      doc.text(entry.title, margins.left, currentY);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(TEXT_SECONDARY);
+      doc.text(formatDate(entry.createdAt), margins.left + 100, currentY);
+      currentY += 5;
+
+      if (entry.keyLearnings) {
+        doc.setFontSize(8);
+        doc.setTextColor(TEXT_PRIMARY);
+        const learningLines = doc.splitTextToSize(`Key Learnings: ${entry.keyLearnings}`, contentWidth);
+        doc.text(learningLines.slice(0, 2), margins.left, currentY);
+        currentY += Math.min(learningLines.length, 2) * 3.5 + 4;
+      } else {
+        currentY += 4;
+      }
+    });
+  }
+
+  checkNewPage(30);
+  currentY += 10;
+  
+  doc.setFillColor(245, 245, 245);
+  doc.rect(margins.left, currentY, contentWidth, 25, 'F');
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(TEXT_PRIMARY);
+  doc.text('Prepared for:', margins.left + 5, currentY + 8);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${data.user.firstName} ${data.user.lastName}`, margins.left + 5, currentY + 14);
+  if (data.user.organizationName) {
+    doc.setTextColor(TEXT_SECONDARY);
+    doc.text(data.user.organizationName, margins.left + 5, currentY + 20);
+  }
+
+  addFooter(doc, pageNumber);
+
+  const filename = `SONSIEL_Impact_Report_${data.user.lastName}_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(filename);
+}

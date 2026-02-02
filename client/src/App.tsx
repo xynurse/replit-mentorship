@@ -56,6 +56,7 @@ const CommunityPage = lazy(() => import("@/pages/community"));
 const CommunityThreadPage = lazy(() => import("@/pages/community-thread"));
 const MenteeCommunityPage = lazy(() => import("@/pages/mentee-community"));
 const MenteeCommunityThreadPage = lazy(() => import("@/pages/mentee-community-thread"));
+const JournalPage = lazy(() => import("@/pages/journal"));
 
 function PageLoader() {
   return (
@@ -121,6 +122,7 @@ function Router() {
       <ProtectedRoute path="/community/:id" component={CommunityThreadPage} />
       <ProtectedRoute path="/mentee-community" component={MenteeCommunityPage} />
       <ProtectedRoute path="/mentee-community/:id" component={MenteeCommunityThreadPage} />
+      <ProtectedRoute path="/journal" component={JournalPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <LazyRoute component={NotFound} />
     </Switch>

@@ -10,6 +10,7 @@ import {
   calendarEvents, calendarEventParticipants,
   communityBoardAccess, threadCategories, communityThreads, threadReplies,
   menteeBoardAccess, menteeThreadCategories, menteeThreads, menteeThreadReplies,
+  journalEntries,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -41,7 +42,8 @@ import {
   type MenteeBoardAccess, type InsertMenteeBoardAccess,
   type MenteeThreadCategory, type InsertMenteeThreadCategory,
   type MenteeThread, type InsertMenteeThread,
-  type MenteeThreadReply, type InsertMenteeThreadReply
+  type MenteeThreadReply, type InsertMenteeThreadReply,
+  type JournalEntry, type InsertJournalEntry
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -387,6 +389,15 @@ export interface IStorage {
   createMentorProfileExtended(profile: InsertMentorProfileExtended): Promise<MentorProfileExtended>;
   updateMentorProfileExtended(userId: string, data: Partial<MentorProfileExtended>): Promise<MentorProfileExtended | undefined>;
   deleteMentorProfileExtended(userId: string): Promise<void>;
+  
+  // Journal Entries
+  getJournalEntry(id: string): Promise<JournalEntry | undefined>;
+  getJournalEntries(userId: string): Promise<JournalEntry[]>;
+  getJournalEntriesForMentor(mentorId: string): Promise<(JournalEntry & { user: User })[]>;
+  createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry>;
+  updateJournalEntry(id: string, data: Partial<JournalEntry>): Promise<JournalEntry | undefined>;
+  deleteJournalEntry(id: string): Promise<void>;
+  addMentorFeedback(entryId: string, feedback: string): Promise<JournalEntry | undefined>;
   
   sessionStore: session.Store;
 }
@@ -2056,6 +2067,13 @@ export class DatabaseStorage implements IStorage {
       totalConversations: count(),
     }).from(conversations);
 
+    const [journalStats] = await db.select({
+      totalJournalEntries: count(),
+      entriesThisMonth: sql<number>`count(*) filter (where ${journalEntries.createdAt} >= ${startOfMonth})`,
+      entriesWithMentorFeedback: sql<number>`count(*) filter (where ${journalEntries.mentorFeedback} is not null)`,
+      sharedEntries: sql<number>`count(*) filter (where ${journalEntries.visibility} in ('MENTOR_ONLY', 'PUBLIC'))`,
+    }).from(journalEntries);
+
     return {
       userMetrics: {
         totalUsers: Number(userStats?.totalUsers) || 0,
@@ -2103,6 +2121,12 @@ export class DatabaseStorage implements IStorage {
         messagesThisMonth: Number(messageStats?.messagesThisMonth) || 0,
         totalDocuments: Number(documentStats?.totalDocuments) || 0,
         totalConversations: Number(conversationStats?.totalConversations) || 0,
+      },
+      journalMetrics: {
+        totalJournalEntries: Number(journalStats?.totalJournalEntries) || 0,
+        entriesThisMonth: Number(journalStats?.entriesThisMonth) || 0,
+        entriesWithMentorFeedback: Number(journalStats?.entriesWithMentorFeedback) || 0,
+        sharedEntries: Number(journalStats?.sharedEntries) || 0,
       },
     };
   }
@@ -3378,6 +3402,86 @@ export class DatabaseStorage implements IStorage {
   async getMenteeThreadReply(id: string): Promise<MenteeThreadReply | undefined> {
     const [reply] = await db.select().from(menteeThreadReplies).where(eq(menteeThreadReplies.id, id));
     return reply || undefined;
+  }
+
+  // Journal Entry methods
+  async getJournalEntry(id: string): Promise<JournalEntry | undefined> {
+    const [entry] = await db.select().from(journalEntries).where(eq(journalEntries.id, id));
+    return entry || undefined;
+  }
+
+  async getJournalEntries(userId: string): Promise<JournalEntry[]> {
+    return await db.select()
+      .from(journalEntries)
+      .where(eq(journalEntries.userId, userId))
+      .orderBy(desc(journalEntries.createdAt));
+  }
+
+  async getJournalEntriesForMentor(mentorId: string): Promise<(JournalEntry & { user: User })[]> {
+    // Get all mentees of this mentor from active matches using membership join
+    const mentorMemberships = alias(cohortMemberships, 'mentor_memberships');
+    const menteeMemberships = alias(cohortMemberships, 'mentee_memberships');
+    
+    const mentorMatches = await db.select({ menteeUserId: menteeMemberships.userId })
+      .from(mentorshipMatches)
+      .innerJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .innerJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .where(and(
+        eq(mentorMemberships.userId, mentorId),
+        eq(mentorshipMatches.status, 'ACTIVE')
+      ));
+    
+    const menteeIds = mentorMatches.map(m => m.menteeUserId).filter(Boolean) as string[];
+    
+    if (menteeIds.length === 0) {
+      return [];
+    }
+
+    const entries = await db.select({
+      entry: journalEntries,
+      user: users,
+    })
+      .from(journalEntries)
+      .innerJoin(users, eq(journalEntries.userId, users.id))
+      .where(and(
+        inArray(journalEntries.userId, menteeIds),
+        or(
+          eq(journalEntries.visibility, 'MENTOR_ONLY'),
+          eq(journalEntries.visibility, 'PUBLIC')
+        )
+      ))
+      .orderBy(desc(journalEntries.createdAt));
+
+    return entries.map(e => ({ ...e.entry, user: e.user }));
+  }
+
+  async createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry> {
+    const [created] = await db.insert(journalEntries).values(entry).returning();
+    return created;
+  }
+
+  async updateJournalEntry(id: string, data: Partial<JournalEntry>): Promise<JournalEntry | undefined> {
+    const [updated] = await db.update(journalEntries)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(journalEntries.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteJournalEntry(id: string): Promise<void> {
+    await db.delete(journalEntries).where(eq(journalEntries.id, id));
+  }
+
+  async addMentorFeedback(entryId: string, feedback: string): Promise<JournalEntry | undefined> {
+    const [updated] = await db.update(journalEntries)
+      .set({
+        mentorFeedback: feedback,
+        mentorFeedbackAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(journalEntries.id, entryId))
+      .returning();
+    return updated || undefined;
   }
 }
 
