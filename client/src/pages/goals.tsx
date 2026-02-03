@@ -948,9 +948,9 @@ export default function GoalsPage() {
                   <Progress value={isEditing ? editFormData.progress : (selectedGoal.progress || 0)} className="h-3" />
                 </div>
 
-                <div>
-                  <Label className="text-muted-foreground">Description</Label>
-                  {isEditing ? (
+                {isEditing ? (
+                  <div>
+                    <Label className="text-muted-foreground">Description</Label>
                     <Textarea
                       value={editFormData.description}
                       onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
@@ -958,105 +958,136 @@ export default function GoalsPage() {
                       className="mt-1"
                       data-testid="input-edit-goal-description"
                     />
-                  ) : selectedGoal.description ? (
-                    <p className="mt-1">{selectedGoal.description}</p>
-                  ) : (
-                    <p className="mt-1 text-muted-foreground italic">No description provided</p>
-                  )}
-                </div>
+                  </div>
+                ) : selectedGoal.description && (
+                  <div className="bg-muted/50 p-3 rounded-lg">
+                    <p className="text-sm">{selectedGoal.description}</p>
+                  </div>
+                )}
 
-                <div>
-                  <Label className="text-muted-foreground flex items-center gap-1">
-                    <Target className="h-4 w-4" /> Specific Details
-                  </Label>
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-primary/10 px-4 py-2 border-b">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      SMART Goal Details
+                    </h4>
+                  </div>
+                  
                   {isEditing ? (
-                    <Textarea
-                      value={editFormData.specificDetails}
-                      onChange={(e) => setEditFormData({ ...editFormData, specificDetails: e.target.value })}
-                      placeholder="What exactly do you want to accomplish?"
-                      className="mt-1"
-                      data-testid="input-edit-goal-specific"
-                    />
-                  ) : selectedGoal.specificDetails ? (
-                    <p className="mt-1">{selectedGoal.specificDetails}</p>
+                    <div className="p-4 space-y-4">
+                      <div>
+                        <Label className="flex items-center gap-1 text-sm font-medium">
+                          <Target className="h-4 w-4 text-primary" /> Specific
+                        </Label>
+                        <Textarea
+                          value={editFormData.specificDetails}
+                          onChange={(e) => setEditFormData({ ...editFormData, specificDetails: e.target.value })}
+                          placeholder="What exactly do you want to accomplish?"
+                          className="mt-1"
+                          data-testid="input-edit-goal-specific"
+                        />
+                      </div>
+                      <div>
+                        <Label className="flex items-center gap-1 text-sm font-medium">
+                          <Ruler className="h-4 w-4 text-primary" /> Measurable
+                        </Label>
+                        <Textarea
+                          value={editFormData.measurableMetrics}
+                          onChange={(e) => setEditFormData({ ...editFormData, measurableMetrics: e.target.value })}
+                          placeholder="How will you track progress?"
+                          className="mt-1"
+                          data-testid="input-edit-goal-measurable"
+                        />
+                      </div>
+                      <div>
+                        <Label className="flex items-center gap-1 text-sm font-medium">
+                          <Lightbulb className="h-4 w-4 text-primary" /> Achievable
+                        </Label>
+                        <Textarea
+                          value={editFormData.achievabilityNotes}
+                          onChange={(e) => setEditFormData({ ...editFormData, achievabilityNotes: e.target.value })}
+                          placeholder="Is this goal realistic given your resources?"
+                          className="mt-1"
+                          data-testid="input-edit-goal-achievable"
+                        />
+                      </div>
+                      <div>
+                        <Label className="flex items-center gap-1 text-sm font-medium">
+                          <Link className="h-4 w-4 text-primary" /> Relevant
+                        </Label>
+                        <Textarea
+                          value={editFormData.relevanceExplanation}
+                          onChange={(e) => setEditFormData({ ...editFormData, relevanceExplanation: e.target.value })}
+                          placeholder="Why is this goal important to your development?"
+                          className="mt-1"
+                          data-testid="input-edit-goal-relevant"
+                        />
+                      </div>
+                      <div>
+                        <Label className="flex items-center gap-1 text-sm font-medium">
+                          <CalendarDays className="h-4 w-4 text-primary" /> Time-Bound
+                        </Label>
+                        <Input
+                          type="date"
+                          value={editFormData.targetDate}
+                          onChange={(e) => setEditFormData({ ...editFormData, targetDate: e.target.value })}
+                          className="mt-1 w-48"
+                          data-testid="input-edit-goal-target-date"
+                        />
+                      </div>
+                    </div>
                   ) : (
-                    <p className="mt-1 text-muted-foreground italic">Not specified</p>
-                  )}
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground flex items-center gap-1">
-                    <Ruler className="h-4 w-4" /> Measurable Metrics
-                  </Label>
-                  {isEditing ? (
-                    <Textarea
-                      value={editFormData.measurableMetrics}
-                      onChange={(e) => setEditFormData({ ...editFormData, measurableMetrics: e.target.value })}
-                      placeholder="How will you track progress?"
-                      className="mt-1"
-                      data-testid="input-edit-goal-measurable"
-                    />
-                  ) : formatMeasurableMetrics(selectedGoal.measurableMetrics) ? (
-                    <p className="mt-1">{formatMeasurableMetrics(selectedGoal.measurableMetrics)}</p>
-                  ) : (
-                    <p className="mt-1 text-muted-foreground italic">Not specified</p>
-                  )}
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground flex items-center gap-1">
-                    <Lightbulb className="h-4 w-4" /> Achievability Notes
-                  </Label>
-                  {isEditing ? (
-                    <Textarea
-                      value={editFormData.achievabilityNotes}
-                      onChange={(e) => setEditFormData({ ...editFormData, achievabilityNotes: e.target.value })}
-                      placeholder="Is this goal realistic given your resources?"
-                      className="mt-1"
-                      data-testid="input-edit-goal-achievable"
-                    />
-                  ) : selectedGoal.achievabilityNotes ? (
-                    <p className="mt-1">{selectedGoal.achievabilityNotes}</p>
-                  ) : (
-                    <p className="mt-1 text-muted-foreground italic">Not specified</p>
-                  )}
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground flex items-center gap-1">
-                    <Link className="h-4 w-4" /> Relevance
-                  </Label>
-                  {isEditing ? (
-                    <Textarea
-                      value={editFormData.relevanceExplanation}
-                      onChange={(e) => setEditFormData({ ...editFormData, relevanceExplanation: e.target.value })}
-                      placeholder="Why is this goal important to your development?"
-                      className="mt-1"
-                      data-testid="input-edit-goal-relevant"
-                    />
-                  ) : selectedGoal.relevanceExplanation ? (
-                    <p className="mt-1">{selectedGoal.relevanceExplanation}</p>
-                  ) : (
-                    <p className="mt-1 text-muted-foreground italic">Not specified</p>
-                  )}
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground flex items-center gap-1">
-                    <CalendarDays className="h-4 w-4" /> Target Date
-                  </Label>
-                  {isEditing ? (
-                    <Input
-                      type="date"
-                      value={editFormData.targetDate}
-                      onChange={(e) => setEditFormData({ ...editFormData, targetDate: e.target.value })}
-                      className="mt-1 w-48"
-                      data-testid="input-edit-goal-target-date"
-                    />
-                  ) : selectedGoal.targetDate ? (
-                    <p className="mt-1">{formatDate(selectedGoal.targetDate)}</p>
-                  ) : (
-                    <p className="mt-1 text-muted-foreground italic">No target date set</p>
+                    <div className="divide-y">
+                      <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/30">
+                        <div className="flex items-center gap-2 min-w-[120px] shrink-0">
+                          <Target className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-sm">Specific</span>
+                        </div>
+                        <p className="text-sm flex-1">
+                          {selectedGoal.specificDetails || <span className="text-muted-foreground italic">Not specified</span>}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/30">
+                        <div className="flex items-center gap-2 min-w-[120px] shrink-0">
+                          <Ruler className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-sm">Measurable</span>
+                        </div>
+                        <p className="text-sm flex-1">
+                          {formatMeasurableMetrics(selectedGoal.measurableMetrics) || <span className="text-muted-foreground italic">Not specified</span>}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/30">
+                        <div className="flex items-center gap-2 min-w-[120px] shrink-0">
+                          <Lightbulb className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-sm">Achievable</span>
+                        </div>
+                        <p className="text-sm flex-1">
+                          {selectedGoal.achievabilityNotes || <span className="text-muted-foreground italic">Not specified</span>}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/30">
+                        <div className="flex items-center gap-2 min-w-[120px] shrink-0">
+                          <Link className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-sm">Relevant</span>
+                        </div>
+                        <p className="text-sm flex-1">
+                          {selectedGoal.relevanceExplanation || <span className="text-muted-foreground italic">Not specified</span>}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/30">
+                        <div className="flex items-center gap-2 min-w-[120px] shrink-0">
+                          <CalendarDays className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-sm">Time-Bound</span>
+                        </div>
+                        <p className="text-sm flex-1">
+                          {selectedGoal.targetDate ? formatDate(selectedGoal.targetDate) : <span className="text-muted-foreground italic">No target date set</span>}
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </div>
 
