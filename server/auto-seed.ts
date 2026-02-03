@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { users, applicationQuestions } from "@shared/schema";
 import { hashPassword } from "./auth";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 
 function seedLog(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -146,4 +146,37 @@ async function seedApplicationQuestions() {
   }
 
   seedLog("Application questions seeded");
+}
+
+// Ensure specific required users exist (runs even when database has users)
+export async function ensureRequiredUsers() {
+  try {
+    // Check if mentor@sonsiel.org exists
+    const existingUser = await db.select().from(users).where(eq(users.email, "mentor@sonsiel.org")).limit(1);
+    
+    if (existingUser.length === 0) {
+      const password = await hashPassword("SuperAdmin123!");
+      await db.insert(users).values({
+        email: "mentor@sonsiel.org",
+        password,
+        firstName: "Mentor",
+        lastName: "Admin",
+        role: "SUPER_ADMIN" as const,
+        isActive: true,
+        isVerified: true,
+        isProfileComplete: true,
+        mustChangePassword: true,
+        organizationName: "SONSIEL",
+        jobTitle: "Program Lead",
+        bio: "SONSIEL Mentorship Program Lead.",
+        yearsOfExperience: 10,
+        timezone: "America/New_York",
+        preferredLanguage: "en",
+        languagesSpoken: ["English"],
+      });
+      seedLog("Created required user: mentor@sonsiel.org (SUPER_ADMIN)");
+    }
+  } catch (error) {
+    seedLog(`Error ensuring required users: ${error}`);
+  }
 }
