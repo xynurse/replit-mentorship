@@ -20,11 +20,21 @@ interface ConnectionWithUser extends MentorshipMatch {
 
 export default function ConnectionsPage() {
   const { user } = useAuth();
-  const isMentor = user?.role === "MENTOR";
-
+  
   const { data: matches = [], isLoading } = useQuery<ConnectionWithUser[]>({
     queryKey: ["/api/matches/my"],
   });
+
+  // Determine if user is acting as a mentor based on their role or actual match relationships
+  // MENTOR role = always mentor perspective, MENTEE role = always mentee perspective
+  // ADMIN/SUPER_ADMIN = check matches to see if they're assigned as mentor
+  const isMentorRole = user?.role === "MENTOR";
+  const isMenteeRole = user?.role === "MENTEE";
+  const hasMentorMatches = matches.some(m => m.mentor?.id === user?.id);
+  const hasMenteeMatches = matches.some(m => m.mentee?.id === user?.id);
+  
+  // Use mentor perspective if: MENTOR role, or admin with mentor matches, or admin with no matches
+  const isMentor = isMentorRole || (!isMenteeRole && (hasMentorMatches || (!hasMentorMatches && !hasMenteeMatches)));
 
   const activeMatches = matches.filter(m => m.status === "ACTIVE");
   const pendingMatches = matches.filter(m => m.status === "PROPOSED");

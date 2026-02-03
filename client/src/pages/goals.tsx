@@ -484,7 +484,8 @@ function GoalWizard({ isOpen, onClose, onSuccess }: GoalWizardProps) {
 export default function GoalsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const isMentor = user?.role === "MENTOR";
+  // Mentors, Admins, and Super Admins can view mentee goals
+  const isMentor = user?.role === "MENTOR" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
   const [showWizard, setShowWizard] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -514,13 +515,17 @@ export default function GoalsPage() {
     progress: 0,
   });
 
+  // Mentors see their mentees' goals, others see their own goals
   const { data: goals, isLoading } = useQuery<Goal[]>({
-    queryKey: ["/api/goals", statusFilter, categoryFilter],
+    queryKey: isMentor ? ["/api/mentor/mentee-goals", statusFilter, categoryFilter] : ["/api/goals", statusFilter, categoryFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
       if (categoryFilter && categoryFilter !== "all") params.set("category", categoryFilter);
-      const res = await fetch(`/api/goals?${params.toString()}`, { credentials: "include" });
+      
+      // Mentors fetch their mentees' goals from dedicated endpoint
+      const endpoint = isMentor ? "/api/mentor/mentee-goals" : "/api/goals";
+      const res = await fetch(`${endpoint}?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch goals");
       return res.json();
     },
@@ -765,6 +770,11 @@ export default function GoalsPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       <CardTitle className="text-base line-clamp-2">{goal.title}</CardTitle>
+                      {isMentor && (goal as any).mentee && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Mentee: {(goal as any).mentee.firstName} {(goal as any).mentee.lastName}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <Badge variant={getStatusBadgeVariant(goal.status as GoalStatus)}>
                           {GOAL_STATUS_OPTIONS.find(s => s.value === goal.status)?.label || goal.status}
