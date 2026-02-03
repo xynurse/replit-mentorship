@@ -175,6 +175,16 @@ export async function ensureRequiredUsers() {
         languagesSpoken: ["English"],
       });
       seedLog("Created required user: mentor@sonsiel.org (SUPER_ADMIN)");
+    } else {
+      // Fix password if it's in wrong format (missing dot separator)
+      const currentPassword = existingUser[0].password;
+      if (currentPassword && !currentPassword.includes('.')) {
+        const password = await hashPassword("SuperAdmin123!");
+        await db.update(users)
+          .set({ password, mustChangePassword: true })
+          .where(eq(users.email, "mentor@sonsiel.org"));
+        seedLog("Fixed password format for: mentor@sonsiel.org");
+      }
     }
   } catch (error) {
     seedLog(`Error ensuring required users: ${error}`);
