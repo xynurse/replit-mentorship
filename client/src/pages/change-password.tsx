@@ -56,7 +56,7 @@ export default function ChangePasswordPage() {
       // Clear the user cache and redirect to login page
       queryClient.setQueryData(["/api/user"], null);
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      setLocation("/auth");
+      setLocation("/login");
     }
   }, [changePasswordMutation.isSuccess, setLocation]);
 
