@@ -703,8 +703,8 @@ export default function CalendarPage() {
         if (!open) resetNewEventForm();
         setShowNewEventDialog(open);
       }}>
-        <DialogContent className="sm:max-w-[550px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               {eventType === "meeting" ? "Schedule a Meeting" : "Block Time"}
             </DialogTitle>
@@ -716,8 +716,8 @@ export default function CalendarPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={eventType} onValueChange={(v) => setEventType(v as "meeting" | "block")}>
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs value={eventType} onValueChange={(v) => setEventType(v as "meeting" | "block")} className="flex-1 flex flex-col min-h-0">
+            <TabsList className="grid w-full grid-cols-2 shrink-0">
               <TabsTrigger value="meeting" data-testid="tab-meeting">
                 <Video className="h-4 w-4 mr-2" />
                 Meeting
@@ -728,7 +728,7 @@ export default function CalendarPage() {
               </TabsTrigger>
             </TabsList>
             
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-4 flex-1 overflow-y-auto">
               <div className="space-y-2">
                 <Label htmlFor="title">
                   {eventType === "meeting" ? "Meeting Title" : "Block Title"} <span className="text-destructive">*</span>
@@ -887,7 +887,7 @@ export default function CalendarPage() {
             </div>
           </Tabs>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t pt-4 mt-2">
             <Button 
               variant="outline" 
               onClick={() => setShowNewEventDialog(false)} 
@@ -916,10 +916,10 @@ export default function CalendarPage() {
         }
         setShowEventDetailDialog(open);
       }}>
-        <DialogContent className="sm:max-w-[550px]">
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col">
           {selectedEvent && (
             <>
-              <DialogHeader>
+              <DialogHeader className="shrink-0">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <DialogTitle className="flex items-center gap-2">
@@ -962,7 +962,7 @@ export default function CalendarPage() {
               </DialogHeader>
 
               {isEditing ? (
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 flex-1 overflow-y-auto">
                   <div className="space-y-2">
                     <Label htmlFor="edit-title">Title <span className="text-destructive">*</span></Label>
                     <Input
@@ -1082,7 +1082,7 @@ export default function CalendarPage() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 flex-1 overflow-y-auto">
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md">
                     <CalendarIcon className="h-5 w-5 text-muted-foreground" />
                     <div>
@@ -1163,7 +1163,7 @@ export default function CalendarPage() {
                 </div>
               )}
 
-              <DialogFooter>
+              <DialogFooter className="shrink-0 border-t pt-4 mt-2">
                 {isEditing ? (
                   <>
                     <Button 
