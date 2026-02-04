@@ -1575,3 +1575,53 @@ export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit(
 
 export type JournalEntry = typeof journalEntries.$inferSelect;
 export type InsertJournalEntry = z.infer<typeof insertJournalEntrySchema>;
+
+// Reminders System
+export const reminderTypeEnum = pgEnum("reminder_type", ["PERSONAL", "MENTOR_ASSIGNED", "ADMIN_ASSIGNED"]);
+export const reminderStatusEnum = pgEnum("reminder_status", ["PENDING", "SENT", "COMPLETED", "DISMISSED"]);
+export const reminderPriorityEnum = pgEnum("reminder_priority", ["LOW", "NORMAL", "HIGH", "URGENT"]);
+export const reminderRecurrenceEnum = pgEnum("reminder_recurrence", ["NONE", "DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY"]);
+
+export const reminders = pgTable("reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  type: reminderTypeEnum("type").notNull(),
+  status: reminderStatusEnum("status").default("PENDING"),
+  priority: reminderPriorityEnum("priority").default("NORMAL"),
+  
+  // Who created the reminder
+  createdById: varchar("created_by_id").notNull().references(() => users.id),
+  // Who the reminder is for (null for admin broadcast reminders)
+  recipientId: varchar("recipient_id").references(() => users.id),
+  
+  // Scheduling
+  dueDate: timestamp("due_date").notNull(),
+  reminderTime: timestamp("reminder_time"),
+  recurrence: reminderRecurrenceEnum("recurrence").default("NONE"),
+  
+  // Context links
+  matchId: varchar("match_id").references(() => mentorshipMatches.id),
+  goalId: varchar("goal_id").references(() => goals.id),
+  taskId: varchar("task_id").references(() => tasks.id),
+  
+  // Tracking
+  sentAt: timestamp("sent_at"),
+  completedAt: timestamp("completed_at"),
+  dismissedAt: timestamp("dismissed_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertReminderSchema = createInsertSchema(reminders).omit({
+  id: true,
+  sentAt: true,
+  completedAt: true,
+  dismissedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Reminder = typeof reminders.$inferSelect;
+export type InsertReminder = z.infer<typeof insertReminderSchema>;
