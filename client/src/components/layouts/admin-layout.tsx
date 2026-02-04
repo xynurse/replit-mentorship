@@ -60,6 +60,7 @@ const adminMenuItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
   { title: "Meetings", url: "/admin/meetings", icon: Calendar },
+  { title: "Reminders", url: "/admin/reminders", icon: Bell },
   { title: "User Management", url: "/admin/users", icon: Users },
   { title: "Connections", url: "/admin/connections", icon: Link2 },
   { title: "Mentor Profiles", url: "/admin/mentor-profiles", icon: UserCog },
