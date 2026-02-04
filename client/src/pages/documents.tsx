@@ -365,6 +365,20 @@ export default function DocumentsPage() {
       });
       
       if (!response.ok) {
+        // Try to get a more specific error message
+        try {
+          const errorData = await response.json();
+          if (response.status === 404 && errorData.message?.includes("not found in storage")) {
+            toast({ 
+              title: "File not available", 
+              description: "This file may need to be re-uploaded. Please contact an administrator.",
+              variant: "destructive" 
+            });
+            return;
+          }
+        } catch {
+          // Ignore JSON parsing errors
+        }
         throw new Error("Download failed");
       }
       

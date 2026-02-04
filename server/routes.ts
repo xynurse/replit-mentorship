@@ -2791,6 +2791,7 @@ export async function registerRoutes(
       // Get the file from object storage and stream it
       const objectStorageService = new ObjectStorageService();
       try {
+        console.log(`[download] Attempting to download file: ${doc.fileUrl} for document: ${doc.id}`);
         const objectFile = await objectStorageService.getObjectEntityFile(doc.fileUrl);
         
         // Set content disposition for download
@@ -2800,8 +2801,12 @@ export async function registerRoutes(
         await storage.incrementDownloadCount(req.params.id);
         await objectStorageService.downloadObject(objectFile, res);
       } catch (err) {
+        console.error(`[download] Error downloading file: ${doc.fileUrl}`, err);
         if (err instanceof ObjectNotFoundError) {
-          return res.status(404).json({ message: "File not found in storage" });
+          return res.status(404).json({ 
+            message: "File not found in storage. This may happen if the file was uploaded in a different environment (development vs production). Please re-upload the file.",
+            fileUrl: doc.fileUrl
+          });
         }
         throw err;
       }
