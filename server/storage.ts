@@ -10,7 +10,7 @@ import {
   calendarEvents, calendarEventParticipants,
   communityBoardAccess, threadCategories, communityThreads, threadReplies,
   menteeBoardAccess, menteeThreadCategories, menteeThreads, menteeThreadReplies,
-  journalEntries,
+  journalEntries, reminders,
   type User, type InsertUser, type Track, type InsertTrack, type Cohort, type InsertCohort,
   type CohortTrack, type InsertCohortTrack, type CohortMembership, type InsertCohortMembership,
   type MentorshipMatch, type InsertMentorshipMatch, type MeetingLog, type InsertMeetingLog,
@@ -43,7 +43,8 @@ import {
   type MenteeThreadCategory, type InsertMenteeThreadCategory,
   type MenteeThread, type InsertMenteeThread,
   type MenteeThreadReply, type InsertMenteeThreadReply,
-  type JournalEntry, type InsertJournalEntry
+  type JournalEntry, type InsertJournalEntry,
+  type Reminder, type InsertReminder
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -398,6 +399,27 @@ export interface IStorage {
   updateJournalEntry(id: string, data: Partial<JournalEntry>): Promise<JournalEntry | undefined>;
   deleteJournalEntry(id: string): Promise<void>;
   addMentorFeedback(entryId: string, feedback: string): Promise<JournalEntry | undefined>;
+  
+  // Reminders
+  getReminder(id: string): Promise<Reminder | undefined>;
+  getReminders(filters?: { 
+    recipientId?: string; 
+    createdById?: string; 
+    type?: string;
+    status?: string;
+    matchId?: string;
+    dueBefore?: Date;
+    dueAfter?: Date;
+  }): Promise<Reminder[]>;
+  getRemindersForUser(userId: string): Promise<(Reminder & { createdBy: User })[]>;
+  getRemindersCreatedByUser(userId: string): Promise<(Reminder & { recipient: User | null })[]>;
+  getAllRemindersWithUsers(): Promise<(Reminder & { createdBy: User; recipient: User | null })[]>;
+  createReminder(reminder: InsertReminder): Promise<Reminder>;
+  updateReminder(id: string, data: Partial<Reminder>): Promise<Reminder | undefined>;
+  deleteReminder(id: string): Promise<void>;
+  markReminderSent(id: string): Promise<Reminder | undefined>;
+  markReminderCompleted(id: string): Promise<Reminder | undefined>;
+  markReminderDismissed(id: string): Promise<Reminder | undefined>;
   
   sessionStore: session.Store;
 }
@@ -3480,6 +3502,138 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .where(eq(journalEntries.id, entryId))
+      .returning();
+    return updated || undefined;
+  }
+
+  // Reminders implementation
+  async getReminder(id: string): Promise<Reminder | undefined> {
+    const [reminder] = await db.select().from(reminders).where(eq(reminders.id, id));
+    return reminder || undefined;
+  }
+
+  async getReminders(filters?: { 
+    recipientId?: string; 
+    createdById?: string; 
+    type?: string;
+    status?: string;
+    matchId?: string;
+    dueBefore?: Date;
+    dueAfter?: Date;
+  }): Promise<Reminder[]> {
+    const conditions: any[] = [];
+    
+    if (filters?.recipientId) {
+      conditions.push(eq(reminders.recipientId, filters.recipientId));
+    }
+    if (filters?.createdById) {
+      conditions.push(eq(reminders.createdById, filters.createdById));
+    }
+    if (filters?.type) {
+      conditions.push(eq(reminders.type, filters.type as any));
+    }
+    if (filters?.status) {
+      conditions.push(eq(reminders.status, filters.status as any));
+    }
+    if (filters?.matchId) {
+      conditions.push(eq(reminders.matchId, filters.matchId));
+    }
+    if (filters?.dueBefore) {
+      conditions.push(sql`${reminders.dueDate} <= ${filters.dueBefore}`);
+    }
+    if (filters?.dueAfter) {
+      conditions.push(sql`${reminders.dueDate} >= ${filters.dueAfter}`);
+    }
+
+    const result = await db.select()
+      .from(reminders)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(reminders.dueDate));
+    
+    return result;
+  }
+
+  async getRemindersForUser(userId: string): Promise<(Reminder & { createdBy: User })[]> {
+    const createdByUser = alias(users, 'createdByUser');
+    const result = await db.select({
+      reminder: reminders,
+      createdBy: createdByUser,
+    })
+      .from(reminders)
+      .innerJoin(createdByUser, eq(reminders.createdById, createdByUser.id))
+      .where(eq(reminders.recipientId, userId))
+      .orderBy(asc(reminders.dueDate));
+    
+    return result.map(r => ({ ...r.reminder, createdBy: r.createdBy }));
+  }
+
+  async getRemindersCreatedByUser(userId: string): Promise<(Reminder & { recipient: User | null })[]> {
+    const recipientUser = alias(users, 'recipientUser');
+    const result = await db.select({
+      reminder: reminders,
+      recipient: recipientUser,
+    })
+      .from(reminders)
+      .leftJoin(recipientUser, eq(reminders.recipientId, recipientUser.id))
+      .where(eq(reminders.createdById, userId))
+      .orderBy(asc(reminders.dueDate));
+    
+    return result.map(r => ({ ...r.reminder, recipient: r.recipient }));
+  }
+
+  async getAllRemindersWithUsers(): Promise<(Reminder & { createdBy: User; recipient: User | null })[]> {
+    const createdByUser = alias(users, 'createdByUser');
+    const recipientUser = alias(users, 'recipientUser');
+    const result = await db.select({
+      reminder: reminders,
+      createdBy: createdByUser,
+      recipient: recipientUser,
+    })
+      .from(reminders)
+      .innerJoin(createdByUser, eq(reminders.createdById, createdByUser.id))
+      .leftJoin(recipientUser, eq(reminders.recipientId, recipientUser.id))
+      .orderBy(desc(reminders.createdAt));
+    
+    return result.map(r => ({ ...r.reminder, createdBy: r.createdBy, recipient: r.recipient }));
+  }
+
+  async createReminder(reminder: InsertReminder): Promise<Reminder> {
+    const [created] = await db.insert(reminders).values(reminder).returning();
+    return created;
+  }
+
+  async updateReminder(id: string, data: Partial<Reminder>): Promise<Reminder | undefined> {
+    const [updated] = await db.update(reminders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(reminders.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteReminder(id: string): Promise<void> {
+    await db.delete(reminders).where(eq(reminders.id, id));
+  }
+
+  async markReminderSent(id: string): Promise<Reminder | undefined> {
+    const [updated] = await db.update(reminders)
+      .set({ status: 'SENT', sentAt: new Date(), updatedAt: new Date() })
+      .where(eq(reminders.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async markReminderCompleted(id: string): Promise<Reminder | undefined> {
+    const [updated] = await db.update(reminders)
+      .set({ status: 'COMPLETED', completedAt: new Date(), updatedAt: new Date() })
+      .where(eq(reminders.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async markReminderDismissed(id: string): Promise<Reminder | undefined> {
+    const [updated] = await db.update(reminders)
+      .set({ status: 'DISMISSED', dismissedAt: new Date(), updatedAt: new Date() })
+      .where(eq(reminders.id, id))
       .returning();
     return updated || undefined;
   }

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema, insertReminderSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
 import { registerObjectStorageRoutes, ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
@@ -5646,6 +5646,271 @@ export async function registerRoutes(
       
       const updated = await storage.addMentorFeedback(req.params.id, feedback);
       res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ============= REMINDERS ROUTES =============
+
+  // Get reminders for current user (received reminders)
+  app.get("/api/reminders", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { status, type } = req.query;
+      
+      const filters: any = {
+        recipientId: user.id,
+      };
+      if (status) filters.status = status as string;
+      if (type) filters.type = type as string;
+      
+      const reminderList = await storage.getRemindersForUser(user.id);
+      res.json(reminderList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get reminders created by current user (for mentors to see their sent reminders)
+  app.get("/api/reminders/created", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const reminderList = await storage.getRemindersCreatedByUser(user.id);
+      res.json(reminderList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: Get all reminders with user info
+  app.get("/api/admin/reminders", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { status, type, recipientId, createdById } = req.query;
+      
+      if (status || type || recipientId || createdById) {
+        const filters: any = {};
+        if (status) filters.status = status as string;
+        if (type) filters.type = type as string;
+        if (recipientId) filters.recipientId = recipientId as string;
+        if (createdById) filters.createdById = createdById as string;
+        
+        const reminderList = await storage.getReminders(filters);
+        res.json(reminderList);
+      } else {
+        const reminderList = await storage.getAllRemindersWithUsers();
+        res.json(reminderList);
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get single reminder
+  app.get("/api/reminders/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const reminder = await storage.getReminder(req.params.id);
+      
+      if (!reminder) {
+        return res.status(404).json({ message: "Reminder not found" });
+      }
+      
+      // Check access: owner, recipient, or admin
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      if (reminder.createdById !== user.id && reminder.recipientId !== user.id && !isAdmin) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      res.json(reminder);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create reminder (Mentors can create for their mentees, Admins for anyone, Mentees for themselves)
+  app.post("/api/reminders", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { recipientId, type, ...rest } = req.body;
+      
+      // Determine the reminder type based on creator role
+      let reminderType = type;
+      if (!reminderType) {
+        if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+          reminderType = 'ADMIN_ASSIGNED';
+        } else if (user.role === 'MENTOR') {
+          reminderType = 'MENTOR_ASSIGNED';
+        } else {
+          reminderType = 'PERSONAL';
+        }
+      }
+      
+      // Validate permissions
+      if (reminderType === 'PERSONAL') {
+        // Personal reminders must be for self
+        if (recipientId && recipientId !== user.id) {
+          return res.status(403).json({ message: "Personal reminders can only be set for yourself" });
+        }
+      } else if (reminderType === 'MENTOR_ASSIGNED') {
+        // Mentors can only set reminders for their mentees
+        if (user.role !== 'MENTOR' && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
+          return res.status(403).json({ message: "Only mentors can create mentor-assigned reminders" });
+        }
+        // TODO: Verify the recipient is actually a mentee of this mentor
+      } else if (reminderType === 'ADMIN_ASSIGNED') {
+        if (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
+          return res.status(403).json({ message: "Only admins can create admin-assigned reminders" });
+        }
+      }
+      
+      const validated = insertReminderSchema.parse({
+        ...rest,
+        type: reminderType,
+        createdById: user.id,
+        recipientId: reminderType === 'PERSONAL' ? user.id : recipientId,
+        dueDate: new Date(rest.dueDate),
+        reminderTime: rest.reminderTime ? new Date(rest.reminderTime) : null,
+      });
+      
+      const reminder = await storage.createReminder(validated);
+      
+      // Create notification for recipient if not personal
+      if (reminder.recipientId && reminder.recipientId !== user.id) {
+        await storage.createNotification({
+          userId: reminder.recipientId,
+          type: 'TASK_ASSIGNED',
+          title: 'New Reminder',
+          message: `You have a new reminder: ${reminder.title}`,
+          priority: reminder.priority || 'NORMAL',
+          resourceType: 'SYSTEM',
+          resourceId: reminder.id,
+        });
+        
+        emitNotification(reminder.recipientId, {
+          type: 'TASK_ASSIGNED',
+          title: 'New Reminder',
+          message: `You have a new reminder: ${reminder.title}`,
+        });
+      }
+      
+      res.status(201).json(reminder);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update reminder
+  app.patch("/api/reminders/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const reminder = await storage.getReminder(req.params.id);
+      
+      if (!reminder) {
+        return res.status(404).json({ message: "Reminder not found" });
+      }
+      
+      // Only creator or admin can update
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      if (reminder.createdById !== user.id && !isAdmin) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const updateData: any = { ...req.body };
+      if (updateData.dueDate) updateData.dueDate = new Date(updateData.dueDate);
+      if (updateData.reminderTime) updateData.reminderTime = new Date(updateData.reminderTime);
+      
+      const updated = await storage.updateReminder(req.params.id, updateData);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete reminder
+  app.delete("/api/reminders/:id", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const reminder = await storage.getReminder(req.params.id);
+      
+      if (!reminder) {
+        return res.status(404).json({ message: "Reminder not found" });
+      }
+      
+      // Only creator or admin can delete
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      if (reminder.createdById !== user.id && !isAdmin) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.deleteReminder(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Mark reminder as completed (recipient can mark their received reminders)
+  app.post("/api/reminders/:id/complete", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const reminder = await storage.getReminder(req.params.id);
+      
+      if (!reminder) {
+        return res.status(404).json({ message: "Reminder not found" });
+      }
+      
+      // Only recipient or admin can mark as complete
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      if (reminder.recipientId !== user.id && !isAdmin) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const updated = await storage.markReminderCompleted(req.params.id);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Dismiss reminder
+  app.post("/api/reminders/:id/dismiss", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const reminder = await storage.getReminder(req.params.id);
+      
+      if (!reminder) {
+        return res.status(404).json({ message: "Reminder not found" });
+      }
+      
+      // Only recipient or admin can dismiss
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      if (reminder.recipientId !== user.id && !isAdmin) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const updated = await storage.markReminderDismissed(req.params.id);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get mentees for mentor to assign reminders to
+  app.get("/api/reminders/mentees", requireRole("MENTOR", "ADMIN", "SUPER_ADMIN"), async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      
+      // Get matches where user is mentor
+      const matches = await storage.getMatchesForUser(user.id);
+      const menteeMatches = matches.filter(m => m.status === 'ACTIVE' && m.mentor?.id === user.id);
+      
+      // Extract unique mentees
+      const mentees = menteeMatches
+        .map(m => m.mentee)
+        .filter((m): m is NonNullable<typeof m> => m !== null && m !== undefined);
+      
+      res.json(mentees);
     } catch (error) {
       next(error);
     }
