@@ -2,7 +2,7 @@
 
 ## Overview
 
-SONSIEL Mentorship Hub is a comprehensive mentorship management platform designed for healthcare professionals. The platform connects mentors and mentees, facilitating professional development and career growth in the healthcare sector. It features role-based access control (Super Admin, Admin, Mentor, Mentee), multi-language support (English, Spanish, Portuguese), and a complete authentication system with email verification and password reset capabilities.
+SONSIEL Mentorship Hub is a comprehensive mentorship management platform for healthcare professionals. It connects mentors and mentees to facilitate professional development and career growth. Key capabilities include role-based access control (Super Admin, Admin, Mentor, Mentee), multi-language support (English, Spanish, Portuguese), and a full authentication system with email verification and password reset. The platform aims to streamline mentorship processes within the healthcare sector.
 
 ## User Preferences
 
@@ -10,193 +10,71 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-- **Framework**: React 18 with TypeScript, using Vite as the build tool
-- **Routing**: Wouter for lightweight client-side routing
-- **State Management**: TanStack React Query for server state management
-- **UI Components**: shadcn/ui component library built on Radix UI primitives
-- **Styling**: Tailwind CSS with custom design tokens following Material Design 3 principles
-- **Theme**: Light/dark mode support with CSS variables for theming
-- **Forms**: React Hook Form with Zod validation schemas
+### Frontend
+- **Framework**: React 18 with TypeScript and Vite.
+- **Routing**: Wouter for lightweight client-side routing.
+- **State Management**: TanStack React Query for server state.
+- **UI/UX**: shadcn/ui built on Radix UI, styled with Tailwind CSS following Material Design 3 principles, including light/dark mode.
+- **Forms**: React Hook Form with Zod validation.
 
-### Backend Architecture
-- **Runtime**: Node.js with Express.js
-- **Language**: TypeScript with ES modules
-- **Authentication**: Passport.js with local strategy, session-based auth using express-session
-- **Session Storage**: PostgreSQL-backed sessions via connect-pg-simple
-- **Password Security**: Scrypt hashing with timing-safe comparison
-- **API Pattern**: RESTful endpoints under `/api` prefix
-- **Real-time**: Socket.io WebSocket server for messaging with fallback REST API
+### Backend
+- **Runtime**: Node.js with Express.js and TypeScript.
+- **Authentication**: Passport.js with local strategy, session-based using express-session and PostgreSQL for session storage. Scrypt hashing for password security.
+- **API**: RESTful endpoints.
+- **Real-time**: Socket.io WebSocket server for messaging with REST fallback.
 
-### Messaging System
-- **WebSocket Server**: Socket.io with session authentication (server/websocket.ts)
-- **Conversation Types**: DIRECT (1-on-1), MATCH (mentor-mentee), TRACK_COMMUNITY, COHORT_ANNOUNCEMENT
-- **Message Types**: TEXT, FILE, SYSTEM, ANNOUNCEMENT with reactions, replies, editing, deletion
-- **Features**: Real-time messages, typing indicators, presence tracking, read receipts
-- **Authorization**: Participant membership verified for all message operations
-- **Frontend Hook**: useMessaging() provides WebSocket state management (client/src/hooks/use-messaging.tsx)
+### Core Features
 
-### Document Management System
-- **Object Storage**: Replit Object Storage with cloud-based file persistence
-- **Folder Scopes**: Three automatic folder types - SYSTEM (admin resources), PERSONAL (user private), SHARED (documents shared with user)
-- **Tabbed Interface**: Document Library with three tabs - "System Resources", "My Documents", "Shared With Me"
-- **Auto-Folder Creation**: Personal and System folders created automatically on first access
-- **Document Sharing**: Share documents with other users, sends DOCUMENT_SHARED notification with optional message
-- **Folder Organization**: Hierarchical folders with navigation and nested structure support
-- **Version Control**: Document versioning with change notes and version history
-- **Access Control**: Granular visibility (PRIVATE, MENTORSHIP, COHORT, PUBLIC) with share links and expiration
-- **File Upload**: Uppy integration with drag-drop, progress tracking, and resumable uploads
-- **Security**: Path normalization, role-based sharing permissions (only admins can share SYSTEM docs), scope enforcement
-- **Admin Oversight**: Admin dashboard for monitoring all documents across the platform
-- **API Endpoints**:
-  - `GET /api/folders/system` - Get or create system folder
-  - `GET /api/folders/personal` - Get or create personal folder for current user
-  - `GET /api/documents/shared-with-me` - Get documents shared with current user
-  - `POST /api/documents/:id/share` - Share document with another user (with notification)
-- **Schema Tables**: documents, folders (with scope/isSystemFolder), documentVersions, documentAccess (with sharedAt)
-
-### Notification System
-- **Notification Types**: 21 event types covering WELCOME, APPLICATION_*, MATCH_*, TASK_*, GOAL_*, MEETING_*, DOCUMENT_SHARED, SYSTEM_ANNOUNCEMENT
-- **Priority Levels**: LOW, NORMAL, HIGH, URGENT with visual indicators
-- **Email Preferences**: Per-type email frequency (INSTANT, DAILY_DIGEST, WEEKLY_DIGEST, NEVER)
-- **Real-time Delivery**: Socket.io WebSocket events (notification:new, notification:count) for instant updates
-- **Inbox Management**: Archive, mark read/unread, bulk operations, type/priority filtering
-- **Admin Broadcast**: Admins can send system announcements to all users or specific roles
-- **Frontend Components**: NotificationBell (header dropdown), Notifications page (client/src/pages/notifications.tsx)
-- **Schema Tables**: notifications, notificationPreferences (shared/schema.ts)
-
-### Mentor-Mentee Connections System
-- **Admin Connections Page**: `/admin/connections` with two tabs - "All Connections" and "Create Connection"
-- **Multi-Mentee Support**: One mentor can be assigned to multiple mentees (unique constraint only prevents duplicate pairings)
-- **Mentor Goal Visibility**: Mentors can view their mentees' goals through the connection details dialog
-- **API Endpoints**: 
-  - `GET /api/matches/:id/goals` - Get goals for a specific match (mentors can see their mentees' goals)
-  - `GET /api/mentor/mentee-goals` - Get all mentee goals across all active matches for a mentor
-- **Match Status Workflow**: PROPOSED → ACTIVE → PAUSED/COMPLETED/TERMINATED
-- **Auto-Cohort Creation**: Creates "General Mentorship" cohort for ad-hoc matches without explicit cohort
-- **Storage Methods**: getMatchWithUsers, getAllMatches, createSimpleMatch, checkExistingMatch
-- **Frontend Features**: Dual-list selection UI, search/filter, connection details with mentee goals display
+- **Messaging System**: Real-time communication via Socket.io supporting various conversation types (DIRECT, MATCH, TRACK_COMMUNITY, COHORT_ANNOUNCEMENT) and message types (TEXT, FILE, SYSTEM, ANNOUNCEMENT) with reactions, replies, editing, and deletion. Includes typing indicators, presence, and read receipts.
+- **Document Management System**: Utilizes Replit Object Storage for cloud-based file persistence. Features automatic folder types (SYSTEM, PERSONAL, SHARED), hierarchical organization, version control, granular access control, and secure file sharing with Uppy integration for uploads.
+- **Notification System**: 21 event types with priority levels and customizable email preferences (INSTANT, DAILY_DIGEST, WEEKLY_DIGEST, NEVER). Real-time delivery via Socket.io and an inbox for management. Admins can broadcast announcements.
+- **Mentor-Mentee Connections System**: Manages mentor-mentee pairings, supports multi-mentee assignments for mentors, and allows mentors to view mentee goals. Features a status workflow (PROPOSED → ACTIVE → PAUSED/COMPLETED/TERMINATED) and automatic cohort creation for ad-hoc matches.
+- **Mentorship Journal System**: Allows mentees to track growth, learnings, and reflections with mood tracking and customizable visibility (PRIVATE, MENTOR_ONLY, PUBLIC). Mentors can provide feedback on mentee entries.
+- **PDF Export System**: Client-side PDF generation using jsPDF and html2canvas for exporting goals, user profiles, and comprehensive mentorship impact reports with SONSIEL branding.
+- **Reminders System**: Supports personal, mentor-assigned, and admin-assigned reminders with status workflows, priority levels, and recurrence options (NONE, DAILY, WEEKLY, MONTHLY).
 
 ### Data Storage
-- **Database**: PostgreSQL
-- **ORM**: Drizzle ORM with drizzle-zod for schema validation
-- **Schema Location**: `shared/schema.ts` contains all database schemas and Zod validation schemas
-- **Migrations**: Managed via drizzle-kit with migrations stored in `/migrations`
+- **Database**: PostgreSQL.
+- **ORM**: Drizzle ORM with drizzle-zod for schema validation.
+- **Schema**: Defined in `shared/schema.ts`.
+- **Migrations**: Managed via drizzle-kit.
 
 ### Authentication & Authorization
-- **Role-Based Access Control**: Four roles (SUPER_ADMIN, ADMIN, MENTOR, MENTEE) with middleware guards
-- **Security Features**: Account lockout after failed attempts, email verification tokens, password reset flow
-- **Session Management**: Server-side sessions with PostgreSQL storage
-- **Protected Routes**: Client-side route protection with profile completion enforcement
+- **Role-Based Access Control**: Four roles (SUPER_ADMIN, ADMIN, MENTOR, MENTEE) with middleware guards.
+- **Security**: Account lockout, email verification, password reset, and server-side session management.
 
 ### Project Structure
-```
-├── client/src/          # React frontend application
-│   ├── components/      # UI components (shadcn/ui in ui/, shared layouts)
-│   ├── hooks/           # Custom React hooks (auth, mobile, toast, messaging)
-│   ├── lib/             # Utilities (queryClient, protected routes)
-│   └── pages/           # Page components (includes messages.tsx)
-├── server/              # Express backend
-│   ├── auth.ts          # Authentication logic
-│   ├── routes.ts        # API route definitions (REST + messaging endpoints)
-│   ├── storage.ts       # Database operations layer (includes messaging CRUD)
-│   ├── websocket.ts     # Socket.io WebSocket server for real-time messaging
-│   └── db.ts            # Database connection
-├── shared/              # Shared code between client/server
-│   └── schema.ts        # Drizzle schemas and Zod validation (includes messaging tables)
-└── migrations/          # Database migrations
-```
+Organized into `client/` (React frontend), `server/` (Express backend), and `shared/` (common code like Drizzle schemas and Zod validation).
 
 ### Build System
-- **Development**: Vite dev server with HMR, proxied API requests
-- **Production**: Vite builds client to `dist/public`, esbuild bundles server to `dist/index.cjs`
-- **Path Aliases**: `@/` for client source, `@shared/` for shared code
+- **Development**: Vite dev server with HMR.
+- **Production**: Vite builds client, esbuild bundles server.
 
 ## External Dependencies
 
 ### Database
-- **PostgreSQL**: Primary database, connection via `DATABASE_URL` environment variable
-- **Session Table**: Auto-created by connect-pg-simple for session storage
+- **PostgreSQL**: Primary database.
 
-### UI Framework
-- **Radix UI**: Headless component primitives for accessibility
-- **shadcn/ui**: Pre-built component library using Radix primitives
-- **Lucide React**: Icon library
+### UI/Styling
+- **Radix UI**: Headless component primitives.
+- **shadcn/ui**: Component library.
+- **Lucide React**: Icon library.
 
 ### Key NPM Packages
-- **drizzle-orm / drizzle-kit**: Database ORM and migration tooling
-- **passport / passport-local**: Authentication framework
-- **express-session / connect-pg-simple**: Session management
-- **zod / drizzle-zod**: Runtime validation and schema generation
-- **@tanstack/react-query**: Async state management
-- **react-hook-form / @hookform/resolvers**: Form handling with Zod integration
+- **drizzle-orm / drizzle-kit**: ORM and migration.
+- **passport / passport-local**: Authentication.
+- **express-session / connect-pg-simple**: Session management.
+- **zod / drizzle-zod**: Validation.
+- **@tanstack/react-query**: Async state management.
+- **react-hook-form / @hookform/resolvers**: Form handling.
 
-### Replit-Specific
-- **@replit/vite-plugin-runtime-error-modal**: Error overlay in development
-- **@replit/vite-plugin-cartographer**: Development tooling
-- **@replit/vite-plugin-dev-banner**: Development banner display
+### Replit-Specific Integrations
+- **@replit/vite-plugin-runtime-error-modal**, **@replit/vite-plugin-cartographer**, **@replit/vite-plugin-dev-banner**: Development tooling.
 
 ### Email System
-- **Provider**: Resend (via Replit connector integration)
-- **Service**: server/email.ts - handles all email sending with Resend API
-- **Security**: `getTrustedBaseUrl()` helper prevents host header injection in email links
-- **Features**:
-  - Welcome emails with login credentials and temporary password
-  - Task assignment notifications (when assigned to another user)
-  - Calendar invite notifications (for meeting participants)
-  - Document upload notifications (PUBLIC documents in system folders)
-  - New message notifications (direct messages only)
-  - Goal update notifications (mentee creates → mentor notified; mentor approves → mentee notified)
-- **Admin UI**: "Send Welcome Email" button in user management for selected users
-- **Templates**: Professional HTML emails with SONSIEL branding
+- **Provider**: Resend (via Replit connector integration).
+- **Features**: Handles various notifications including welcome, task assignment, calendar invites, document uploads, new messages, and goal updates. Includes professional HTML templates.
 
-### Meeting Tracking System
-- **Admin Meetings Page**: `/admin/meetings` for tracking all mentor-mentee meetings
-- **Meeting Analytics**: Dashboard with total meetings, completed, upcoming, and today's meetings
-- **Analytics Charts**: Line chart for meeting trends over 14 days, bar chart for format distribution
-- **Filtering**: Filter by status (upcoming, today, completed, missed) and format (virtual, in-person, phone)
-- **Search**: Search meetings by mentor/mentee name, cohort, or agenda
-- **API Endpoint**: `GET /api/admin/meetings` - Returns all meetings with user details (admin only)
-- **Storage Method**: `getAllMeetingsWithDetails()` - Joins meetings with mentor/mentee user data
-- **Schema Table**: meetingLogs (shared/schema.ts)
-
-### Mentorship Journal System
-- **Purpose**: Allow mentees to track growth, learnings, and reflections with mentor feedback
-- **Frontend Page**: client/src/pages/journal.tsx - Full CRUD with mood tracking, visibility controls, and mentor feedback
-- **Schema Table**: journalEntries (shared/schema.ts) with userId, title, content, mood, visibility, keyLearnings, challenges, nextSteps, tags, mentorFeedback
-- **Visibility Levels**: PRIVATE (only author), MENTOR_ONLY (shared with assigned mentor), PUBLIC (all users)
-- **Mood Tracking**: HAPPY, NEUTRAL, STRUGGLING with emoji indicators
-- **Mentor Features**: Mentors see "Mentee Entries" tab with entries shared by their assigned mentees, can add feedback
-- **API Endpoints**:
-  - `GET /api/journal` - Get user's own journal entries
-  - `GET /api/journal/mentee-entries` - Get entries shared with mentor (for mentors/admins)
-  - `POST /api/journal` - Create new journal entry
-  - `PATCH /api/journal/:id` - Update journal entry (with Zod validation)
-  - `DELETE /api/journal/:id` - Delete journal entry
-  - `POST /api/journal/:id/feedback` - Add mentor feedback to entry
-- **Storage Methods**: getJournalEntry, getJournalEntriesByUser, getJournalEntriesForMentor, createJournalEntry, updateJournalEntry, deleteJournalEntry, addMentorFeedback
-
-### PDF Export System
-- **Library**: jsPDF with html2canvas for client-side PDF generation
-- **Utility Location**: client/src/lib/pdf-export.ts
-- **SONSIEL Branding**: Teal header with logo, footer with date and page numbers
-- **Goals Export**: Button on Goals page to export all goals with progress, milestones, and feedback
-- **Profile Export**: Button on Settings page to export user profile information
-- **Impact Report Export**: Button on Journal page (mentees only) to export comprehensive mentorship impact report
-- **Export Functions**: 
-  - `exportGoalsToPDF(goals, user)` - Export goals with SMART details and milestones
-  - `exportProfileToPDF(user)` - Export user profile with organization and contact info
-  - `exportImpactReportToPDF(data)` - Export mentorship impact report with goals, meetings, journal entries, and statistics
-  - `exportElementToPDF(elementId, filename)` - Generic HTML element to PDF conversion
-
-### Admin Analytics Dashboard
-- **Page Location**: client/src/pages/admin/analytics.tsx
-- **Metrics Categories**: User, Cohort, Match, Meeting, Task, Goal, Engagement, Journal
-- **Journal Metrics**: Total entries, entries this month, shared entries, entries with mentor feedback
-- **Trends**: User growth, match activity, task completion, goal progress, meeting activity over configurable time periods
-- **Track/Cohort Analytics**: Breakdown by mentorship tracks and cohorts
-- **API Endpoints**: 
-  - `GET /api/analytics/dashboard` - Aggregate metrics across all categories
-  - `GET /api/analytics/trends` - Time-series data for charts
-  - `GET /api/analytics/tracks` - Per-track analytics
-  - `GET /api/analytics/cohorts` - Per-cohort analytics
+### Admin Tools
+- **Meeting Tracking System**: Admin page for monitoring all mentor-mentee meetings, including analytics and filtering capabilities.
+- **Admin Analytics Dashboard**: Provides aggregate metrics and trends across users, cohorts, matches, meetings, tasks, goals, engagement, and journal activities.
