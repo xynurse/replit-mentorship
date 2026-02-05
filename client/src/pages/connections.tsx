@@ -146,7 +146,7 @@ export default function ConnectionsPage() {
                               )}
                               
                               <div className="flex flex-wrap gap-2">
-                                {isMentor && connectedUser && (
+                                {(isMentor || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") && connectedUser && (
                                   <Link href={`/mentee/${connectedUser.id}`}>
                                     <Button size="sm" data-testid={`button-view-details-${match.id}`}>
                                       <Eye className="h-4 w-4 mr-2" />
