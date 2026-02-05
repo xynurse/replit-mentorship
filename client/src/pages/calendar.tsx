@@ -30,6 +30,8 @@ interface DisplayEvent {
   status?: string;
   location?: string;
   progress?: number;
+  ownerName?: string;
+  goalId?: string;
 }
 
 export default function CalendarPage() {
@@ -64,6 +66,11 @@ export default function CalendarPage() {
     location: "",
   });
   const [editParticipants, setEditParticipants] = useState<string[]>([]);
+  const [selectedGoal, setSelectedGoal] = useState<DisplayEvent | null>(null);
+  const [showGoalDetailDialog, setShowGoalDetailDialog] = useState(false);
+
+  const isMentor = user?.role === "MENTOR";
+  const isAdmin = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
 
   const { data: calendarEvents = [], isLoading: isLoadingEvents } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/calendar-events"],
@@ -71,6 +78,16 @@ export default function CalendarPage() {
 
   const { data: goals = [], isLoading: isLoadingGoals } = useQuery<Goal[]>({
     queryKey: ["/api/goals"],
+  });
+
+  interface MenteeGoal extends Goal {
+    menteeName?: string;
+    menteeId?: string;
+  }
+
+  const { data: menteeGoals = [] } = useQuery<MenteeGoal[]>({
+    queryKey: ["/api/mentor/mentee-goals"],
+    enabled: isMentor,
   });
 
   const { data: messageableUsers = [] } = useQuery<PublicUserInfo[]>({
@@ -161,6 +178,34 @@ export default function CalendarPage() {
     },
   });
 
+  const deleteGoalMutation = useMutation({
+    mutationFn: async (goalId: string) => {
+      const response = await apiRequest("DELETE", `/api/goals/${goalId}`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "Failed to delete goal" }));
+        throw new Error(error.message || "Failed to delete goal");
+      }
+      return { success: true };
+    },
+    onSuccess: () => {
+      toast({
+        title: "Goal deleted",
+        description: "The goal has been removed from your calendar.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/mentor/mentee-goals"] });
+      setShowGoalDetailDialog(false);
+      setSelectedGoal(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete goal",
+        variant: "destructive",
+      });
+    },
+  });
+
   const resetNewEventForm = () => {
     setNewEvent({
       title: "",
@@ -232,15 +277,30 @@ export default function CalendarPage() {
   const goalEvents: DisplayEvent[] = goals
     .filter(g => g.targetDate)
     .map(g => ({
-      id: g.id,
+      id: `goal-${g.id}`,
+      goalId: g.id,
       title: `Goal: ${g.title}`,
       date: new Date(g.targetDate!),
       type: "goal" as const,
       status: g.status || undefined,
       progress: g.progress || 0,
+      ownerName: "You",
     }));
 
-  const allEvents = [...calendarDisplayEvents, ...goalEvents];
+  const menteeGoalEvents: DisplayEvent[] = isMentor ? menteeGoals
+    .filter(g => g.targetDate && !goals.some(og => og.id === g.id))
+    .map(g => ({
+      id: `mentee-goal-${g.id}`,
+      goalId: g.id,
+      title: `Goal: ${g.title}`,
+      date: new Date(g.targetDate!),
+      type: "goal" as const,
+      status: g.status || undefined,
+      progress: g.progress || 0,
+      ownerName: g.menteeName || "Mentee",
+    })) : [];
+
+  const allEvents = [...calendarDisplayEvents, ...goalEvents, ...menteeGoalEvents];
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -286,6 +346,11 @@ export default function CalendarPage() {
       setShowEventDetailDialog(true);
       setIsEditing(false);
     }
+  };
+
+  const openGoalDetail = (displayEvent: DisplayEvent) => {
+    setSelectedGoal(displayEvent);
+    setShowGoalDetailDialog(true);
   };
 
   const startEditing = () => {
@@ -552,15 +617,13 @@ export default function CalendarPage() {
                     {selectedDateEvents.map((event) => (
                       <button
                         key={event.id}
-                        onClick={() => event.type !== "goal" && openEventDetail(event.id)}
+                        onClick={() => event.type === "goal" ? openGoalDetail(event) : openEventDetail(event.id)}
                         className={cn(
-                          "w-full text-left p-3 rounded-md hover-elevate",
+                          "w-full text-left p-3 rounded-md hover-elevate cursor-pointer",
                           event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" :
                           event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
-                          event.type !== "goal" && "cursor-pointer"
                         )}
                         data-testid={`event-${event.id}`}
-                        disabled={event.type === "goal"}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -584,6 +647,12 @@ export default function CalendarPage() {
                                 </>
                               )}
                             </div>
+                            {event.type === "goal" && event.ownerName && (
+                              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                <Users className="h-3 w-3" />
+                                <span>{event.ownerName}</span>
+                              </div>
+                            )}
                             {event.type === "meeting" && event.location && (
                               <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                                 <MapPin className="h-3 w-3" />
@@ -647,24 +716,22 @@ export default function CalendarPage() {
                   .map((event) => (
                     <button
                       key={`${event.type}-${event.id}`}
-                      onClick={() => event.type !== "goal" && openEventDetail(event.id)}
+                      onClick={() => event.type === "goal" ? openGoalDetail(event) : openEventDetail(event.id)}
                       className={cn(
-                        "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate",
+                        "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate cursor-pointer",
                         event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" :
                         event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
-                        event.type !== "goal" && "cursor-pointer"
                       )}
                       data-testid={`upcoming-${event.type}-${event.id}`}
-                      disabled={event.type === "goal"}
                     >
                       <div className="flex items-center gap-3">
                         <div className={cn(
-                          "w-2 h-2 rounded-full",
+                          "w-2 h-2 rounded-full shrink-0",
                           event.type === "meeting" ? "bg-blue-500" : 
                           event.type === "block" ? "bg-orange-500" :
                           "bg-purple-500"
                         )} />
-                        <div>
+                        <div className="text-left">
                           <span className="font-medium text-sm">{event.title}</span>
                           <Badge 
                             variant="outline" 
@@ -672,9 +739,12 @@ export default function CalendarPage() {
                           >
                             {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Blocked" : "Goal"}
                           </Badge>
+                          {event.type === "goal" && event.ownerName && (
+                            <span className="ml-2 text-xs text-muted-foreground">({event.ownerName})</span>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
                         {event.type === "goal" ? (
                           <>
                             <Target className="h-4 w-4" />
@@ -1193,6 +1263,88 @@ export default function CalendarPage() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showGoalDetailDialog} onOpenChange={setShowGoalDetailDialog}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              Goal Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedGoal && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Title</Label>
+                <p className="font-medium">{selectedGoal.title.replace("Goal: ", "")}</p>
+              </div>
+
+              {selectedGoal.ownerName && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Owner</Label>
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span>{selectedGoal.ownerName}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Target Date</Label>
+                <p>{format(selectedGoal.date, "MMMM d, yyyy")}</p>
+              </div>
+
+              {selectedGoal.status && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Status</Label>
+                  <Badge variant={selectedGoal.status === "COMPLETED" ? "default" : "secondary"}>
+                    {selectedGoal.status.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+              )}
+
+              {selectedGoal.progress !== undefined && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Progress</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-purple-600 dark:bg-purple-400 rounded-full transition-all"
+                        style={{ width: `${selectedGoal.progress}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium">{selectedGoal.progress}%</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            {(selectedGoal?.ownerName === "You" || isAdmin) && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  if (selectedGoal?.goalId && confirm("Are you sure you want to delete this goal?")) {
+                    deleteGoalMutation.mutate(selectedGoal.goalId);
+                  }
+                }}
+                disabled={deleteGoalMutation.isPending}
+                data-testid="button-delete-goal-calendar"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {deleteGoalMutation.isPending ? "Deleting..." : "Delete Goal"}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => setShowGoalDetailDialog(false)}
+              data-testid="button-close-goal-detail"
+            >
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

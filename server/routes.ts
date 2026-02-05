@@ -2275,6 +2275,8 @@ export async function registerRoutes(
           allGoals.push(...menteeGoals.map(goal => ({
             ...goal,
             mentee: match.mentee,
+            menteeName: `${match.mentee?.firstName || ''} ${match.mentee?.lastName || ''}`.trim(),
+            menteeId: match.mentee?.id,
             matchId: match.id
           })));
         }
