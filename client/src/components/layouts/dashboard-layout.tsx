@@ -64,7 +64,6 @@ const getNavItems = (role: UserRole) => {
   const baseItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Search", url: "/search", icon: Search },
-    { title: "Messages", url: "/messages", icon: MessageSquare },
     { title: "Calendar", url: "/calendar", icon: Calendar },
     { title: "Documents", url: "/documents", icon: FileText },
     { title: "Certificates", url: "/certificates", icon: Award },

@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Users, MessageSquare, Target, Calendar, Mail, Building, Briefcase, UserPlus } from "lucide-react";
+import { Users, Target, Calendar, Mail, Building, Briefcase, UserPlus } from "lucide-react";
 import type { MentorshipMatch, User } from "@shared/schema";
 
 // API returns only public user fields for security
@@ -146,14 +146,8 @@ export default function ConnectionsPage() {
                               )}
                               
                               <div className="flex flex-wrap gap-2">
-                                <Link href="/messages">
-                                  <Button size="sm" data-testid={`button-message-${match.id}`}>
-                                    <MessageSquare className="h-4 w-4 mr-2" />
-                                    Message
-                                  </Button>
-                                </Link>
                                 <Link href="/goals">
-                                  <Button size="sm" variant="outline" data-testid={`button-goals-${match.id}`}>
+                                  <Button size="sm" data-testid={`button-goals-${match.id}`}>
                                     <Target className="h-4 w-4 mr-2" />
                                     Goals
                                   </Button>

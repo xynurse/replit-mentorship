@@ -25,7 +25,6 @@ Preferred communication style: Simple, everyday language.
 
 ### Core Features
 
-- **Messaging System**: Real-time communication via Socket.io supporting various conversation types (DIRECT, MATCH, TRACK_COMMUNITY, COHORT_ANNOUNCEMENT) and message types (TEXT, FILE, SYSTEM, ANNOUNCEMENT) with reactions, replies, editing, and deletion. Includes typing indicators, presence, and read receipts.
 - **Document Management System**: Utilizes Replit Object Storage for cloud-based file persistence. Features automatic folder types (SYSTEM, PERSONAL, SHARED), hierarchical organization, version control, granular access control, and secure file sharing with Uppy integration for uploads.
 - **Notification System**: 21 event types with priority levels and customizable email preferences (INSTANT, DAILY_DIGEST, WEEKLY_DIGEST, NEVER). Real-time delivery via Socket.io and an inbox for management. Admins can broadcast announcements.
 - **Mentor-Mentee Connections System**: Manages mentor-mentee pairings, supports multi-mentee assignments for mentors, and allows mentors to view mentee goals. Features a status workflow (PROPOSED → ACTIVE → PAUSED/COMPLETED/TERMINATED) and automatic cohort creation for ad-hoc matches.

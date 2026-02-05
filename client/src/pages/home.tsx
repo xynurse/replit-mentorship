@@ -206,12 +206,6 @@ export default function HomePage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href="/messages">
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    Send a message
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full justify-start" asChild>
                   <Link href="/calendar">
                     <Calendar className="mr-2 h-4 w-4" />
                     View calendar
@@ -261,7 +255,7 @@ export default function HomePage() {
                             </p>
                           </div>
                           <Button variant="outline" size="sm" asChild>
-                            <Link href="/messages">Message</Link>
+                            <Link href="/connections">View</Link>
                           </Button>
                         </div>
                       );

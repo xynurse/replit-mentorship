@@ -122,7 +122,6 @@ If you need to migrate users from an existing system:
 This platform includes:
 - User roles: Super Admin, Admin, Mentor, Mentee
 - Profile management with mentee/mentor-specific fields
-- Messaging system with real-time updates
 - Document management with sharing
 - Calendar and meeting scheduling
 - Goal tracking (SMART goals)
