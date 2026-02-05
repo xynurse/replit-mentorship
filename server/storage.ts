@@ -187,6 +187,7 @@ export interface IStorage {
   getOrCreatePersonalFolder(userId: string): Promise<Folder>;
   getOrCreateSystemFolder(): Promise<Folder>;
   getSharedDocumentsForUser(userId: string): Promise<(Document & { sharedBy: User; sharedAt: Date })[]>;
+  getDocumentsSharedFromUser(sharedWithUserId: string, sharedFromUserId: string): Promise<(Document & { sharedAt: Date })[]>;
   
   // Document Versions
   getDocumentVersions(documentId: string): Promise<DocumentVersion[]>;
@@ -1632,6 +1633,28 @@ export class DatabaseStorage implements IStorage {
     return results.map(r => ({
       ...r.document,
       sharedBy: r.sharedBy,
+      sharedAt: r.sharedAt || new Date(),
+    }));
+  }
+
+  async getDocumentsSharedFromUser(sharedWithUserId: string, sharedFromUserId: string): Promise<(Document & { sharedAt: Date })[]> {
+    const results = await db.select({
+      document: documents,
+      sharedAt: documentAccess.sharedAt,
+    }).from(documentAccess)
+      .innerJoin(documents, eq(documentAccess.documentId, documents.id))
+      .where(and(
+        eq(documentAccess.userId, sharedWithUserId),
+        eq(documentAccess.grantedById, sharedFromUserId),
+        or(
+          isNull(documentAccess.expiresAt),
+          gt(documentAccess.expiresAt, new Date())
+        )
+      ))
+      .orderBy(desc(documentAccess.sharedAt));
+    
+    return results.map(r => ({
+      ...r.document,
       sharedAt: r.sharedAt || new Date(),
     }));
   }

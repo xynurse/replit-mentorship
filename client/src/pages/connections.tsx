@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Users, Target, Calendar, Mail, Building, Briefcase, UserPlus } from "lucide-react";
+import { Users, Target, Calendar, Mail, Building, Briefcase, UserPlus, Eye } from "lucide-react";
 import type { MentorshipMatch, User } from "@shared/schema";
 
 // API returns only public user fields for security
@@ -146,8 +146,16 @@ export default function ConnectionsPage() {
                               )}
                               
                               <div className="flex flex-wrap gap-2">
+                                {isMentor && connectedUser && (
+                                  <Link href={`/mentee/${connectedUser.id}`}>
+                                    <Button size="sm" data-testid={`button-view-details-${match.id}`}>
+                                      <Eye className="h-4 w-4 mr-2" />
+                                      View Profile & Goals
+                                    </Button>
+                                  </Link>
+                                )}
                                 <Link href="/goals">
-                                  <Button size="sm" data-testid={`button-goals-${match.id}`}>
+                                  <Button size="sm" variant={isMentor ? "outline" : "default"} data-testid={`button-goals-${match.id}`}>
                                     <Target className="h-4 w-4 mr-2" />
                                     Goals
                                   </Button>

@@ -60,6 +60,7 @@ const MenteeCommunityThreadPage = lazy(() => import("@/pages/mentee-community-th
 const JournalPage = lazy(() => import("@/pages/journal"));
 const RemindersPage = lazy(() => import("@/pages/reminders"));
 const MyProfilePage = lazy(() => import("@/pages/my-profile"));
+const MenteeDetailPage = lazy(() => import("@/pages/mentee-detail"));
 
 function PageLoader() {
   return (
@@ -121,6 +122,7 @@ function Router() {
       <ProtectedRoute path="/onboarding" component={OnboardingPage} requireCompleteProfile={false} />
       <ProtectedRoute path="/settings" component={SettingsPage} />
       <ProtectedRoute path="/connections" component={ConnectionsPage} />
+      <ProtectedRoute path="/mentee/:id" component={MenteeDetailPage} />
       <ProtectedRoute path="/calendar" component={CalendarPage} />
       <ProtectedRoute path="/community" component={CommunityPage} />
       <ProtectedRoute path="/community/:id" component={CommunityThreadPage} />

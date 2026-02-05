@@ -2286,6 +2286,113 @@ export async function registerRoutes(
     }
   });
 
+  // Get documents shared from a specific mentee to the current mentor
+  app.get("/api/mentee/:menteeId/shared-documents", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const menteeId = req.params.menteeId;
+      const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+      
+      // Verify mentor-mentee relationship exists (only mentors can access, not mentees)
+      const matches = await storage.getMatchesForUser(user.id);
+      const mentorMatch = matches.find(m => m.mentor?.id === user.id && m.mentee?.id === menteeId);
+      
+      if (!isAdmin && !mentorMatch) {
+        return res.status(403).json({ message: "Not authorized to view documents for this mentee" });
+      }
+      
+      // For mentors: get documents the mentee shared with them
+      // For admins: get all documents uploaded by the mentee that have been shared
+      if (isAdmin) {
+        // Get all documents uploaded by this mentee
+        const docs = await storage.getDocuments({ uploadedById: menteeId });
+        res.json(docs.map(doc => ({ ...doc, sharedAt: doc.createdAt })));
+      } else {
+        // Get documents the mentee shared with the current mentor
+        const docs = await storage.getDocumentsSharedFromUser(user.id, menteeId);
+        res.json(docs);
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get mentee profile for mentor view
+  app.get("/api/mentee/:menteeId/profile", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const menteeId = req.params.menteeId;
+      
+      // Verify mentor-mentee relationship exists
+      const matches = await storage.getMatchesForUser(user.id);
+      const match = matches.find(m => 
+        (m.mentor?.id === user.id && m.mentee?.id === menteeId) ||
+        (user.role === "SUPER_ADMIN" || user.role === "ADMIN")
+      );
+      
+      if (!match && user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
+        return res.status(403).json({ message: "Not authorized to view this mentee's profile" });
+      }
+      
+      const mentee = await storage.getUser(menteeId);
+      if (!mentee) {
+        return res.status(404).json({ message: "Mentee not found" });
+      }
+      
+      // Return public profile fields
+      const publicProfile = {
+        id: mentee.id,
+        firstName: mentee.firstName,
+        lastName: mentee.lastName,
+        email: mentee.email,
+        role: mentee.role,
+        profileImage: mentee.profileImage,
+        bio: mentee.bio,
+        jobTitle: mentee.jobTitle,
+        organizationName: mentee.organizationName,
+        linkedInUrl: mentee.linkedInUrl,
+        phone: mentee.phone,
+        timezone: mentee.timezone,
+        yearsOfExperience: mentee.yearsOfExperience,
+        fieldsOfExpertise: mentee.fieldsOfExpertise,
+        educationLevel: mentee.educationLevel,
+        certificationsTraining: mentee.certificationsTraining,
+        languagesSpoken: mentee.languagesSpoken,
+        mentorshipRoleChoice: mentee.mentorshipRoleChoice,
+        createdAt: mentee.createdAt,
+      };
+      
+      res.json(publicProfile);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get mentee's goals for mentor view
+  app.get("/api/mentee/:menteeId/goals", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const menteeId = req.params.menteeId;
+      
+      // Verify mentor-mentee relationship exists
+      const matches = await storage.getMatchesForUser(user.id);
+      const isAuthorized = 
+        user.role === "SUPER_ADMIN" || 
+        user.role === "ADMIN" ||
+        matches.some(m => m.mentor?.id === user.id && m.mentee?.id === menteeId);
+      
+      if (!isAuthorized) {
+        return res.status(403).json({ message: "Not authorized to view goals for this mentee" });
+      }
+      
+      // Get mentee's goals
+      const goals = await storage.getGoals({ ownerId: menteeId });
+      res.json(goals);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Auto-match endpoint (calculates compatibility scores)
   app.post("/api/cohorts/:cohortId/auto-match", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
