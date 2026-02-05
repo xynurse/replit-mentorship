@@ -465,8 +465,10 @@ export const mentorProfilesExtended = pgTable("mentor_profiles_extended", {
   
   // Resources & Structure
   resourcesNeeded: text("resources_needed"),
+  programExpectations: text("program_expectations"), // What expectations do you have from this mentorship program?
   programSuggestions: text("program_suggestions"),
   effectiveStructures: text("effective_structures"),
+  bestDaysTimes: text("best_days_times"), // Are there any days/times that work best for mentorship sessions?
   
   // Optional
   linkedinUrl: text("linkedin_url"),
