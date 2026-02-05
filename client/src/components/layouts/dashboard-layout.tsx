@@ -78,6 +78,7 @@ const getNavItems = (role: UserRole) => {
   if (role === "SUPER_ADMIN" || role === "ADMIN") {
     return [
       ...baseItems.slice(0, 2),
+      { title: "Connections", url: "/connections", icon: Users },
       { title: "Goals", url: "/goals", icon: Target },
       { title: "Reminders", url: "/reminders", icon: Bell },
       ...baseItems.slice(2),
