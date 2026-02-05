@@ -23,7 +23,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield, Plus, Upload, KeyRound, Trash2 } from "lucide-react";
+import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield, Plus, Upload, KeyRound, Trash2, UserPen } from "lucide-react";
+import { Link } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -352,6 +353,12 @@ export default function AdminUsers() {
             <DropdownMenuItem onClick={() => setSelectedUser(user)}>
               <Eye className="mr-2 h-4 w-4" />
               View Details
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/admin/users/${user.id}/profile`}>
+                <UserPen className="mr-2 h-4 w-4" />
+                Edit Profile
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem>
               <Mail className="mr-2 h-4 w-4" />

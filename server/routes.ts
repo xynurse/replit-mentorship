@@ -306,6 +306,114 @@ export async function registerRoutes(
     }
   });
 
+  // Admin get user profile with mentee/mentor extended info
+  app.get("/api/admin/users/:id/profile", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get mentee profile if exists
+      const menteeProfile = await storage.getMenteeProfile(id);
+      
+      // Get mentor profile extended if exists
+      const mentorProfileExtended = await storage.getMentorProfileExtended(id);
+      
+      // Determine mentorship role based on profiles
+      let mentorshipRole: string | null = null;
+      if (menteeProfile && mentorProfileExtended) {
+        mentorshipRole = "both";
+      } else if (menteeProfile) {
+        mentorshipRole = "seeking_mentor";
+      } else if (mentorProfileExtended) {
+        mentorshipRole = "providing_mentorship";
+      }
+
+      res.json({
+        user,
+        menteeProfile,
+        mentorProfileExtended,
+        mentorshipRole,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin update user profile with mentee/mentor extended info
+  app.put("/api/admin/users/:id/profile", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { userUpdates, mentorshipRole, menteeProfile, mentorProfileExtended } = req.body;
+      
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Whitelist allowed user fields for updates
+      const allowedUserFields = [
+        "firstName", "lastName", "role", "jobTitle", "organizationName",
+        "isSonsielMember", "interestedInMembership", "preferredLanguage",
+        "fieldsOfExpertise", "educationLevel", "yearsOfExperience",
+        "yearsInSielAreas", "certificationsTraining"
+      ];
+      
+      // Helper to convert empty strings to null for enum/optional fields
+      const sanitizeData = (data: any, allowedFields?: string[]) => {
+        if (!data) return data;
+        const sanitized: any = {};
+        for (const [key, value] of Object.entries(data)) {
+          if (allowedFields && !allowedFields.includes(key)) continue;
+          sanitized[key] = value === "" ? null : value;
+        }
+        return sanitized;
+      };
+
+      // Update user core fields with whitelist
+      if (userUpdates) {
+        const sanitizedUserUpdates = sanitizeData(userUpdates, allowedUserFields);
+        if (Object.keys(sanitizedUserUpdates).length > 0) {
+          await storage.updateUser(id, sanitizedUserUpdates);
+        }
+      }
+
+      // Handle mentee profile based on role choice
+      if (mentorshipRole === "seeking_mentor" || mentorshipRole === "both") {
+        const sanitizedMenteeProfile = sanitizeData(menteeProfile || {});
+        const existingMenteeProfile = await storage.getMenteeProfile(id);
+        if (existingMenteeProfile) {
+          await storage.updateMenteeProfile(id, sanitizedMenteeProfile);
+        } else if (Object.keys(sanitizedMenteeProfile).length > 0 || mentorshipRole) {
+          await storage.createMenteeProfile({ ...sanitizedMenteeProfile, userId: id });
+        }
+      } else if (mentorshipRole === "providing_mentorship") {
+        // If switching to mentor-only, optionally archive/clean mentee profile
+        // For now, we keep the profile data but it won't affect role inference
+      }
+
+      // Handle mentor profile extended based on role choice
+      if (mentorshipRole === "providing_mentorship" || mentorshipRole === "both") {
+        const sanitizedMentorProfile = sanitizeData(mentorProfileExtended || {});
+        const existingMentorProfile = await storage.getMentorProfileExtended(id);
+        if (existingMentorProfile) {
+          await storage.updateMentorProfileExtended(id, sanitizedMentorProfile);
+        } else if (Object.keys(sanitizedMentorProfile).length > 0 || mentorshipRole) {
+          await storage.createMentorProfileExtended({ ...sanitizedMentorProfile, userId: id });
+        }
+      } else if (mentorshipRole === "seeking_mentor") {
+        // If switching to mentee-only, optionally archive/clean mentor profile
+        // For now, we keep the profile data but it won't affect role inference
+      }
+
+      res.json({ message: "Profile updated successfully" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Admin create user endpoint
   app.post("/api/admin/users", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
@@ -1400,6 +1508,13 @@ export async function registerRoutes(
         "organizationName",
         "jobTitle",
         "yearsOfExperience",
+        "yearsInSielAreas",
+        "fieldsOfExpertise",
+        "educationLevel",
+        "certificationsTraining",
+        "mentorshipRoleChoice",
+        "isSonsielMember",
+        "interestedInMembership",
         "profileImage",
       ];
 

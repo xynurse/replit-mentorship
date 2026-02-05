@@ -40,6 +40,7 @@ const AdminConnections = lazy(() => import("@/pages/admin/connections"));
 const AdminMeetings = lazy(() => import("@/pages/admin/meetings"));
 const AdminCommunity = lazy(() => import("@/pages/admin/community"));
 const AdminReminders = lazy(() => import("@/pages/admin/reminders"));
+const AdminUserProfile = lazy(() => import("@/pages/admin/user-profile"));
 
 const ApplyPage = lazy(() => import("@/pages/apply"));
 const CertificatesPage = lazy(() => import("@/pages/certificates"));
@@ -59,6 +60,7 @@ const MenteeCommunityPage = lazy(() => import("@/pages/mentee-community"));
 const MenteeCommunityThreadPage = lazy(() => import("@/pages/mentee-community-thread"));
 const JournalPage = lazy(() => import("@/pages/journal"));
 const RemindersPage = lazy(() => import("@/pages/reminders"));
+const MyProfilePage = lazy(() => import("@/pages/my-profile"));
 
 function PageLoader() {
   return (
@@ -109,6 +111,7 @@ function Router() {
       <AdminRoute path="/admin/meetings" component={AdminMeetings} />
       <AdminRoute path="/admin/community" component={AdminCommunity} />
       <AdminRoute path="/admin/reminders" component={AdminReminders} />
+      <AdminRoute path="/admin/users/:userId/profile" component={AdminUserProfile} />
       <LazyRoute path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
@@ -127,6 +130,7 @@ function Router() {
       <ProtectedRoute path="/mentee-community/:id" component={MenteeCommunityThreadPage} />
       <ProtectedRoute path="/journal" component={JournalPage} />
       <ProtectedRoute path="/reminders" component={RemindersPage} />
+      <ProtectedRoute path="/my-profile" component={MyProfilePage} />
       <ProtectedRoute path="/" component={HomePage} />
       <LazyRoute component={NotFound} />
     </Switch>
