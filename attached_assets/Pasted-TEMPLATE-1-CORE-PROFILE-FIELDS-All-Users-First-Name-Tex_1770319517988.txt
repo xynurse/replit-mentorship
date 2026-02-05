@@ -1,0 +1,71 @@
+TEMPLATE 1: CORE PROFILE FIELDS (All Users)
+
+First Name — Text, required
+Last Name — Text, required
+Email — Email, required, unique
+Current Position/Title — Text, required
+Institution/Organization — Text, required
+Are you a SONSIEL member? — Yes/No, required
+Are you interested in being a member? — Yes/No, conditional — display only if #6 is "No"
+SONSIEL Membership Sign-up — Link/action button, conditional — display only if #7 is "Yes"
+What is your preferred language? — Dropdown: English, Spanish, Portuguese
+Please select your primary field(s) of expertise: — Multi-select: Science, Innovation, Entrepreneurship, Leadership
+Highest Level of Education Completed: — Dropdown: Bachelor, Master, DNP, PhD
+How many years of experience do you have in your field(s) of expertise? — Text/number
+How many years of experience do you have in: science, innovation, entrepreneurship, and/or leadership? — Text/number
+Please list any certifications or additional training relevant to mentorship in these areas. — Free text
+
+
+TEMPLATE 2: ROLE-SPECIFIC PROFILE FIELDS
+GATEWAY QUESTION (Required — Controls Section Display)
+What are you looking for in this mentorship program? — Radio select, required
+
+Seeking a Mentor (displays Mentee Fields only)
+Providing Mentorship (displays Mentor Fields only)
+Both (displays both Mentee and Mentor Fields)
+
+
+MENTEE FIELDS (Display when role = "Seeking a Mentor" or "Both")
+Experience & Goals:
+
+Have you previously been mentored? — Yes/No
+What are you hoping to gain from a mentor? — Multi-select: career advice, networking, skill development, leadership skills, feedback, etc.
+Do you have specific skills or knowledge you are particularly interested in gaining? — Free text
+What are your primary motivations for seeking a mentor? — Free text
+
+Preferences & Logistics:
+
+What is your preferred method of mentorship? — Multi-select: one-on-one, group mentoring, virtual meetings, in-person meetings
+How long would you like to be mentored? — Dropdown: 3 months, 6 months, 1 year, 1 year+, re-evaluate
+
+Past Experience:
+
+What challenges or successes have you encountered in past mentorship experiences (as a mentee)? — Free text
+What structure have you found previously that has been most effective to support mentorship? — Free text
+
+
+MENTOR FIELDS (Display when role = "Providing Mentorship" or "Both")
+Experience & Motivation:
+
+Have you previously served as a mentor? — Yes/No
+If yes, please describe your mentorship experience. — Free text, conditional — display only if #1 is "Yes"
+Do you have specific skills or knowledge you are particularly interested in sharing? — Free text
+What are your primary motivations for becoming a mentor? — Free text
+
+Preferences & Logistics:
+
+What is your preferred method of mentorship? — Multi-select: one-on-one, group mentoring, virtual meetings, in-person meetings
+If you were able to mentor, how many hours per month can you commit to mentoring? — Dropdown: 1–2, 3–4, 5–10, 10–15
+Are there any days/times that work best for mentorship sessions? — Free text
+How long do you plan on being a mentor? — Dropdown: 3 months, 6 months, 1 year, 1 year+, ongoing, re-evaluate
+
+Past Experience:
+
+What challenges or successes have you encountered in past mentorship experiences? — Free text
+What structure have you found previously that has been most effective to support mentorship? — Free text
+
+Program Needs & Feedback:
+
+What support or resources would you need to be an effective mentor? — Free text
+What expectations do you have from this mentorship program? — Free text
+Do you have any suggestions for structuring this mentorship program to ensure its success? — Free text

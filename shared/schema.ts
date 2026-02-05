@@ -112,6 +112,11 @@ export const users = pgTable("users", {
   organizationName: text("organization_name"),
   jobTitle: text("job_title"),
   yearsOfExperience: integer("years_of_experience"),
+  yearsInSielAreas: integer("years_in_siel_areas"), // Years in science, innovation, entrepreneurship, leadership
+  fieldsOfExpertise: text("fields_of_expertise").array().default(sql`ARRAY[]::text[]`), // Multi-select: Science, Innovation, Entrepreneurship, Leadership
+  educationLevel: educationLevelEnum("education_level"), // Bachelor, Master, DNP, PhD
+  certificationsTraining: text("certifications_training"), // Free text for relevant certifications
+  mentorshipRoleChoice: mentorshipRoleChoiceEnum("mentorship_role_choice"), // Gateway question: seeking_mentor, providing_mentorship, both
   isSonsielMember: boolean("is_sonsiel_member").default(false),
   interestedInMembership: boolean("interested_in_membership"),
   isActive: boolean("is_active").default(true),
