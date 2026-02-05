@@ -11,7 +11,6 @@ import {
   Settings,
   LogOut,
   Menu,
-  Search,
   ChevronDown,
   Shield,
   UserCog,
@@ -286,15 +285,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <Menu className="h-5 w-5" />
               </SidebarTrigger>
 
-              <div className="hidden md:flex relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search..."
-                  className="pl-9 w-64"
-                  data-testid="input-search"
-                />
-              </div>
             </div>
 
             <div className="flex items-center gap-2">
