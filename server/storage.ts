@@ -236,6 +236,7 @@ export interface IStorage {
   markAllNotificationsRead(userId: string): Promise<void>;
   archiveNotification(id: string): Promise<Notification | undefined>;
   deleteNotification(id: string): Promise<void>;
+  deleteAllNotifications(userId: string): Promise<void>;
   
   // Notification Preferences
   getNotificationPreferences(userId: string): Promise<NotificationPreference[]>;
@@ -2008,6 +2009,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNotification(id: string): Promise<void> {
     await db.delete(notifications).where(eq(notifications.id, id));
+  }
+
+  async deleteAllNotifications(userId: string): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.userId, userId));
   }
 
   // Notification Preferences

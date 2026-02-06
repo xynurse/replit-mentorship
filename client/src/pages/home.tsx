@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Users, 
   Calendar, 
@@ -9,7 +9,8 @@ import {
   CheckCircle,
   UserPlus,
   FileText,
-  Target
+  Target,
+  Trash2
 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -20,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { MentorshipMatch, Goal, User, Notification, MeetingLog } from "@shared/schema";
 
 type PublicUserInfo = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'profileImage' | 'bio' | 'jobTitle' | 'organizationName' | 'linkedInUrl'>;
@@ -31,6 +34,23 @@ interface ConnectionWithUser extends MentorshipMatch {
 
 export default function HomePage() {
   const { user } = useAuth();
+  const { toast } = useToast();
+
+  const clearActivityMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/notifications");
+      if (!res.ok) throw new Error("Failed to clear activity");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
+      toast({
+        title: "Activity cleared",
+        description: "All recent activity has been removed.",
+      });
+    },
+  });
 
   const { data: matches = [], isLoading: loadingMatches } = useQuery<ConnectionWithUser[]>({
     queryKey: ["/api/matches/my"],
@@ -132,6 +152,22 @@ export default function HomePage() {
                   <CardTitle className="text-lg">Recent Activity</CardTitle>
                   <CardDescription>Latest updates from your network</CardDescription>
                 </div>
+                {notifications.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm("Are you sure you want to clear all recent activity?")) {
+                        clearActivityMutation.mutate();
+                      }
+                    }}
+                    disabled={clearActivityMutation.isPending}
+                    data-testid="button-clear-activity"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    {clearActivityMutation.isPending ? "Clearing..." : "Clear All"}
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
                 {loadingNotifications ? (

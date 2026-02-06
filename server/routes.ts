@@ -4094,6 +4094,16 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/notifications", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      await storage.deleteAllNotifications(user.id);
+      res.json({ message: "All notifications cleared" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Notification Preferences
   app.get("/api/notification-preferences", requireAuth, async (req, res, next) => {
     try {
