@@ -77,9 +77,6 @@ const MONTHLY_HOURS_OPTIONS = [
 ];
 
 const profileSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Valid email required"),
   jobTitle: z.string().min(1, "Position/title is required"),
   organizationName: z.string().min(1, "Organization is required"),
   preferredLanguage: z.string().default("en"),
@@ -134,9 +131,6 @@ export default function MyProfilePage() {
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
       jobTitle: "",
       organizationName: "",
       preferredLanguage: "en",
@@ -176,9 +170,6 @@ export default function MyProfilePage() {
       const { user: userData, menteeProfile, mentorProfileExtended, mentorshipRole } = profileData;
       
       form.reset({
-        firstName: userData?.firstName || "",
-        lastName: userData?.lastName || "",
-        email: userData?.email || "",
         jobTitle: userData?.jobTitle || "",
         organizationName: userData?.organizationName || "",
         preferredLanguage: userData?.preferredLanguage || "en",
@@ -219,8 +210,6 @@ export default function MyProfilePage() {
   const saveProfileMutation = useMutation({
     mutationFn: async (values: ProfileFormValues) => {
       const userUpdates = {
-        firstName: values.firstName,
-        lastName: values.lastName,
         jobTitle: values.jobTitle,
         organizationName: values.organizationName,
         preferredLanguage: values.preferredLanguage,
@@ -339,48 +328,21 @@ export default function MyProfilePage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="firstName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>First Name *</FormLabel>
-                            <FormControl>
-                              <Input {...field} data-testid="input-first-name" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="lastName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Last Name *</FormLabel>
-                            <FormControl>
-                              <Input {...field} data-testid="input-last-name" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="space-y-2">
+                        <Label>First Name</Label>
+                        <Input value={profileData?.user?.firstName || user?.firstName || ""} disabled className="bg-muted" data-testid="input-first-name" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Last Name</Label>
+                        <Input value={profileData?.user?.lastName || user?.lastName || ""} disabled className="bg-muted" data-testid="input-last-name" />
+                      </div>
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email *</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled data-testid="input-email" />
-                          </FormControl>
-                          <FormDescription>Email cannot be changed</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input value={profileData?.user?.email || user?.email || ""} disabled className="bg-muted" data-testid="input-email" />
+                      <p className="text-sm text-muted-foreground">Name and email are managed by your administrator</p>
+                    </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
