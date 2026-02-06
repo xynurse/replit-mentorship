@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { autoSeedIfEmpty, ensureRequiredUsers } from "./auto-seed";
+import { autoSeedIfEmpty, ensureRequiredUsers, ensureCommunityCategories } from "./auto-seed";
 
 const app = express();
 const httpServer = createServer(app);
@@ -65,6 +65,7 @@ app.use((req, res, next) => {
   
   await autoSeedIfEmpty();
   await ensureRequiredUsers();
+  await ensureCommunityCategories();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     // Handle Zod validation errors specifically

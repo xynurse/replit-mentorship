@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, applicationQuestions } from "@shared/schema";
+import { users, applicationQuestions, threadCategories, menteeThreadCategories } from "@shared/schema";
 import { hashPassword } from "./auth";
 import { count, eq } from "drizzle-orm";
 
@@ -146,6 +146,62 @@ async function seedApplicationQuestions() {
   }
 
   seedLog("Application questions seeded");
+}
+
+export async function ensureCommunityCategories() {
+  try {
+    const [mentorCatCount] = await db.select({ count: count() }).from(threadCategories);
+    if (mentorCatCount.count === 0) {
+      seedLog("Seeding mentor community categories...");
+      const mentorCategories = [
+        { name: "Best Practices", slug: "best-practices", description: "Share and discuss best practices in healthcare mentorship", color: "#0D9488", icon: "lightbulb", sortOrder: 1, isActive: true },
+        { name: "Questions", slug: "questions", description: "Ask questions and get answers from the community", color: "#3B82F6", icon: "help-circle", sortOrder: 2, isActive: true },
+        { name: "Resources", slug: "resources", description: "Share useful resources, articles, and tools", color: "#8B5CF6", icon: "book-open", sortOrder: 3, isActive: true },
+        { name: "Track: Scientist", slug: "track-scientist", description: "Discussions specific to the Scientist track", color: "#10B981", icon: "flask-conical", sortOrder: 4, isActive: true },
+        { name: "Track: Innovator", slug: "track-innovator", description: "Discussions specific to the Innovator track", color: "#F59E0B", icon: "sparkles", sortOrder: 5, isActive: true },
+        { name: "Track: Entrepreneur", slug: "track-entrepreneur", description: "Discussions specific to the Entrepreneur track", color: "#EF4444", icon: "rocket", sortOrder: 6, isActive: true },
+        { name: "Track: Intrapreneur", slug: "track-intrapreneur", description: "Discussions specific to the Intrapreneur track", color: "#6366F1", icon: "building", sortOrder: 7, isActive: true },
+        { name: "Track: Leader", slug: "track-leader", description: "Discussions specific to the Leader track", color: "#EC4899", icon: "crown", sortOrder: 8, isActive: true },
+        { name: "Mentoring Strategies", slug: "mentoring-strategies", description: "Discuss effective mentoring techniques and approaches", color: "#059669", icon: "compass", sortOrder: 9, isActive: true },
+        { name: "Success Stories", slug: "success-stories", description: "Share mentoring success stories and outcomes", color: "#D97706", icon: "award", sortOrder: 10, isActive: true },
+        { name: "Professional Development", slug: "professional-development", description: "Discuss continuing education and career growth topics", color: "#7C3AED", icon: "graduation-cap", sortOrder: 11, isActive: true },
+        { name: "General Discussion", slug: "general", description: "General conversations and community building", color: "#6B7280", icon: "message-square", sortOrder: 12, isActive: true },
+      ];
+      for (const cat of mentorCategories) {
+        try {
+          await db.insert(threadCategories).values(cat);
+        } catch (e) {}
+      }
+      seedLog(`Seeded ${mentorCategories.length} mentor community categories`);
+    }
+
+    const [menteeCatCount] = await db.select({ count: count() }).from(menteeThreadCategories);
+    if (menteeCatCount.count === 0) {
+      seedLog("Seeding mentee community categories...");
+      const menteeCategories = [
+        { name: "Introductions", slug: "introductions", description: "Introduce yourself to fellow mentees", color: "#6366F1", icon: "UserPlus", sortOrder: 1, isActive: true },
+        { name: "Goal Setting & SMART Goals", slug: "goal-setting", description: "Discuss goal setting strategies and SMART goals", color: "#8B5CF6", icon: "Target", sortOrder: 2, isActive: true },
+        { name: "Scientist Track", slug: "scientist-track", description: "Discussions for mentees on the Scientist track", color: "#10B981", icon: "Microscope", sortOrder: 3, isActive: true },
+        { name: "Innovator Track", slug: "innovator-track", description: "Discussions for mentees on the Innovator track", color: "#F59E0B", icon: "Lightbulb", sortOrder: 4, isActive: true },
+        { name: "Entrepreneur Track", slug: "entrepreneur-track", description: "Discussions for mentees on the Entrepreneur track", color: "#EF4444", icon: "Rocket", sortOrder: 5, isActive: true },
+        { name: "Intrapreneur Track", slug: "intrapreneur-track", description: "Discussions for mentees on the Intrapreneur track", color: "#3B82F6", icon: "Building", sortOrder: 6, isActive: true },
+        { name: "Leader Track", slug: "leader-track", description: "Discussions for mentees on the Leader track", color: "#EC4899", icon: "Crown", sortOrder: 7, isActive: true },
+        { name: "Career Questions", slug: "career-questions", description: "Ask and answer career-related questions", color: "#14B8A6", icon: "Briefcase", sortOrder: 8, isActive: true },
+        { name: "Resources & Recommendations", slug: "resources", description: "Share helpful resources and recommendations", color: "#0EA5E9", icon: "BookOpen", sortOrder: 9, isActive: true },
+        { name: "Study Groups", slug: "study-groups", description: "Find and organize study groups with fellow mentees", color: "#A855F7", icon: "Users", sortOrder: 10, isActive: true },
+        { name: "Wins & Celebrations", slug: "wins-celebrations", description: "Celebrate your achievements and milestones", color: "#F97316", icon: "Trophy", sortOrder: 11, isActive: true },
+        { name: "General Discussion", slug: "general", description: "General discussions and off-topic conversations", color: "#6B7280", icon: "MessageCircle", sortOrder: 12, isActive: true },
+      ];
+      for (const cat of menteeCategories) {
+        try {
+          await db.insert(menteeThreadCategories).values(cat);
+        } catch (e) {}
+      }
+      seedLog(`Seeded ${menteeCategories.length} mentee community categories`);
+    }
+  } catch (error) {
+    seedLog(`Error seeding community categories: ${error}`);
+  }
 }
 
 // Ensure specific required users exist (runs even when database has users)
