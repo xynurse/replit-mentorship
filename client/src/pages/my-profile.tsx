@@ -34,7 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 
-const EXPERTISE_AREAS = ["Science", "Innovation", "Entrepreneurship", "Leadership"];
+const EXPERTISE_AREAS = ["Science", "Innovation", "Entrepreneurship", "Intrapreneurship", "Leadership"];
 const EDUCATION_LEVELS = ["Bachelor", "Master", "DNP", "PhD"];
 const PREFERRED_LANGUAGES = [
   { value: "en", label: "English" },
@@ -82,8 +82,6 @@ const profileSchema = z.object({
   email: z.string().email("Valid email required"),
   jobTitle: z.string().min(1, "Position/title is required"),
   organizationName: z.string().min(1, "Organization is required"),
-  isSonsielMember: z.boolean().default(false),
-  interestedInMembership: z.boolean().optional(),
   preferredLanguage: z.string().default("en"),
   fieldsOfExpertise: z.array(z.string()).default([]),
   educationLevel: z.string().optional(),
@@ -141,8 +139,6 @@ export default function MyProfilePage() {
       email: "",
       jobTitle: "",
       organizationName: "",
-      isSonsielMember: false,
-      interestedInMembership: false,
       preferredLanguage: "en",
       fieldsOfExpertise: [],
       educationLevel: "",
@@ -185,8 +181,6 @@ export default function MyProfilePage() {
         email: userData?.email || "",
         jobTitle: userData?.jobTitle || "",
         organizationName: userData?.organizationName || "",
-        isSonsielMember: userData?.isSonsielMember || false,
-        interestedInMembership: userData?.interestedInMembership || false,
         preferredLanguage: userData?.preferredLanguage || "en",
         fieldsOfExpertise: userData?.fieldsOfExpertise || [],
         educationLevel: userData?.educationLevel || "",
@@ -229,8 +223,6 @@ export default function MyProfilePage() {
         lastName: values.lastName,
         jobTitle: values.jobTitle,
         organizationName: values.organizationName,
-        isSonsielMember: values.isSonsielMember,
-        interestedInMembership: values.interestedInMembership,
         preferredLanguage: values.preferredLanguage,
         fieldsOfExpertise: values.fieldsOfExpertise,
         educationLevel: values.educationLevel,
@@ -289,7 +281,6 @@ export default function MyProfilePage() {
   };
 
   const mentorshipRole = form.watch("mentorshipRoleChoice");
-  const isSonsielMember = form.watch("isSonsielMember");
   const previouslyServedAsMentor = form.watch("previouslyServedAsMentor");
 
   if (isLoading) {
@@ -421,51 +412,6 @@ export default function MyProfilePage() {
                     </div>
 
                     <Separator className="my-4" />
-
-                    <FormField
-                      control={form.control}
-                      name="isSonsielMember"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                              data-testid="checkbox-sonsiel-member"
-                            />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel>Are you a SONSIEL member?</FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-
-                    {!isSonsielMember && (
-                      <FormField
-                        control={form.control}
-                        name="interestedInMembership"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-start space-x-3 space-y-0 ml-6">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                data-testid="checkbox-interested-membership"
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel>Are you interested in becoming a member?</FormLabel>
-                              <FormDescription>
-                                <a href="https://sonsiel.org/membership" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                                  Learn more about SONSIEL membership
-                                </a>
-                              </FormDescription>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-                    )}
 
                     <FormField
                       control={form.control}

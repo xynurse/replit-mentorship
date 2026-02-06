@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 
-const EXPERTISE_AREAS = ["Science", "Innovation", "Entrepreneurship", "Leadership"];
+const EXPERTISE_AREAS = ["Science", "Innovation", "Entrepreneurship", "Intrapreneurship", "Leadership"];
 const EDUCATION_LEVELS = ["Bachelor", "Master", "DNP", "PhD"];
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern Time (ET)" },

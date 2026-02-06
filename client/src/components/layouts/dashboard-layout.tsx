@@ -62,6 +62,7 @@ interface DashboardLayoutProps {
 const getNavItems = (role: UserRole) => {
   const baseItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "My Profile", url: "/profile", icon: User },
     { title: "Calendar", url: "/calendar", icon: Calendar },
     { title: "Documents", url: "/documents", icon: FileText },
     { title: "Certificates", url: "/certificates", icon: Award },
@@ -76,11 +77,11 @@ const getNavItems = (role: UserRole) => {
 
   if (role === "SUPER_ADMIN" || role === "ADMIN") {
     return [
-      ...baseItems.slice(0, 2),
+      ...baseItems.slice(0, 3),
       { title: "Connections", url: "/connections", icon: Users },
       { title: "Goals", url: "/goals", icon: Target },
       { title: "Reminders", url: "/reminders", icon: Bell },
-      ...baseItems.slice(2),
+      ...baseItems.slice(3),
       mentorCommunityItem,
       menteeCommunityItem,
       ...adminItems
@@ -100,11 +101,11 @@ const getNavItems = (role: UserRole) => {
 
   // Mentee - has their own Goals and Community
   return [
-    ...baseItems.slice(0, 2),
+    ...baseItems.slice(0, 3),
     { title: "Goals", url: "/goals", icon: Target },
     { title: "Journal", url: "/journal", icon: BookOpen },
     { title: "Reminders", url: "/reminders", icon: Bell },
-    ...baseItems.slice(2),
+    ...baseItems.slice(3),
     { title: "My Mentor", url: "/connections", icon: Users },
     menteeCommunityItem,
   ];

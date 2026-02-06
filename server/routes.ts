@@ -1494,6 +1494,42 @@ export async function registerRoutes(
     res.json(safeUser);
   });
 
+  app.get("/api/profile/:userId", requireAuth, async (req, res, next) => {
+    try {
+      const currentUser = req.user!;
+      const targetUserId = req.params.userId;
+
+      if (currentUser.id === targetUserId) {
+        const { password: _, ...safeUser } = currentUser;
+        return res.json(safeUser);
+      }
+
+      if (currentUser.role === "SUPER_ADMIN" || currentUser.role === "ADMIN") {
+        const targetUser = await storage.getUser(targetUserId);
+        if (!targetUser) return res.status(404).json({ message: "User not found" });
+        const { password: _, ...safeUser } = targetUser;
+        return res.json(safeUser);
+      }
+
+      const matches = await storage.getMatchesForUser(currentUser.id);
+      const isConnected = matches.some(match => {
+        if (match.status !== "ACTIVE" && match.status !== "PROPOSED" && match.status !== "PAUSED") return false;
+        return (match.mentor?.id === targetUserId) || (match.mentee?.id === targetUserId);
+      });
+
+      if (!isConnected) {
+        return res.status(403).json({ message: "You can only view profiles of your connected mentors or mentees" });
+      }
+
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+      const { password: _, ...safeUser } = targetUser;
+      res.json(safeUser);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.patch("/api/profile", requireAuth, async (req, res, next) => {
     try {
       const allowedFields = [
