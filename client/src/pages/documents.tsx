@@ -118,7 +118,8 @@ export default function DocumentsPage() {
   const { toast } = useToast();
   const pendingObjectPathRef = useRef<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"system" | "personal" | "shared">("personal");
+  const defaultTab = (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") ? "personal" : "system";
+  const [activeTab, setActiveTab] = useState<"system" | "personal" | "shared">(defaultTab);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
@@ -163,12 +164,10 @@ export default function DocumentsPage() {
 
   const { data: systemFolder } = useQuery<Folder>({
     queryKey: ["/api/folders/system"],
-    enabled: activeTab === "system",
   });
 
   const { data: personalFolder } = useQuery<Folder>({
     queryKey: ["/api/folders/personal"],
-    enabled: activeTab === "personal",
   });
 
   const { data: sharedDocuments, isLoading: sharedLoading } = useQuery<SharedDocument[]>({
