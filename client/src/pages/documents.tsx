@@ -139,6 +139,11 @@ export default function DocumentsPage() {
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
 
+  const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState<string | null>(null);
+
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -396,6 +401,13 @@ export default function DocumentsPage() {
     } catch {
       toast({ title: "Failed to download document", variant: "destructive" });
     }
+  };
+
+  const openDocumentViewer = (doc: Document) => {
+    setViewingDocument(doc);
+    setViewError(null);
+    setViewLoading(true);
+    setShowViewDialog(true);
   };
 
   const navigateToFolder = async (folder: Folder) => {
@@ -839,6 +851,104 @@ export default function DocumentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={showViewDialog} onOpenChange={(open) => {
+          setShowViewDialog(open);
+          if (!open) {
+            setViewingDocument(null);
+            setViewLoading(false);
+            setViewError(null);
+          }
+        }}>
+          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+              <div className="flex items-center justify-between gap-4 pr-8">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="p-2 bg-muted rounded-md flex-shrink-0">
+                    {viewingDocument && getFileIcon(viewingDocument.mimeType, viewingDocument.fileType)}
+                  </div>
+                  <div className="min-w-0">
+                    <DialogTitle className="truncate" data-testid="text-viewer-title">
+                      {viewingDocument?.name}
+                    </DialogTitle>
+                    <DialogDescription className="truncate">
+                      {viewingDocument && formatFileSize(viewingDocument.fileSize)}
+                      {viewingDocument?.category && ` · ${viewingDocument.category}`}
+                    </DialogDescription>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => viewingDocument && downloadDocument(viewingDocument)}
+                  data-testid="button-viewer-download"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+              </div>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 px-6 pb-6">
+              {viewingDocument && (
+                viewingDocument.mimeType === "application/pdf" ? (
+                  <iframe
+                    src={`/api/documents/${viewingDocument.id}/view`}
+                    className="w-full h-full rounded-md border"
+                    title={viewingDocument.name}
+                    onLoad={() => setViewLoading(false)}
+                    onError={() => {
+                      setViewLoading(false);
+                      setViewError("Failed to load document preview.");
+                    }}
+                    data-testid="iframe-document-viewer"
+                  />
+                ) : viewingDocument.mimeType?.startsWith("image/") ? (
+                  <div className="w-full h-full flex items-center justify-center bg-muted rounded-md border">
+                    <img
+                      src={`/api/documents/${viewingDocument.id}/view`}
+                      alt={viewingDocument.name}
+                      className="max-w-full max-h-full object-contain"
+                      onLoad={() => setViewLoading(false)}
+                      onError={() => {
+                        setViewLoading(false);
+                        setViewError("Failed to load image preview.");
+                      }}
+                      data-testid="img-document-viewer"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-md border gap-4">
+                    <File className="h-16 w-16 text-muted-foreground" />
+                    <div className="text-center">
+                      <p className="font-medium mb-1">Preview not available</p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        This file type cannot be previewed in the browser. Use the download button to save it.
+                      </p>
+                      <Button onClick={() => viewingDocument && downloadDocument(viewingDocument)} data-testid="button-viewer-download-fallback">
+                        <Download className="h-4 w-4 mr-2" />
+                        Download File
+                      </Button>
+                    </div>
+                  </div>
+                )
+              )}
+              {viewLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              {viewError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 gap-3">
+                  <p className="text-destructive font-medium">{viewError}</p>
+                  <Button variant="outline" onClick={() => viewingDocument && downloadDocument(viewingDocument)}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Instead
+                  </Button>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
@@ -1001,7 +1111,7 @@ export default function DocumentsPage() {
               ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {documents?.map((doc) => (
-                    <Card key={doc.id} className="group" data-testid={`card-document-${doc.id}`}>
+                    <Card key={doc.id} className="group cursor-pointer hover-elevate" data-testid={`card-document-${doc.id}`} onClick={() => openDocumentViewer(doc)}>
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
                           <div className="p-2 bg-muted rounded-md">
@@ -1028,14 +1138,14 @@ export default function DocumentsPage() {
                           <span className="text-xs text-muted-foreground">
                             {formatDate(doc.createdAt)}
                           </span>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => downloadDocument(doc)}
-                              data-testid={`button-download-${doc.id}`}
+                              onClick={() => openDocumentViewer(doc)}
+                              data-testid={`button-view-${doc.id}`}
                             >
-                              <Download className="h-4 w-4" />
+                              <Eye className="h-4 w-4" />
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -1044,10 +1154,15 @@ export default function DocumentsPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openDocumentViewer(doc)} data-testid={`button-view-doc-${doc.id}`}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => downloadDocument(doc)} data-testid={`button-download-doc-${doc.id}`}>
                                   <Download className="h-4 w-4 mr-2" />
                                   Download
                                 </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => openEditDialog(doc)} data-testid={`button-edit-doc-${doc.id}`}>
                                   <Edit className="h-4 w-4 mr-2" />
                                   Edit
@@ -1076,7 +1191,7 @@ export default function DocumentsPage() {
               ) : (
                 <div className="space-y-2">
                   {documents?.map((doc) => (
-                    <Card key={doc.id} data-testid={`row-document-${doc.id}`}>
+                    <Card key={doc.id} className="cursor-pointer hover-elevate" data-testid={`row-document-${doc.id}`} onClick={() => openDocumentViewer(doc)}>
                       <CardContent className="p-4">
                         <div className="flex items-center gap-4">
                           <div className="p-2 bg-muted rounded-md">
@@ -1102,14 +1217,14 @@ export default function DocumentsPage() {
                           <span className="hidden lg:block text-sm text-muted-foreground w-28">
                             {formatDate(doc.createdAt)}
                           </span>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => downloadDocument(doc)}
-                              data-testid={`button-download-${doc.id}`}
+                              onClick={() => openDocumentViewer(doc)}
+                              data-testid={`button-view-${doc.id}`}
                             >
-                              <Download className="h-4 w-4" />
+                              <Eye className="h-4 w-4" />
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -1118,10 +1233,15 @@ export default function DocumentsPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openDocumentViewer(doc)}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => downloadDocument(doc)}>
                                   <Download className="h-4 w-4 mr-2" />
                                   Download
                                 </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => openEditDialog(doc)}>
                                   <Edit className="h-4 w-4 mr-2" />
                                   Edit
@@ -1185,7 +1305,7 @@ export default function DocumentsPage() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
         {sharedDocuments.map((doc) => (
-          <Card key={doc.id} data-testid={`card-shared-document-${doc.id}`}>
+          <Card key={doc.id} className="cursor-pointer hover-elevate" data-testid={`card-shared-document-${doc.id}`} onClick={() => openDocumentViewer(doc)}>
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 <div className="p-2 bg-muted rounded-md">
@@ -1212,7 +1332,16 @@ export default function DocumentsPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t">
+              <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t" onClick={(e) => e.stopPropagation()}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openDocumentViewer(doc)}
+                  data-testid={`button-view-shared-${doc.id}`}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"

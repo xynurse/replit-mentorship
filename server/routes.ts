@@ -3023,6 +3023,56 @@ export async function registerRoutes(
     }
   });
 
+  // View document inline (validates access and streams file for in-browser viewing)
+  app.get("/api/documents/:id/view", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user!;
+      const doc = await storage.getDocument(req.params.id);
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+      const isOwner = doc.uploadedById === user.id;
+      const isPublic = doc.visibility === 'PUBLIC';
+      
+      let hasShareAccess = false;
+      if (!isAdmin && !isOwner && !isPublic) {
+        const accessRecords = await storage.getDocumentAccess(req.params.id);
+        hasShareAccess = accessRecords.some(a => a.userId === user.id);
+      }
+      
+      if (!isAdmin && !isOwner && !isPublic && !hasShareAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      try {
+        const objectFile = await objectStorageService.getObjectEntityFile(doc.fileUrl);
+        
+        const fileName = doc.name + (doc.mimeType === 'application/pdf' ? '.pdf' : '');
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        if (doc.mimeType) {
+          res.setHeader('Content-Type', doc.mimeType);
+        }
+        
+        await objectStorageService.downloadObject(objectFile, res);
+      } catch (err) {
+        console.error(`[view] Error viewing file: ${doc.fileUrl}`, err);
+        if (err instanceof ObjectNotFoundError) {
+          return res.status(404).json({ 
+            message: "File not found in storage. This may happen if the file was uploaded in a different environment (development vs production). Please re-upload the file.",
+            fileUrl: doc.fileUrl
+          });
+        }
+        throw err;
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Download document (validates access and streams file)
   app.get("/api/documents/:id/download", requireAuth, async (req, res, next) => {
     try {

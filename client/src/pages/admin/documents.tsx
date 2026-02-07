@@ -108,6 +108,10 @@ export default function AdminDocuments() {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState<string | null>(null);
   const [uploadedFileInfo, setUploadedFileInfo] = useState<{
     objectPath: string;
     name: string;
@@ -242,6 +246,13 @@ export default function AdminDocuments() {
     } catch {
       toast({ title: "Failed to download document", variant: "destructive" });
     }
+  };
+
+  const openDocumentViewer = (doc: Document) => {
+    setViewingDocument(doc);
+    setViewError(null);
+    setViewLoading(true);
+    setShowViewDialog(true);
   };
 
   const stats = {
@@ -413,13 +424,13 @@ export default function AdminDocuments() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => downloadDocument(doc)}>
+                              <DropdownMenuItem onClick={() => openDocumentViewer(doc)} data-testid={`button-view-doc-${doc.id}`}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => downloadDocument(doc)} data-testid={`button-download-doc-${doc.id}`}>
                                 <Download className="h-4 w-4 mr-2" />
                                 Download
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -476,6 +487,104 @@ export default function AdminDocuments() {
               Delete
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showViewDialog} onOpenChange={(open) => {
+        setShowViewDialog(open);
+        if (!open) {
+          setViewingDocument(null);
+          setViewLoading(false);
+          setViewError(null);
+        }
+      }}>
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+            <div className="flex items-center justify-between gap-4 pr-8">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="p-2 bg-muted rounded-md flex-shrink-0">
+                  {viewingDocument && getFileIcon(viewingDocument.mimeType, viewingDocument.fileType)}
+                </div>
+                <div className="min-w-0">
+                  <DialogTitle className="truncate" data-testid="text-admin-viewer-title">
+                    {viewingDocument?.name}
+                  </DialogTitle>
+                  <DialogDescription className="truncate">
+                    {viewingDocument && formatFileSize(viewingDocument.fileSize)}
+                    {viewingDocument?.category && ` · ${viewingDocument.category}`}
+                  </DialogDescription>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => viewingDocument && downloadDocument(viewingDocument)}
+                data-testid="button-admin-viewer-download"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 px-6 pb-6">
+            {viewingDocument && (
+              viewingDocument.mimeType === "application/pdf" ? (
+                <iframe
+                  src={`/api/documents/${viewingDocument.id}/view`}
+                  className="w-full h-full rounded-md border"
+                  title={viewingDocument.name}
+                  onLoad={() => setViewLoading(false)}
+                  onError={() => {
+                    setViewLoading(false);
+                    setViewError("Failed to load document preview.");
+                  }}
+                  data-testid="iframe-admin-document-viewer"
+                />
+              ) : viewingDocument.mimeType?.startsWith("image/") ? (
+                <div className="w-full h-full flex items-center justify-center bg-muted rounded-md border">
+                  <img
+                    src={`/api/documents/${viewingDocument.id}/view`}
+                    alt={viewingDocument.name}
+                    className="max-w-full max-h-full object-contain"
+                    onLoad={() => setViewLoading(false)}
+                    onError={() => {
+                      setViewLoading(false);
+                      setViewError("Failed to load image preview.");
+                    }}
+                    data-testid="img-admin-document-viewer"
+                  />
+                </div>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-md border gap-4">
+                  <File className="h-16 w-16 text-muted-foreground" />
+                  <div className="text-center">
+                    <p className="font-medium mb-1">Preview not available</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      This file type cannot be previewed in the browser. Use the download button to save it.
+                    </p>
+                    <Button onClick={() => viewingDocument && downloadDocument(viewingDocument)} data-testid="button-admin-viewer-download-fallback">
+                      <Download className="h-4 w-4 mr-2" />
+                      Download File
+                    </Button>
+                  </div>
+                </div>
+              )
+            )}
+            {viewLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground border-t-transparent" />
+              </div>
+            )}
+            {viewError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 gap-3">
+                <p className="text-destructive font-medium">{viewError}</p>
+                <Button variant="outline" onClick={() => viewingDocument && downloadDocument(viewingDocument)}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Instead
+                </Button>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
