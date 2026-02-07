@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Save, User, Briefcase, GraduationCap, Users, Heart, Camera } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -164,7 +164,50 @@ export default function MyProfilePage() {
     mentorshipRole: string | null;
   }>({
     queryKey: ["/api/profile/complete"],
+    refetchOnMount: "always",
   });
+
+  function buildFormValues(data: typeof profileData): ProfileFormValues {
+    const userData = data?.user;
+    const menteeProfile = data?.menteeProfile;
+    const mentorProfileExtended = data?.mentorProfileExtended;
+    const mentorshipRole = data?.mentorshipRole;
+    return {
+      jobTitle: userData?.jobTitle || "",
+      organizationName: userData?.organizationName || "",
+      preferredLanguage: userData?.preferredLanguage || "en",
+      fieldsOfExpertise: userData?.fieldsOfExpertise || [],
+      educationLevel: userData?.educationLevel || "",
+      yearsOfExperience: userData?.yearsOfExperience || 0,
+      yearsInSielAreas: userData?.yearsInSielAreas || 0,
+      certificationsTraining: userData?.certificationsTraining || "",
+      mentorshipRoleChoice: mentorshipRole || userData?.mentorshipRoleChoice || undefined,
+      previouslyBeenMentored: menteeProfile?.previouslyBeenMentored || false,
+      hopingToGain: menteeProfile?.hopingToGain || [],
+      specificSkillsSeeking: menteeProfile?.specificSkillsSeeking || "",
+      menteePrimaryMotivations: menteeProfile?.primaryMotivations || "",
+      menteePreferredMethods: menteeProfile?.preferredMethods || [],
+      menteePreferredDuration: menteeProfile?.preferredDuration || "",
+      menteePastChallenges: menteeProfile?.pastChallenges || "",
+      menteeEffectiveStructures: menteeProfile?.effectiveStructures || "",
+      previouslyServedAsMentor: mentorProfileExtended?.previouslyServedAsMentor || false,
+      mentorshipExperienceDescription: mentorProfileExtended?.mentorshipExperienceDescription || "",
+      skillsToShare: mentorProfileExtended?.skillsToShare || "",
+      mentorPrimaryMotivations: mentorProfileExtended?.primaryMotivations || "",
+      mentorPreferredMethods: mentorProfileExtended?.preferredMethods || [],
+      monthlyHoursAvailable: mentorProfileExtended?.monthlyHoursAvailable || "",
+      bestDaysTimes: mentorProfileExtended?.bestDaysTimes || "",
+      mentorPreferredDuration: mentorProfileExtended?.preferredDuration || "",
+      mentorPastChallenges: mentorProfileExtended?.pastChallenges || "",
+      mentorPastSuccesses: mentorProfileExtended?.pastSuccesses || "",
+      mentorEffectiveStructures: mentorProfileExtended?.effectiveStructures || "",
+      resourcesNeeded: mentorProfileExtended?.resourcesNeeded || "",
+      programExpectations: mentorProfileExtended?.programExpectations || "",
+      programSuggestions: mentorProfileExtended?.programSuggestions || "",
+    };
+  }
+
+  const formValues = profileData ? buildFormValues(profileData) : undefined;
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -201,49 +244,8 @@ export default function MyProfilePage() {
       programExpectations: "",
       programSuggestions: "",
     },
+    values: formValues,
   });
-
-  useEffect(() => {
-    if (profileData) {
-      const { user: userData, menteeProfile, mentorProfileExtended, mentorshipRole } = profileData;
-      
-      form.reset({
-        jobTitle: userData?.jobTitle || "",
-        organizationName: userData?.organizationName || "",
-        preferredLanguage: userData?.preferredLanguage || "en",
-        fieldsOfExpertise: userData?.fieldsOfExpertise || [],
-        educationLevel: userData?.educationLevel || "",
-        yearsOfExperience: userData?.yearsOfExperience || 0,
-        yearsInSielAreas: userData?.yearsInSielAreas || 0,
-        certificationsTraining: userData?.certificationsTraining || "",
-        mentorshipRoleChoice: mentorshipRole || userData?.mentorshipRoleChoice || undefined,
-        
-        previouslyBeenMentored: menteeProfile?.previouslyBeenMentored || false,
-        hopingToGain: menteeProfile?.hopingToGain || [],
-        specificSkillsSeeking: menteeProfile?.specificSkillsSeeking || "",
-        menteePrimaryMotivations: menteeProfile?.primaryMotivations || "",
-        menteePreferredMethods: menteeProfile?.preferredMethods || [],
-        menteePreferredDuration: menteeProfile?.preferredDuration || "",
-        menteePastChallenges: menteeProfile?.pastChallenges || "",
-        menteeEffectiveStructures: menteeProfile?.effectiveStructures || "",
-        
-        previouslyServedAsMentor: mentorProfileExtended?.previouslyServedAsMentor || false,
-        mentorshipExperienceDescription: mentorProfileExtended?.mentorshipExperienceDescription || "",
-        skillsToShare: mentorProfileExtended?.skillsToShare || "",
-        mentorPrimaryMotivations: mentorProfileExtended?.primaryMotivations || "",
-        mentorPreferredMethods: mentorProfileExtended?.preferredMethods || [],
-        monthlyHoursAvailable: mentorProfileExtended?.monthlyHoursAvailable || "",
-        bestDaysTimes: mentorProfileExtended?.bestDaysTimes || "",
-        mentorPreferredDuration: mentorProfileExtended?.preferredDuration || "",
-        mentorPastChallenges: mentorProfileExtended?.pastChallenges || "",
-        mentorPastSuccesses: mentorProfileExtended?.pastSuccesses || "",
-        mentorEffectiveStructures: mentorProfileExtended?.effectiveStructures || "",
-        resourcesNeeded: mentorProfileExtended?.resourcesNeeded || "",
-        programExpectations: mentorProfileExtended?.programExpectations || "",
-        programSuggestions: mentorProfileExtended?.programSuggestions || "",
-      });
-    }
-  }, [profileData, form]);
 
   const saveProfileMutation = useMutation({
     mutationFn: async (values: ProfileFormValues) => {
@@ -252,38 +254,40 @@ export default function MyProfilePage() {
         organizationName: values.organizationName,
         preferredLanguage: values.preferredLanguage,
         fieldsOfExpertise: values.fieldsOfExpertise,
-        educationLevel: values.educationLevel,
+        educationLevel: values.educationLevel || null,
         yearsOfExperience: values.yearsOfExperience,
         yearsInSielAreas: values.yearsInSielAreas,
         certificationsTraining: values.certificationsTraining,
       };
 
+      const emptyToNull = (v: string | undefined) => (v === "" || v === undefined ? null : v);
+
       const menteeProfile = {
         previouslyBeenMentored: values.previouslyBeenMentored,
         hopingToGain: values.hopingToGain,
-        specificSkillsSeeking: values.specificSkillsSeeking,
-        primaryMotivations: values.menteePrimaryMotivations,
+        specificSkillsSeeking: emptyToNull(values.specificSkillsSeeking),
+        primaryMotivations: emptyToNull(values.menteePrimaryMotivations),
         preferredMethods: values.menteePreferredMethods,
-        preferredDuration: values.menteePreferredDuration,
-        pastChallenges: values.menteePastChallenges,
-        effectiveStructures: values.menteeEffectiveStructures,
+        preferredDuration: emptyToNull(values.menteePreferredDuration),
+        pastChallenges: emptyToNull(values.menteePastChallenges),
+        effectiveStructures: emptyToNull(values.menteeEffectiveStructures),
       };
 
       const mentorProfileExtended = {
         previouslyServedAsMentor: values.previouslyServedAsMentor,
-        mentorshipExperienceDescription: values.mentorshipExperienceDescription,
-        skillsToShare: values.skillsToShare,
-        primaryMotivations: values.mentorPrimaryMotivations,
+        mentorshipExperienceDescription: emptyToNull(values.mentorshipExperienceDescription),
+        skillsToShare: emptyToNull(values.skillsToShare),
+        primaryMotivations: emptyToNull(values.mentorPrimaryMotivations),
         preferredMethods: values.mentorPreferredMethods,
-        monthlyHoursAvailable: values.monthlyHoursAvailable,
-        bestDaysTimes: values.bestDaysTimes,
-        preferredDuration: values.mentorPreferredDuration,
-        pastChallenges: values.mentorPastChallenges,
-        pastSuccesses: values.mentorPastSuccesses,
-        effectiveStructures: values.mentorEffectiveStructures,
-        resourcesNeeded: values.resourcesNeeded,
-        programExpectations: values.programExpectations,
-        programSuggestions: values.programSuggestions,
+        monthlyHoursAvailable: emptyToNull(values.monthlyHoursAvailable),
+        bestDaysTimes: emptyToNull(values.bestDaysTimes),
+        preferredDuration: emptyToNull(values.mentorPreferredDuration),
+        pastChallenges: emptyToNull(values.mentorPastChallenges),
+        pastSuccesses: emptyToNull(values.mentorPastSuccesses),
+        effectiveStructures: emptyToNull(values.mentorEffectiveStructures),
+        resourcesNeeded: emptyToNull(values.resourcesNeeded),
+        programExpectations: emptyToNull(values.programExpectations),
+        programSuggestions: emptyToNull(values.programSuggestions),
       };
 
       return apiRequest("POST", "/api/profile/setup", {

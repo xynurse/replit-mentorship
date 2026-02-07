@@ -1532,6 +1532,32 @@ export async function registerRoutes(
     }
   });
 
+  // Get complete profile data (must be before /api/profile/:userId to avoid :userId capturing "complete")
+  app.get("/api/profile/complete", requireAuth, async (req, res, next) => {
+    try {
+      const userId = req.user!.id;
+      
+      const [professionalProfile, mentorshipRole, menteeProfile, mentorProfileExtended] = await Promise.all([
+        storage.getProfessionalProfile(userId),
+        storage.getMentorshipRole(userId),
+        storage.getMenteeProfile(userId),
+        storage.getMentorProfileExtended(userId),
+      ]);
+
+      const { password: _, ...safeUser } = req.user!;
+      
+      res.json({
+        user: safeUser,
+        professionalProfile,
+        mentorshipRole: mentorshipRole?.mentorshipRole || null,
+        menteeProfile,
+        mentorProfileExtended,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/profile/:userId", requireAuth, async (req, res, next) => {
     try {
       const currentUser = req.user!;
@@ -1632,9 +1658,10 @@ export async function registerRoutes(
       } = req.body;
 
       // Update user fields if provided
-      if (userUpdates) {
+      if (userUpdates || mentorshipRole) {
         await storage.updateUser(userId, {
-          ...userUpdates,
+          ...(userUpdates || {}),
+          ...(mentorshipRole ? { mentorshipRoleChoice: mentorshipRole } : {}),
           isProfileComplete: true,
         });
       }
@@ -1702,32 +1729,6 @@ export async function registerRoutes(
         success: true, 
         user: safeUser,
         message: "Profile setup completed successfully" 
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Get complete profile data
-  app.get("/api/profile/complete", requireAuth, async (req, res, next) => {
-    try {
-      const userId = req.user!.id;
-      
-      const [professionalProfile, mentorshipRole, menteeProfile, mentorProfileExtended] = await Promise.all([
-        storage.getProfessionalProfile(userId),
-        storage.getMentorshipRole(userId),
-        storage.getMenteeProfile(userId),
-        storage.getMentorProfileExtended(userId),
-      ]);
-
-      const { password: _, ...safeUser } = req.user!;
-      
-      res.json({
-        user: safeUser,
-        professionalProfile,
-        mentorshipRole: mentorshipRole?.mentorshipRole || null,
-        menteeProfile,
-        mentorProfileExtended,
       });
     } catch (error) {
       next(error);
