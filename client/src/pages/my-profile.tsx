@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Save, User, Briefcase, GraduationCap, Users, Heart } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Loader2, Save, User, Briefcase, GraduationCap, Users, Heart, Camera } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -30,6 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
@@ -118,6 +119,43 @@ export default function MyProfilePage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("core");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast({ title: "Invalid file type", description: "Please upload a JPEG, PNG, GIF, or WebP image.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const urlResponse = await apiRequest("POST", "/api/uploads/request-url", {
+        name: file.name, size: file.size, contentType: file.type,
+      });
+      const { uploadURL, objectPath } = await urlResponse.json();
+      const uploadRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!uploadRes.ok) throw new Error("Failed to upload image to storage");
+      await apiRequest("PATCH", "/api/profile", { profileImage: objectPath });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile/complete"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      toast({ title: "Photo updated", description: "Your profile photo has been updated successfully." });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message || "Could not upload photo.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const { data: profileData, isLoading } = useQuery<{
     user: any;
@@ -284,10 +322,40 @@ export default function MyProfilePage() {
 
   return (
     <DashboardLayout>
-      <div className="container max-w-4xl py-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold">My Profile</h1>
-          <p className="text-muted-foreground">Manage your profile information and mentorship preferences</p>
+      <div className="container max-w-4xl p-6">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="relative group">
+            <Avatar className="h-16 w-16 border-2 border-border">
+              <AvatarImage src={user?.id ? `/api/profile-photo/${user.id}` : undefined} alt={`${user?.firstName} ${user?.lastName}`} />
+              <AvatarFallback className="text-lg font-semibold bg-muted text-muted-foreground">
+                {`${user?.firstName?.charAt(0) || ""}${user?.lastName?.charAt(0) || ""}`.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              data-testid="button-edit-photo"
+            >
+              {uploading ? (
+                <Loader2 className="h-5 w-5 text-white animate-spin" />
+              ) : (
+                <Camera className="h-5 w-5 text-white" />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              className="hidden"
+              onChange={handlePhotoUpload}
+              data-testid="input-edit-photo-upload"
+            />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold">My Profile</h1>
+            <p className="text-muted-foreground">Manage your profile information and mentorship preferences</p>
+          </div>
         </div>
 
         <Form {...form}>

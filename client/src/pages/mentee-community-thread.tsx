@@ -415,7 +415,7 @@ export default function MenteeCommunityThreadPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="p-6 space-y-6">
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 

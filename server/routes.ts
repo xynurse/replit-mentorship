@@ -1489,9 +1489,47 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/profile", requireAuth, async (req, res) => {
-    const { password: _, ...safeUser } = req.user!;
-    res.json(safeUser);
+  app.get("/api/profile", requireAuth, async (req, res, next) => {
+    try {
+      const { password: _, ...safeUser } = req.user!;
+      
+      const [menteeProfile, mentorProfileExtended] = await Promise.all([
+        storage.getMenteeProfile(req.user!.id),
+        storage.getMentorProfileExtended(req.user!.id),
+      ]);
+
+      res.json({
+        ...safeUser,
+        menteeProfile: menteeProfile || null,
+        mentorProfileExtended: mentorProfileExtended || null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/profile-photo/:userId", async (req, res, next) => {
+    try {
+      const targetUser = await storage.getUser(req.params.userId);
+      if (!targetUser || !targetUser.profileImage) {
+        return res.status(404).json({ message: "Photo not found" });
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(targetUser.profileImage);
+      
+      res.set({
+        "Cache-Control": "public, max-age=3600",
+        "X-Frame-Options": "SAMEORIGIN",
+      });
+      
+      await objectStorageService.downloadObject(objectFile, res);
+    } catch (error: any) {
+      if (error.name === "ObjectNotFoundError") {
+        return res.status(404).json({ message: "Photo not found" });
+      }
+      next(error);
+    }
   });
 
   app.get("/api/profile/:userId", requireAuth, async (req, res, next) => {
@@ -1499,32 +1537,39 @@ export async function registerRoutes(
       const currentUser = req.user!;
       const targetUserId = req.params.userId;
 
+      let targetUser;
       if (currentUser.id === targetUserId) {
-        const { password: _, ...safeUser } = currentUser;
-        return res.json(safeUser);
-      }
-
-      if (currentUser.role === "SUPER_ADMIN" || currentUser.role === "ADMIN") {
-        const targetUser = await storage.getUser(targetUserId);
+        targetUser = currentUser;
+      } else if (currentUser.role === "SUPER_ADMIN" || currentUser.role === "ADMIN") {
+        targetUser = await storage.getUser(targetUserId);
         if (!targetUser) return res.status(404).json({ message: "User not found" });
-        const { password: _, ...safeUser } = targetUser;
-        return res.json(safeUser);
+      } else {
+        const matches = await storage.getMatchesForUser(currentUser.id);
+        const isConnected = matches.some(match => {
+          if (match.status !== "ACTIVE" && match.status !== "PROPOSED" && match.status !== "PAUSED") return false;
+          return (match.mentor?.id === targetUserId) || (match.mentee?.id === targetUserId);
+        });
+
+        if (!isConnected) {
+          return res.status(403).json({ message: "You can only view profiles of your connected mentors or mentees" });
+        }
+
+        targetUser = await storage.getUser(targetUserId);
+        if (!targetUser) return res.status(404).json({ message: "User not found" });
       }
 
-      const matches = await storage.getMatchesForUser(currentUser.id);
-      const isConnected = matches.some(match => {
-        if (match.status !== "ACTIVE" && match.status !== "PROPOSED" && match.status !== "PAUSED") return false;
-        return (match.mentor?.id === targetUserId) || (match.mentee?.id === targetUserId);
-      });
-
-      if (!isConnected) {
-        return res.status(403).json({ message: "You can only view profiles of your connected mentors or mentees" });
-      }
-
-      const targetUser = await storage.getUser(targetUserId);
-      if (!targetUser) return res.status(404).json({ message: "User not found" });
       const { password: _, ...safeUser } = targetUser;
-      res.json(safeUser);
+
+      const [menteeProfile, mentorProfileExtended] = await Promise.all([
+        storage.getMenteeProfile(targetUserId),
+        storage.getMentorProfileExtended(targetUserId),
+      ]);
+
+      res.json({
+        ...safeUser,
+        menteeProfile: menteeProfile || null,
+        mentorProfileExtended: mentorProfileExtended || null,
+      });
     } catch (error) {
       next(error);
     }
