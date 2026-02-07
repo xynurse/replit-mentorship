@@ -78,6 +78,7 @@ const MONTHLY_HOURS_OPTIONS = [
 ];
 
 const profileSchema = z.object({
+  bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
   jobTitle: z.string().min(1, "Position/title is required"),
   organizationName: z.string().min(1, "Organization is required"),
   preferredLanguage: z.string().default("en"),
@@ -173,6 +174,7 @@ export default function MyProfilePage() {
     const mentorProfileExtended = data?.mentorProfileExtended;
     const mentorshipRole = data?.mentorshipRole;
     return {
+      bio: userData?.bio || "",
       jobTitle: userData?.jobTitle || "",
       organizationName: userData?.organizationName || "",
       preferredLanguage: userData?.preferredLanguage || "en",
@@ -212,6 +214,7 @@ export default function MyProfilePage() {
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
+      bio: "",
       jobTitle: "",
       organizationName: "",
       preferredLanguage: "en",
@@ -249,7 +252,10 @@ export default function MyProfilePage() {
 
   const saveProfileMutation = useMutation({
     mutationFn: async (values: ProfileFormValues) => {
+      const emptyToNull = (v: string | undefined) => (v === "" || v === undefined ? null : v);
+
       const userUpdates = {
+        bio: emptyToNull(values.bio),
         jobTitle: values.jobTitle,
         organizationName: values.organizationName,
         preferredLanguage: values.preferredLanguage,
@@ -259,8 +265,6 @@ export default function MyProfilePage() {
         yearsInSielAreas: values.yearsInSielAreas,
         certificationsTraining: values.certificationsTraining,
       };
-
-      const emptyToNull = (v: string | undefined) => (v === "" || v === undefined ? null : v);
 
       const menteeProfile = {
         previouslyBeenMentored: values.previouslyBeenMentored,
@@ -444,6 +448,27 @@ export default function MyProfilePage() {
                         )}
                       />
                     </div>
+
+                    <FormField
+                      control={form.control}
+                      name="bio"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Biography</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              placeholder="Tell us about yourself, your background, and your interests..."
+                              className="resize-none"
+                              rows={4}
+                              data-testid="input-bio"
+                            />
+                          </FormControl>
+                          <FormDescription>A brief introduction about yourself (max 500 characters)</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
                     <Separator className="my-4" />
 

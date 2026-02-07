@@ -99,6 +99,32 @@ function formatMeetingFormat(format: string | null | undefined) {
   }
 }
 
+function SectionCompleteness({ section, filled, total }: { section: string; filled: number; total: number }) {
+  const isComplete = filled === total && total > 0;
+  return (
+    <Badge
+      variant={isComplete ? "default" : "secondary"}
+      className="text-xs shrink-0"
+      data-testid={`badge-completeness-${section}`}
+    >
+      <CheckCircle className={`h-3 w-3 mr-1 ${isComplete ? "" : "opacity-50"}`} />
+      {filled}/{total}
+    </Badge>
+  );
+}
+
+function countFilled(...values: (string | number | boolean | string[] | null | undefined)[]): { filled: number; total: number } {
+  let filled = 0;
+  const total = values.length;
+  for (const v of values) {
+    if (v === null || v === undefined || v === "" || v === false) continue;
+    if (Array.isArray(v) && v.length === 0) continue;
+    if (typeof v === "number" && v === 0) continue;
+    filled++;
+  }
+  return { filled, total };
+}
+
 function InfoRow({ icon: Icon, label, value, href }: { icon: any; label: string; value: string | null | undefined; href?: string }) {
   if (!value) return null;
   return (
@@ -331,11 +357,12 @@ export default function ProfileViewPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <User className="h-4 w-4" />
                 Contact Information
               </CardTitle>
+              <SectionCompleteness section="contact" {...countFilled(profile.email, profile.phone, profile.linkedInUrl, profile.timezone)} />
             </CardHeader>
             <CardContent className="space-y-1">
               <InfoRow icon={Mail} label="Email" value={profile.email} href={`mailto:${profile.email}`} />
@@ -346,11 +373,12 @@ export default function ProfileViewPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Briefcase className="h-4 w-4" />
                 Professional Details
               </CardTitle>
+              <SectionCompleteness section="professional" {...countFilled(profile.organizationName, profile.jobTitle, profile.yearsOfExperience, profile.yearsInSielAreas, profile.educationLevel, profile.certificationsTraining)} />
             </CardHeader>
             <CardContent className="space-y-1">
               <InfoRow icon={Building} label="Organization" value={profile.organizationName} />
@@ -363,16 +391,19 @@ export default function ProfileViewPage() {
           </Card>
         </div>
 
-        {((profile.fieldsOfExpertise && profile.fieldsOfExpertise.length > 0) || 
-          (profile.languagesSpoken && profile.languagesSpoken.length > 0)) && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                Expertise & Languages
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Expertise & Languages
+            </CardTitle>
+            <SectionCompleteness section="expertise" {...countFilled(profile.fieldsOfExpertise, profile.languagesSpoken)} />
+          </CardHeader>
+          <CardContent>
+            {(!profile.fieldsOfExpertise || profile.fieldsOfExpertise.length === 0) &&
+             (!profile.languagesSpoken || profile.languagesSpoken.length === 0) ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No expertise or languages added yet</p>
+            ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {profile.fieldsOfExpertise && profile.fieldsOfExpertise.length > 0 && (
                   <div>
@@ -400,17 +431,28 @@ export default function ProfileViewPage() {
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
 
         {menteeProfile && (
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <GraduationCap className="h-4 w-4" />
                 Mentee Profile
               </CardTitle>
+              <SectionCompleteness section="mentee" {...countFilled(
+                menteeProfile.careerStage,
+                menteeProfile.preferredDuration,
+                menteeProfile.monthlyHoursAvailable,
+                menteeProfile.shortTermGoals,
+                menteeProfile.longTermVision,
+                menteeProfile.specificSkillsSeeking,
+                menteeProfile.primaryMotivations,
+                menteeProfile.hopingToGain,
+                menteeProfile.preferredMethods,
+              )} />
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -475,11 +517,22 @@ export default function ProfileViewPage() {
 
         {mentorProfile && (
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Heart className="h-4 w-4" />
                 Mentor Profile
               </CardTitle>
+              <SectionCompleteness section="mentor" {...countFilled(
+                mentorProfile.maxMentees,
+                mentorProfile.preferredDuration,
+                mentorProfile.monthlyHoursAvailable,
+                mentorProfile.skillsToShare,
+                mentorProfile.primaryMotivations,
+                mentorProfile.mentoringTracks,
+                mentorProfile.preferredMethods,
+                mentorProfile.notableAchievements,
+                mentorProfile.programExpectations,
+              )} />
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
