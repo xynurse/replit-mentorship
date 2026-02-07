@@ -112,6 +112,7 @@ export default function AdminDocuments() {
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
+  const [viewBlobUrl, setViewBlobUrl] = useState<string | null>(null);
   const [uploadedFileInfo, setUploadedFileInfo] = useState<{
     objectPath: string;
     name: string;
@@ -248,11 +249,26 @@ export default function AdminDocuments() {
     }
   };
 
-  const openDocumentViewer = (doc: Document) => {
+  const openDocumentViewer = async (doc: Document) => {
     setViewingDocument(doc);
     setViewError(null);
     setViewLoading(true);
+    setViewBlobUrl(null);
     setShowViewDialog(true);
+
+    try {
+      const response = await fetch(`/api/documents/${doc.id}/view`, { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error(`Failed to load document: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setViewBlobUrl(url);
+      setViewLoading(false);
+    } catch (err: any) {
+      setViewLoading(false);
+      setViewError(err.message || "Failed to load document preview.");
+    }
   };
 
   const stats = {
@@ -493,6 +509,10 @@ export default function AdminDocuments() {
       <Dialog open={showViewDialog} onOpenChange={(open) => {
         setShowViewDialog(open);
         if (!open) {
+          if (viewBlobUrl) {
+            URL.revokeObjectURL(viewBlobUrl);
+            setViewBlobUrl(null);
+          }
           setViewingDocument(null);
           setViewLoading(false);
           setViewError(null);
@@ -526,31 +546,35 @@ export default function AdminDocuments() {
               </Button>
             </div>
           </DialogHeader>
-          <div className="flex-1 min-h-0 px-6 pb-6">
-            {viewingDocument && (
+          <div className="flex-1 min-h-0 px-6 pb-6 relative">
+            {viewLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground border-t-transparent" />
+              </div>
+            )}
+            {viewError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 gap-3 z-10">
+                <p className="text-destructive font-medium">{viewError}</p>
+                <Button variant="outline" onClick={() => viewingDocument && downloadDocument(viewingDocument)}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Instead
+                </Button>
+              </div>
+            )}
+            {viewingDocument && viewBlobUrl && (
               viewingDocument.mimeType === "application/pdf" ? (
                 <iframe
-                  src={`/api/documents/${viewingDocument.id}/view`}
+                  src={viewBlobUrl}
                   className="w-full h-full rounded-md border"
                   title={viewingDocument.name}
-                  onLoad={() => setViewLoading(false)}
-                  onError={() => {
-                    setViewLoading(false);
-                    setViewError("Failed to load document preview.");
-                  }}
                   data-testid="iframe-admin-document-viewer"
                 />
               ) : viewingDocument.mimeType?.startsWith("image/") ? (
                 <div className="w-full h-full flex items-center justify-center bg-muted rounded-md border">
                   <img
-                    src={`/api/documents/${viewingDocument.id}/view`}
+                    src={viewBlobUrl}
                     alt={viewingDocument.name}
                     className="max-w-full max-h-full object-contain"
-                    onLoad={() => setViewLoading(false)}
-                    onError={() => {
-                      setViewLoading(false);
-                      setViewError("Failed to load image preview.");
-                    }}
                     data-testid="img-admin-document-viewer"
                   />
                 </div>
@@ -569,20 +593,6 @@ export default function AdminDocuments() {
                   </div>
                 </div>
               )
-            )}
-            {viewLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground border-t-transparent" />
-              </div>
-            )}
-            {viewError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 gap-3">
-                <p className="text-destructive font-medium">{viewError}</p>
-                <Button variant="outline" onClick={() => viewingDocument && downloadDocument(viewingDocument)}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Instead
-                </Button>
-              </div>
             )}
           </div>
         </DialogContent>
