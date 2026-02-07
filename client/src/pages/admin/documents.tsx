@@ -61,6 +61,7 @@ import {
   FolderIcon,
   Upload,
   Plus,
+  ExternalLink,
 } from "lucide-react";
 
 function getFileIcon(mimeType?: string | null, fileType?: string | null) {
@@ -259,15 +260,28 @@ export default function AdminDocuments() {
     try {
       const response = await fetch(`/api/documents/${doc.id}/view`, { credentials: 'include' });
       if (!response.ok) {
-        throw new Error(`Failed to load document: ${response.statusText}`);
+        let errorMsg = `Failed to load document (${response.status})`;
+        try {
+          const errorData = await response.json();
+          if (errorData.message) errorMsg = errorData.message;
+        } catch {}
+        throw new Error(errorMsg);
       }
-      const blob = await response.blob();
+      const arrayBuffer = await response.arrayBuffer();
+      const contentType = response.headers.get('Content-Type') || doc.mimeType || 'application/octet-stream';
+      const blob = new Blob([arrayBuffer], { type: contentType });
       const url = URL.createObjectURL(blob);
       setViewBlobUrl(url);
       setViewLoading(false);
     } catch (err: any) {
       setViewLoading(false);
       setViewError(err.message || "Failed to load document preview.");
+    }
+  };
+
+  const openDocumentInNewTab = () => {
+    if (viewBlobUrl) {
+      window.open(viewBlobUrl, '_blank');
     }
   };
 
@@ -563,12 +577,20 @@ export default function AdminDocuments() {
             )}
             {viewingDocument && viewBlobUrl && (
               viewingDocument.mimeType === "application/pdf" ? (
-                <iframe
-                  src={viewBlobUrl}
-                  className="w-full h-full rounded-md border"
-                  title={viewingDocument.name}
-                  data-testid="iframe-admin-document-viewer"
-                />
+                <div className="w-full h-full flex flex-col gap-2">
+                  <iframe
+                    src={viewBlobUrl + "#toolbar=1"}
+                    className="w-full flex-1 rounded-md border"
+                    title={viewingDocument.name}
+                    data-testid="iframe-admin-document-viewer"
+                  />
+                  <div className="flex items-center justify-center gap-2 flex-shrink-0">
+                    <Button variant="outline" size="sm" onClick={openDocumentInNewTab} data-testid="button-admin-open-new-tab">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open in New Tab
+                    </Button>
+                  </div>
+                </div>
               ) : viewingDocument.mimeType?.startsWith("image/") ? (
                 <div className="w-full h-full flex items-center justify-center bg-muted rounded-md border">
                   <img
