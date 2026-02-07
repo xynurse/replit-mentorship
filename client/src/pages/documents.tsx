@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
@@ -37,7 +37,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
-import { useUpload } from "@/hooks/use-upload";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Document, Folder, DocumentCategory, DocumentVisibility, User } from "@shared/schema";
 import {
@@ -117,7 +116,7 @@ function formatDate(date?: Date | string | null): string {
 export default function DocumentsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { getUploadParameters } = useUpload();
+  const pendingObjectPathRef = useRef<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<"system" | "personal" | "shared">("personal");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -469,7 +468,11 @@ export default function DocumentsPage() {
     const files = result.successful || [];
     if (files.length > 0) {
       const file = files[0];
-      const objectPath = file.response?.body?.objectPath || `/objects/uploads/${file.name}`;
+      const objectPath = pendingObjectPathRef.current || file.response?.body?.objectPath;
+      if (!objectPath) {
+        toast({ title: "Upload failed - could not determine file path", variant: "destructive" });
+        return;
+      }
       setUploadedFile({
         objectPath,
         name: file.name,
@@ -477,6 +480,7 @@ export default function DocumentsPage() {
         contentType: file.type,
       });
       setDocumentName(file.name);
+      pendingObjectPathRef.current = null;
     }
   };
 
@@ -558,7 +562,26 @@ export default function DocumentsPage() {
                       <ObjectUploader
                         maxNumberOfFiles={1}
                         maxFileSize={52428800}
-                        onGetUploadParameters={getUploadParameters}
+                        onGetUploadParameters={async (file) => {
+                          const res = await fetch("/api/uploads/request-url", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify({
+                              name: file.name,
+                              size: file.size,
+                              contentType: file.type || "application/octet-stream",
+                            }),
+                          });
+                          if (!res.ok) throw new Error("Failed to get upload URL");
+                          const data = await res.json();
+                          pendingObjectPathRef.current = data.objectPath;
+                          return {
+                            method: "PUT" as const,
+                            url: data.uploadURL,
+                            headers: { "Content-Type": file.type || "application/octet-stream" },
+                          };
+                        }}
                         onComplete={handleUploadComplete}
                       >
                         <Upload className="h-4 w-4 mr-2" />
