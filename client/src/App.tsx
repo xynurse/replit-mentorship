@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
+import { ProgramProvider } from "@/hooks/use-program";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ProtectedRoute, AdminRoute } from "@/lib/protected-route";
 import { Loader2 } from "lucide-react";
@@ -65,6 +66,7 @@ const SubmissionsPage = lazy(() => import("@/pages/submissions"));
 const MyProfilePage = lazy(() => import("@/pages/my-profile"));
 const ProfileViewPage = lazy(() => import("@/pages/profile-view"));
 const MenteeDetailPage = lazy(() => import("@/pages/mentee-detail"));
+const ProgramSelectorPage = lazy(() => import("@/pages/program-selector"));
 
 function PageLoader() {
   return (
@@ -94,6 +96,7 @@ function Router() {
       <ProtectedRoute path="/change-password" component={ChangePasswordPage} requireCompleteProfile={false} />
       <ProtectedRoute path="/complete-profile" component={CompleteProfilePage} requireCompleteProfile={false} />
       <ProtectedRoute path="/profile/setup" component={MentorshipProfileSetupPage} requireCompleteProfile={false} />
+      <ProtectedRoute path="/select-program" component={ProgramSelectorPage} requireCompleteProfile={false} />
       <AdminRoute path="/admin" component={AdminDashboard} />
       <AdminRoute path="/admin/users" component={AdminUsers} />
       <AdminRoute path="/admin/cohorts" component={AdminCohorts} />
@@ -152,8 +155,10 @@ function App() {
       <ThemeProvider>
         <TooltipProvider>
           <AuthProvider>
-            <Toaster />
-            <Router />
+            <ProgramProvider>
+              <Toaster />
+              <Router />
+            </ProgramProvider>
           </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>

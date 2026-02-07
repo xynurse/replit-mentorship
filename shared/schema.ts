@@ -492,6 +492,7 @@ export type MentorProfileExtended = typeof mentorProfilesExtended.$inferSelect;
 
 export const tracks = pgTable("tracks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  programId: varchar("program_id"),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   description: text("description"),
@@ -505,6 +506,7 @@ export const tracks = pgTable("tracks", {
 
 export const cohorts = pgTable("cohorts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  programId: varchar("program_id"),
   name: text("name").notNull(),
   description: text("description"),
   startDate: timestamp("start_date"),
@@ -1655,6 +1657,50 @@ export const insertPlatformIssueSchema = createInsertSchema(platformIssues).omit
 
 export type PlatformIssue = typeof platformIssues.$inferSelect;
 export type InsertPlatformIssue = z.infer<typeof insertPlatformIssueSchema>;
+
+// Programs System (Multi-Program Support)
+export const programMembershipRoleEnum = pgEnum("program_membership_role", ["ADMIN", "MENTOR", "MENTEE"]);
+
+export const programs = pgTable("programs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  logoUrl: text("logo_url"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProgramSchema = createInsertSchema(programs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Program = typeof programs.$inferSelect;
+export type InsertProgram = z.infer<typeof insertProgramSchema>;
+
+export const programMemberships = pgTable("program_memberships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  programId: varchar("program_id").notNull().references(() => programs.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  role: programMembershipRoleEnum("role").notNull(),
+  isDefault: boolean("is_default").default(false),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProgramMembershipSchema = createInsertSchema(programMemberships).omit({
+  id: true,
+  joinedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ProgramMembership = typeof programMemberships.$inferSelect;
+export type InsertProgramMembership = z.infer<typeof insertProgramMembershipSchema>;
 
 export const submissionTypeEnum = pgEnum("submission_type", ["ISSUE", "SUGGESTION"]);
 export const submissionStatusEnum = pgEnum("submission_status", ["SUBMITTED", "UNDER_REVIEW", "IN_PROGRESS", "COMPLETED", "DECLINED"]);

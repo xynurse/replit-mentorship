@@ -53,6 +53,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { AnimatedBackground } from "@/components/animated-background";
+import { ProgramSwitcher } from "@/components/program-switcher";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -110,13 +111,14 @@ function AdminSidebar() {
 
   return (
     <Sidebar className="border-r">
-      <SidebarHeader className="border-b p-4">
+      <SidebarHeader className="border-b p-4 space-y-3">
         <Link href="/admin" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
             <Shield className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="font-semibold text-lg">SONSIEL Admin</span>
         </Link>
+        <ProgramSwitcher />
       </SidebarHeader>
 
       <SidebarContent>

@@ -46,7 +46,9 @@ import {
   type JournalEntry, type InsertJournalEntry,
   type Reminder, type InsertReminder,
   platformIssues, type PlatformIssue, type InsertPlatformIssue,
-  userSubmissions, type UserSubmission, type InsertUserSubmission
+  userSubmissions, type UserSubmission, type InsertUserSubmission,
+  programs, programMemberships,
+  type Program, type InsertProgram, type ProgramMembership, type InsertProgramMembership
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -71,11 +73,11 @@ export interface IStorage {
   lockAccount(id: string, until: Date): Promise<void>;
   getAllUsers(filters?: { role?: string; search?: string; isActive?: boolean }): Promise<User[]>;
   getUsersCount(filters?: { role?: string; isActive?: boolean }): Promise<number>;
-  getAllTracks(): Promise<Track[]>;
+  getAllTracks(programId?: string): Promise<Track[]>;
   getTrack(id: string): Promise<Track | undefined>;
   createTrack(track: InsertTrack): Promise<Track>;
   updateTrack(id: string, data: Partial<Track>): Promise<Track | undefined>;
-  getAllCohorts(): Promise<Cohort[]>;
+  getAllCohorts(programId?: string): Promise<Cohort[]>;
   getCohort(id: string): Promise<Cohort | undefined>;
   createCohort(cohort: InsertCohort): Promise<Cohort>;
   updateCohort(id: string, data: Partial<Cohort>): Promise<Cohort | undefined>;
@@ -439,6 +441,22 @@ export interface IStorage {
   getUserSubmission(id: string): Promise<UserSubmission | undefined>;
   updateUserSubmission(id: string, data: Partial<UserSubmission>): Promise<UserSubmission | undefined>;
 
+  // Programs
+  getAllPrograms(): Promise<Program[]>;
+  getProgram(id: string): Promise<Program | undefined>;
+  getProgramBySlug(slug: string): Promise<Program | undefined>;
+  createProgram(program: InsertProgram): Promise<Program>;
+  updateProgram(id: string, data: Partial<Program>): Promise<Program | undefined>;
+  deleteProgram(id: string): Promise<void>;
+
+  // Program Memberships
+  getProgramMembershipsForUser(userId: string): Promise<(ProgramMembership & { program: Program })[]>;
+  getProgramMembership(programId: string, userId: string): Promise<ProgramMembership | undefined>;
+  getProgramMembers(programId: string): Promise<(ProgramMembership & { user: User })[]>;
+  createProgramMembership(membership: InsertProgramMembership): Promise<ProgramMembership>;
+  updateProgramMembership(id: string, data: Partial<ProgramMembership>): Promise<ProgramMembership | undefined>;
+  deleteProgramMembership(id: string): Promise<void>;
+
   sessionStore: session.Store;
 }
 
@@ -477,6 +495,7 @@ export class DatabaseStorage implements IStorage {
   async deleteUser(id: string): Promise<boolean> {
     const result = await db.transaction(async (tx) => {
       // 1. Delete from tables with required (NOT NULL) user FK references
+      await tx.delete(programMemberships).where(eq(programMemberships.userId, id));
       await tx.delete(accountDeletionRequests).where(eq(accountDeletionRequests.userId, id));
       await tx.delete(calendarEventParticipants).where(eq(calendarEventParticipants.userId, id));
       await tx.delete(calendarEvents).where(eq(calendarEvents.createdById, id));
@@ -673,7 +692,10 @@ export class DatabaseStorage implements IStorage {
     return result?.count || 0;
   }
 
-  async getAllTracks(): Promise<Track[]> {
+  async getAllTracks(programId?: string): Promise<Track[]> {
+    if (programId) {
+      return db.select().from(tracks).where(eq(tracks.programId, programId)).orderBy(asc(tracks.sortOrder));
+    }
     return db.select().from(tracks).orderBy(asc(tracks.sortOrder));
   }
 
@@ -692,7 +714,10 @@ export class DatabaseStorage implements IStorage {
     return result || undefined;
   }
 
-  async getAllCohorts(): Promise<Cohort[]> {
+  async getAllCohorts(programId?: string): Promise<Cohort[]> {
+    if (programId) {
+      return db.select().from(cohorts).where(eq(cohorts.programId, programId)).orderBy(desc(cohorts.createdAt));
+    }
     return db.select().from(cohorts).orderBy(desc(cohorts.createdAt));
   }
 
@@ -3852,6 +3877,97 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userSubmissions.id, id))
       .returning();
     return updated || undefined;
+  }
+
+  // Programs
+  async getAllPrograms(): Promise<Program[]> {
+    return await db.select().from(programs).orderBy(asc(programs.name));
+  }
+
+  async getProgram(id: string): Promise<Program | undefined> {
+    const [program] = await db.select().from(programs).where(eq(programs.id, id));
+    return program || undefined;
+  }
+
+  async getProgramBySlug(slug: string): Promise<Program | undefined> {
+    const [program] = await db.select().from(programs).where(eq(programs.slug, slug));
+    return program || undefined;
+  }
+
+  async createProgram(program: InsertProgram): Promise<Program> {
+    const [created] = await db.insert(programs).values(program).returning();
+    return created;
+  }
+
+  async updateProgram(id: string, data: Partial<Program>): Promise<Program | undefined> {
+    const [updated] = await db.update(programs)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(programs.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteProgram(id: string): Promise<void> {
+    await db.delete(programs).where(eq(programs.id, id));
+  }
+
+  // Program Memberships
+  async getProgramMembershipsForUser(userId: string): Promise<(ProgramMembership & { program: Program })[]> {
+    const results = await db.select({
+      membership: programMemberships,
+      program: programs,
+    })
+    .from(programMemberships)
+    .innerJoin(programs, eq(programMemberships.programId, programs.id))
+    .where(and(eq(programMemberships.userId, userId), eq(programs.isActive, true)))
+    .orderBy(desc(programMemberships.isDefault), asc(programs.name));
+
+    return results.map(r => ({
+      ...r.membership,
+      program: r.program,
+    }));
+  }
+
+  async getProgramMembership(programId: string, userId: string): Promise<ProgramMembership | undefined> {
+    const [membership] = await db.select().from(programMemberships)
+      .where(and(
+        eq(programMemberships.programId, programId),
+        eq(programMemberships.userId, userId)
+      ));
+    return membership || undefined;
+  }
+
+  async getProgramMembers(programId: string): Promise<(ProgramMembership & { user: User })[]> {
+    const results = await db.select({
+      membership: programMemberships,
+      user: users,
+    })
+    .from(programMemberships)
+    .innerJoin(users, eq(programMemberships.userId, users.id))
+    .where(eq(programMemberships.programId, programId))
+    .orderBy(asc(users.lastName), asc(users.firstName));
+
+    return results.map(r => ({
+      ...r.membership,
+      user: r.user,
+    }));
+  }
+
+  async createProgramMembership(membership: InsertProgramMembership): Promise<ProgramMembership> {
+    const [created] = await db.insert(programMemberships).values(membership).returning();
+    return created;
+  }
+
+  async updateProgramMembership(id: string, data: Partial<ProgramMembership>): Promise<ProgramMembership | undefined> {
+    const [updated] = await db.update(programMemberships)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(programMemberships.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteProgramMembership(id: string): Promise<void> {
+    await db.delete(programMemberships).where(eq(programMemberships.id, id));
   }
 }
 

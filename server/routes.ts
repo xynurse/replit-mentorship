@@ -1737,7 +1737,8 @@ export async function registerRoutes(
 
   app.get("/api/tracks", requireAuth, async (req, res, next) => {
     try {
-      const tracks = await storage.getAllTracks();
+      const programId = (req.session as any).activeProgramId;
+      const tracks = await storage.getAllTracks(programId || undefined);
       res.json(tracks);
     } catch (error) {
       next(error);
@@ -1746,7 +1747,8 @@ export async function registerRoutes(
 
   app.get("/api/cohorts", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
-      const cohorts = await storage.getAllCohorts();
+      const programId = (req.session as any).activeProgramId;
+      const cohorts = await storage.getAllCohorts(programId || undefined);
       res.json(cohorts);
     } catch (error) {
       next(error);
@@ -1781,7 +1783,8 @@ export async function registerRoutes(
       if (!validation.success) {
         return res.status(400).json({ message: "Invalid cohort data", errors: validation.error.flatten() });
       }
-      const cohort = await storage.createCohort({ ...validation.data, createdById: req.user!.id });
+      const programId = (req.session as any).activeProgramId || null;
+      const cohort = await storage.createCohort({ ...validation.data, createdById: req.user!.id, programId });
       res.status(201).json(cohort);
     } catch (error) {
       next(error);
@@ -6282,6 +6285,162 @@ export async function registerRoutes(
         .filter((m): m is NonNullable<typeof m> => m !== null && m !== undefined);
       
       res.json(mentees);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ====== Programs & Multi-Program Support ======
+
+  // Get programs the current user belongs to
+  app.get("/api/programs", requireAuth, async (req, res, next) => {
+    try {
+      const memberships = await storage.getProgramMembershipsForUser(req.user!.id);
+      res.json(memberships);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Set active program in session
+  app.post("/api/programs/active", requireAuth, async (req, res, next) => {
+    try {
+      const { programId } = req.body;
+      if (!programId) {
+        return res.status(400).json({ message: "Program ID is required" });
+      }
+      const membership = await storage.getProgramMembership(programId, req.user!.id);
+      const isSuperAdmin = req.user!.role === "SUPER_ADMIN";
+      if (!membership && !isSuperAdmin) {
+        return res.status(403).json({ message: "You are not a member of this program" });
+      }
+      (req.session as any).activeProgramId = programId;
+      const program = await storage.getProgram(programId);
+      res.json({ programId, program, membership: membership || null, role: membership?.role || (isSuperAdmin ? "ADMIN" : null) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get current active program
+  app.get("/api/programs/active", requireAuth, async (req, res, next) => {
+    try {
+      const activeProgramId = (req.session as any).activeProgramId;
+      if (!activeProgramId) {
+        return res.json({ programId: null, program: null, membership: null });
+      }
+      const program = await storage.getProgram(activeProgramId);
+      const membership = await storage.getProgramMembership(activeProgramId, req.user!.id);
+      res.json({ programId: activeProgramId, program, membership: membership || null, role: membership?.role || (req.user!.role === "SUPER_ADMIN" ? "ADMIN" : null) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: list all programs
+  app.get("/api/admin/programs", requireRole("SUPER_ADMIN"), async (req, res, next) => {
+    try {
+      const allPrograms = await storage.getAllPrograms();
+      res.json(allPrograms);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: create program
+  app.post("/api/admin/programs", requireRole("SUPER_ADMIN"), async (req, res, next) => {
+    try {
+      const { name, slug, description } = req.body;
+      if (!name || !slug) {
+        return res.status(400).json({ message: "Name and slug are required" });
+      }
+      const existing = await storage.getProgramBySlug(slug);
+      if (existing) {
+        return res.status(400).json({ message: "A program with this slug already exists" });
+      }
+      const program = await storage.createProgram({ name, slug, description: description || null, isActive: true });
+      res.status(201).json(program);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: update program
+  app.patch("/api/admin/programs/:id", requireRole("SUPER_ADMIN"), async (req, res, next) => {
+    try {
+      const { name, description, isActive } = req.body;
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      const program = await storage.updateProgram(req.params.id, updateData);
+      if (!program) {
+        return res.status(404).json({ message: "Program not found" });
+      }
+      res.json(program);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: get program members
+  app.get("/api/admin/programs/:id/members", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const members = await storage.getProgramMembers(req.params.id);
+      res.json(members);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: add member to program
+  app.post("/api/admin/programs/:id/members", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { userId, role } = req.body;
+      if (!userId || !role) {
+        return res.status(400).json({ message: "User ID and role are required" });
+      }
+      if (!["ADMIN", "MENTOR", "MENTEE"].includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+      const existing = await storage.getProgramMembership(req.params.id, userId);
+      if (existing) {
+        return res.status(400).json({ message: "User is already a member of this program" });
+      }
+      const membership = await storage.createProgramMembership({
+        programId: req.params.id,
+        userId,
+        role,
+        isDefault: false,
+      });
+      res.status(201).json(membership);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: update program membership
+  app.patch("/api/admin/program-memberships/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { role, isDefault } = req.body;
+      const updateData: any = {};
+      if (role !== undefined) updateData.role = role;
+      if (isDefault !== undefined) updateData.isDefault = isDefault;
+      const membership = await storage.updateProgramMembership(req.params.id, updateData);
+      if (!membership) {
+        return res.status(404).json({ message: "Membership not found" });
+      }
+      res.json(membership);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin: remove member from program
+  app.delete("/api/admin/program-memberships/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      await storage.deleteProgramMembership(req.params.id);
+      res.sendStatus(204);
     } catch (error) {
       next(error);
     }

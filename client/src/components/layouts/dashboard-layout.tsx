@@ -55,6 +55,7 @@ import {
 import { cn } from "@/lib/utils";
 import { UserRole } from "@shared/schema";
 import { AnimatedBackground } from "@/components/animated-background";
+import { ProgramSwitcher } from "@/components/program-switcher";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -182,7 +183,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <AnimatedBackground />
       <div className="flex h-screen w-full relative z-10">
         <Sidebar>
-          <SidebarHeader className="p-4">
+          <SidebarHeader className="p-4 space-y-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-md bg-primary/10">
                 <Heart className="h-5 w-5 text-primary" />
@@ -192,6 +193,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <span className="text-xs text-muted-foreground">Mentorship Hub</span>
               </div>
             </div>
+            <ProgramSwitcher />
           </SidebarHeader>
 
           <SidebarContent>
