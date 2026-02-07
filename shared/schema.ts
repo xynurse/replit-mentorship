@@ -1632,3 +1632,26 @@ export const insertReminderSchema = createInsertSchema(reminders).omit({
 
 export type Reminder = typeof reminders.$inferSelect;
 export type InsertReminder = z.infer<typeof insertReminderSchema>;
+
+export const platformIssueStatusEnum = pgEnum("platform_issue_status", ["INVESTIGATING", "IN_PROGRESS", "RESOLVED", "MONITORING"]);
+
+export const platformIssues = pgTable("platform_issues", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  status: platformIssueStatusEnum("status").notNull().default("INVESTIGATING"),
+  dateReported: timestamp("date_reported").defaultNow().notNull(),
+  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  createdById: varchar("created_by_id").references(() => users.id),
+});
+
+export const insertPlatformIssueSchema = createInsertSchema(platformIssues).omit({
+  id: true,
+  dateReported: true,
+  lastUpdated: true,
+  resolvedAt: true,
+});
+
+export type PlatformIssue = typeof platformIssues.$inferSelect;
+export type InsertPlatformIssue = z.infer<typeof insertPlatformIssueSchema>;
