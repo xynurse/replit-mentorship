@@ -459,7 +459,95 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: string): Promise<boolean> {
-    const result = await db.delete(users).where(eq(users.id, id)).returning({ id: users.id });
+    const result = await db.transaction(async (tx) => {
+      // 1. Delete from tables with required (NOT NULL) user FK references
+      await tx.delete(accountDeletionRequests).where(eq(accountDeletionRequests.userId, id));
+      await tx.delete(calendarEventParticipants).where(eq(calendarEventParticipants.userId, id));
+      await tx.delete(calendarEvents).where(eq(calendarEvents.createdById, id));
+      await tx.delete(certificates).where(eq(certificates.userId, id));
+      await tx.delete(communityBoardAccess).where(eq(communityBoardAccess.userId, id));
+      await tx.delete(threadReplies).where(eq(threadReplies.authorId, id));
+      await tx.delete(communityThreads).where(eq(communityThreads.authorId, id));
+      await tx.delete(conversationParticipants).where(eq(conversationParticipants.userId, id));
+      await tx.delete(dataExportRequests).where(eq(dataExportRequests.userId, id));
+      await tx.delete(documentAccess).where(eq(documentAccess.userId, id));
+      await tx.delete(journalEntries).where(eq(journalEntries.userId, id));
+      await tx.delete(menteeBoardAccess).where(eq(menteeBoardAccess.userId, id));
+      await tx.delete(menteeThreadReplies).where(eq(menteeThreadReplies.authorId, id));
+      await tx.delete(menteeThreads).where(eq(menteeThreads.authorId, id));
+      await tx.delete(menteeProfiles).where(eq(menteeProfiles.userId, id));
+      await tx.delete(mentorProfiles).where(eq(mentorProfiles.userId, id));
+      await tx.delete(mentorProfilesExtended).where(eq(mentorProfilesExtended.userId, id));
+      await tx.delete(mentorshipRoles).where(eq(mentorshipRoles.userId, id));
+      await tx.delete(messageReads).where(eq(messageReads.userId, id));
+      await tx.delete(messages).where(eq(messages.senderId, id));
+      await tx.delete(notificationPreferences).where(eq(notificationPreferences.userId, id));
+      await tx.delete(notifications).where(eq(notifications.userId, id));
+      await tx.delete(onboardingProgress).where(eq(onboardingProgress.userId, id));
+      await tx.delete(professionalProfiles).where(eq(professionalProfiles.userId, id));
+      await tx.delete(savedSearches).where(eq(savedSearches.userId, id));
+      await tx.delete(searchHistory).where(eq(searchHistory.userId, id));
+      await tx.delete(taskActivities).where(eq(taskActivities.userId, id));
+      await tx.delete(taskComments).where(eq(taskComments.userId, id));
+
+      // Delete reminders where user is creator (required FK)
+      await tx.delete(reminders).where(eq(reminders.createdById, id));
+
+      // Delete conversations created by this user (after participants removed)
+      await tx.delete(conversations).where(eq(conversations.createdById, id));
+
+      // 2. Nullify nullable FK references in other tables
+      await tx.update(accountDeletionRequests).set({ adminApprovedBy: null }).where(eq(accountDeletionRequests.adminApprovedBy, id));
+      await tx.update(auditLogs).set({ actorId: null }).where(eq(auditLogs.actorId, id));
+      await tx.update(auditLogs).set({ impersonatorId: null }).where(eq(auditLogs.impersonatorId, id));
+      await tx.update(cohorts).set({ createdById: null }).where(eq(cohorts.createdById, id));
+      await tx.update(communityThreads).set({ lockedBy: null }).where(eq(communityThreads.lockedBy, id));
+      await tx.update(communityThreads).set({ lastReplyById: null }).where(eq(communityThreads.lastReplyById, id));
+      await tx.update(communityThreads).set({ pinnedBy: null }).where(eq(communityThreads.pinnedBy, id));
+      await tx.update(documentAccess).set({ grantedById: null }).where(eq(documentAccess.grantedById, id));
+      await tx.update(documentVersions).set({ uploadedById: null }).where(eq(documentVersions.uploadedById, id));
+      await tx.update(documents).set({ uploadedById: null }).where(eq(documents.uploadedById, id));
+      await tx.update(errorLogs).set({ resolvedBy: null }).where(eq(errorLogs.resolvedBy, id));
+      await tx.update(errorLogs).set({ userId: null }).where(eq(errorLogs.userId, id));
+      await tx.update(folders).set({ ownerId: null }).where(eq(folders.ownerId, id));
+      await tx.update(goalProgress).set({ updatedById: null }).where(eq(goalProgress.updatedById, id));
+      await tx.update(goals).set({ ownerId: null }).where(eq(goals.ownerId, id));
+      await tx.update(goals).set({ createdById: null }).where(eq(goals.createdById, id));
+      await tx.update(meetingLogs).set({ createdById: null }).where(eq(meetingLogs.createdById, id));
+      await tx.update(menteeThreads).set({ lockedBy: null }).where(eq(menteeThreads.lockedBy, id));
+      await tx.update(menteeThreads).set({ lastReplyById: null }).where(eq(menteeThreads.lastReplyById, id));
+      await tx.update(menteeThreads).set({ pinnedBy: null }).where(eq(menteeThreads.pinnedBy, id));
+      await tx.update(mentorshipMatches).set({ matchedById: null }).where(eq(mentorshipMatches.matchedById, id));
+      await tx.update(reminders).set({ recipientId: null }).where(eq(reminders.recipientId, id));
+      await tx.update(surveyResponses).set({ userId: null }).where(eq(surveyResponses.userId, id));
+      await tx.update(surveys).set({ createdById: null }).where(eq(surveys.createdById, id));
+      await tx.update(tasks).set({ assignedToId: null }).where(eq(tasks.assignedToId, id));
+      await tx.update(tasks).set({ completedById: null }).where(eq(tasks.completedById, id));
+      await tx.update(tasks).set({ verifiedById: null }).where(eq(tasks.verifiedById, id));
+      await tx.update(tasks).set({ createdById: null }).where(eq(tasks.createdById, id));
+      await tx.update(communityBoardAccess).set({ grantedBy: null }).where(eq(communityBoardAccess.grantedBy, id));
+      await tx.update(communityBoardAccess).set({ revokedBy: null }).where(eq(communityBoardAccess.revokedBy, id));
+      await tx.update(menteeBoardAccess).set({ grantedBy: null }).where(eq(menteeBoardAccess.grantedBy, id));
+      await tx.update(menteeBoardAccess).set({ revokedBy: null }).where(eq(menteeBoardAccess.revokedBy, id));
+
+      // 3. Handle cohort_memberships (required FK) - need to handle mentorship_matches first
+      const membershipIds = await tx.select({ id: cohortMemberships.id }).from(cohortMemberships).where(eq(cohortMemberships.userId, id));
+      if (membershipIds.length > 0) {
+        const ids = membershipIds.map(m => m.id);
+        await tx.delete(mentorshipMatches).where(
+          or(
+            inArray(mentorshipMatches.mentorMembershipId, ids),
+            inArray(mentorshipMatches.menteeMembershipId, ids)
+          )
+        );
+        await tx.delete(cohortMemberships).where(eq(cohortMemberships.userId, id));
+      }
+
+      // 4. Finally delete the user
+      const deleted = await tx.delete(users).where(eq(users.id, id)).returning({ id: users.id });
+      return deleted;
+    });
+
     return result.length > 0;
   }
 
