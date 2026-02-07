@@ -44,7 +44,8 @@ import {
   type MenteeThread, type InsertMenteeThread,
   type MenteeThreadReply, type InsertMenteeThreadReply,
   type JournalEntry, type InsertJournalEntry,
-  type Reminder, type InsertReminder
+  type Reminder, type InsertReminder,
+  platformIssues, type PlatformIssue, type InsertPlatformIssue
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -423,6 +424,13 @@ export interface IStorage {
   markReminderCompleted(id: string): Promise<Reminder | undefined>;
   markReminderDismissed(id: string): Promise<Reminder | undefined>;
   
+  // Platform Issues
+  getPlatformIssues(includeResolved?: boolean): Promise<PlatformIssue[]>;
+  getPlatformIssue(id: string): Promise<PlatformIssue | undefined>;
+  createPlatformIssue(issue: InsertPlatformIssue): Promise<PlatformIssue>;
+  updatePlatformIssue(id: string, data: Partial<PlatformIssue>): Promise<PlatformIssue | undefined>;
+  deletePlatformIssue(id: string): Promise<void>;
+
   sessionStore: session.Store;
 }
 
@@ -3752,6 +3760,47 @@ export class DatabaseStorage implements IStorage {
       .where(eq(reminders.id, id))
       .returning();
     return updated || undefined;
+  }
+  // Platform Issues
+  async getPlatformIssues(includeResolved: boolean = false): Promise<PlatformIssue[]> {
+    if (includeResolved) {
+      return await db.select().from(platformIssues).orderBy(desc(platformIssues.lastUpdated));
+    }
+    return await db.select().from(platformIssues)
+      .where(
+        and(
+          sql`${platformIssues.status} != 'RESOLVED'`
+        )
+      )
+      .orderBy(desc(platformIssues.lastUpdated));
+  }
+
+  async getPlatformIssue(id: string): Promise<PlatformIssue | undefined> {
+    const [issue] = await db.select().from(platformIssues).where(eq(platformIssues.id, id));
+    return issue || undefined;
+  }
+
+  async createPlatformIssue(issue: InsertPlatformIssue): Promise<PlatformIssue> {
+    const [created] = await db.insert(platformIssues).values(issue).returning();
+    return created;
+  }
+
+  async updatePlatformIssue(id: string, data: Partial<PlatformIssue>): Promise<PlatformIssue | undefined> {
+    const updateData: any = { ...data, lastUpdated: new Date() };
+    if (data.status === 'RESOLVED') {
+      updateData.resolvedAt = new Date();
+    } else if (data.status && data.status !== 'RESOLVED') {
+      updateData.resolvedAt = null;
+    }
+    const [updated] = await db.update(platformIssues)
+      .set(updateData)
+      .where(eq(platformIssues.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deletePlatformIssue(id: string): Promise<void> {
+    await db.delete(platformIssues).where(eq(platformIssues.id, id));
   }
 }
 

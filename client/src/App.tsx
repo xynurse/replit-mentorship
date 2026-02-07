@@ -40,6 +40,7 @@ const AdminConnections = lazy(() => import("@/pages/admin/connections"));
 const AdminMeetings = lazy(() => import("@/pages/admin/meetings"));
 const AdminCommunity = lazy(() => import("@/pages/admin/community"));
 const AdminReminders = lazy(() => import("@/pages/admin/reminders"));
+const AdminPlatformStatus = lazy(() => import("@/pages/admin/platform-status"));
 const AdminUserProfile = lazy(() => import("@/pages/admin/user-profile"));
 
 const ApplyPage = lazy(() => import("@/pages/apply"));
@@ -112,6 +113,7 @@ function Router() {
       <AdminRoute path="/admin/meetings" component={AdminMeetings} />
       <AdminRoute path="/admin/community" component={AdminCommunity} />
       <AdminRoute path="/admin/reminders" component={AdminReminders} />
+      <AdminRoute path="/admin/platform-status" component={AdminPlatformStatus} />
       <AdminRoute path="/admin/users/:userId/profile" component={AdminUserProfile} />
       <LazyRoute path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />

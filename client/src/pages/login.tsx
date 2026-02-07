@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useTheme } from "@/components/theme-provider";
+import { StatusBoard } from "@/components/status-board";
 
 const tracks = [
   { name: 'Scientist', icon: Microscope, desc: 'Research & Evidence-Based Practice', color: '#60A5FA' },
@@ -505,6 +506,14 @@ export default function LoginPage() {
           </div>
         </div>
       </main>
+
+      {/* Status Board */}
+      <div 
+        className="relative z-10 px-6 md:px-12 py-4 max-w-md transition-opacity duration-600"
+        style={{ opacity: isLoaded ? 1 : 0, transitionDelay: '0.7s' }}
+      >
+        <StatusBoard />
+      </div>
 
       {/* Footer */}
       <footer 

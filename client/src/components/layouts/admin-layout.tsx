@@ -23,6 +23,7 @@ import {
   Calendar,
   UsersRound,
   Eye,
+  Radio,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -73,6 +74,7 @@ const adminMenuItems = [
   { title: "Certificates", url: "/admin/certificates", icon: Award },
   { title: "Audit Logs", url: "/admin/audit-logs", icon: ScrollText },
   { title: "Error Logs", url: "/admin/error-logs", icon: AlertTriangle },
+  { title: "Platform Status", url: "/admin/platform-status", icon: Radio },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 

@@ -6287,6 +6287,89 @@ export async function registerRoutes(
     }
   });
 
+  // Platform Status (public endpoint - no auth required)
+  app.get("/api/platform-status", async (req, res, next) => {
+    try {
+      const issues = await storage.getPlatformIssues(false);
+      const publicIssues = issues.map(({ createdById, ...rest }) => rest);
+      res.json(publicIssues);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin Platform Issues CRUD
+  app.get("/api/admin/platform-issues", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const issues = await storage.getPlatformIssues(true);
+      res.json(issues);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/admin/platform-issues", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { title, description, status } = req.body;
+      if (!title || typeof title !== "string" || !title.trim()) {
+        return res.status(400).json({ message: "Title is required" });
+      }
+      const validStatuses = ["INVESTIGATING", "IN_PROGRESS", "RESOLVED", "MONITORING"];
+      if (status && !validStatuses.includes(status)) {
+        return res.status(400).json({ message: "Invalid status value" });
+      }
+      const issue = await storage.createPlatformIssue({
+        title: title.trim(),
+        description: description?.trim() || null,
+        status: status || "INVESTIGATING",
+        createdById: user.id,
+      });
+      res.status(201).json(issue);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/admin/platform-issues/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { title, description, status } = req.body;
+      const updateData: any = {};
+      if (title !== undefined) {
+        if (typeof title !== "string" || !title.trim()) {
+          return res.status(400).json({ message: "Title cannot be empty" });
+        }
+        updateData.title = title.trim();
+      }
+      if (description !== undefined) {
+        updateData.description = typeof description === "string" ? description.trim() || null : null;
+      }
+      const validStatuses = ["INVESTIGATING", "IN_PROGRESS", "RESOLVED", "MONITORING"];
+      if (status !== undefined) {
+        if (!validStatuses.includes(status)) {
+          return res.status(400).json({ message: "Invalid status value" });
+        }
+        updateData.status = status;
+      }
+      const issue = await storage.updatePlatformIssue(req.params.id, updateData);
+      if (!issue) {
+        return res.status(404).json({ message: "Issue not found" });
+      }
+      res.json(issue);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/admin/platform-issues/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      await storage.deletePlatformIssue(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return httpServer;
 }
 
