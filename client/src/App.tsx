@@ -41,6 +41,7 @@ const AdminMeetings = lazy(() => import("@/pages/admin/meetings"));
 const AdminCommunity = lazy(() => import("@/pages/admin/community"));
 const AdminReminders = lazy(() => import("@/pages/admin/reminders"));
 const AdminPlatformStatus = lazy(() => import("@/pages/admin/platform-status"));
+const AdminSubmissions = lazy(() => import("@/pages/admin/submissions"));
 const AdminUserProfile = lazy(() => import("@/pages/admin/user-profile"));
 
 const ApplyPage = lazy(() => import("@/pages/apply"));
@@ -60,6 +61,7 @@ const MenteeCommunityPage = lazy(() => import("@/pages/mentee-community"));
 const MenteeCommunityThreadPage = lazy(() => import("@/pages/mentee-community-thread"));
 const JournalPage = lazy(() => import("@/pages/journal"));
 const RemindersPage = lazy(() => import("@/pages/reminders"));
+const SubmissionsPage = lazy(() => import("@/pages/submissions"));
 const MyProfilePage = lazy(() => import("@/pages/my-profile"));
 const ProfileViewPage = lazy(() => import("@/pages/profile-view"));
 const MenteeDetailPage = lazy(() => import("@/pages/mentee-detail"));
@@ -114,6 +116,7 @@ function Router() {
       <AdminRoute path="/admin/community" component={AdminCommunity} />
       <AdminRoute path="/admin/reminders" component={AdminReminders} />
       <AdminRoute path="/admin/platform-status" component={AdminPlatformStatus} />
+      <AdminRoute path="/admin/submissions" component={AdminSubmissions} />
       <AdminRoute path="/admin/users/:userId/profile" component={AdminUserProfile} />
       <LazyRoute path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
@@ -133,6 +136,7 @@ function Router() {
       <ProtectedRoute path="/mentee-community/:id" component={MenteeCommunityThreadPage} />
       <ProtectedRoute path="/journal" component={JournalPage} />
       <ProtectedRoute path="/reminders" component={RemindersPage} />
+      <ProtectedRoute path="/feedback" component={SubmissionsPage} />
       <ProtectedRoute path="/profile/:userId" component={ProfileViewPage} />
       <ProtectedRoute path="/profile" component={ProfileViewPage} />
       <ProtectedRoute path="/my-profile" component={MyProfilePage} />

@@ -20,6 +20,7 @@ import {
   GraduationCap,
   BookOpen,
   Bell,
+  MessageSquarePlus,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
@@ -75,6 +76,8 @@ const getNavItems = (role: UserRole) => {
   const mentorCommunityItem = { title: "Mentor Community", url: "/community", icon: UsersRound };
   const menteeCommunityItem = { title: "Mentee Community", url: "/mentee-community", icon: GraduationCap };
 
+  const feedbackItem = { title: "Feedback", url: "/feedback", icon: MessageSquarePlus };
+
   if (role === "SUPER_ADMIN" || role === "ADMIN") {
     return [
       ...baseItems.slice(0, 3),
@@ -84,6 +87,7 @@ const getNavItems = (role: UserRole) => {
       ...baseItems.slice(3),
       mentorCommunityItem,
       menteeCommunityItem,
+      feedbackItem,
       ...adminItems
     ];
   }
@@ -96,6 +100,7 @@ const getNavItems = (role: UserRole) => {
       { title: "Journal", url: "/journal", icon: BookOpen },
       { title: "Reminders", url: "/reminders", icon: Bell },
       mentorCommunityItem,
+      feedbackItem,
     ];
   }
 
@@ -108,6 +113,7 @@ const getNavItems = (role: UserRole) => {
     ...baseItems.slice(3),
     { title: "My Mentor", url: "/connections", icon: Users },
     menteeCommunityItem,
+    feedbackItem,
   ];
 };
 

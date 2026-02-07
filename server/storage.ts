@@ -45,7 +45,8 @@ import {
   type MenteeThreadReply, type InsertMenteeThreadReply,
   type JournalEntry, type InsertJournalEntry,
   type Reminder, type InsertReminder,
-  platformIssues, type PlatformIssue, type InsertPlatformIssue
+  platformIssues, type PlatformIssue, type InsertPlatformIssue,
+  userSubmissions, type UserSubmission, type InsertUserSubmission
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
@@ -430,6 +431,13 @@ export interface IStorage {
   createPlatformIssue(issue: InsertPlatformIssue): Promise<PlatformIssue>;
   updatePlatformIssue(id: string, data: Partial<PlatformIssue>): Promise<PlatformIssue | undefined>;
   deletePlatformIssue(id: string): Promise<void>;
+
+  // User Submissions
+  createUserSubmission(submission: InsertUserSubmission): Promise<UserSubmission>;
+  getUserSubmissions(userId: string): Promise<UserSubmission[]>;
+  getAllUserSubmissions(): Promise<(UserSubmission & { userName?: string; userEmail?: string })[]>;
+  getUserSubmission(id: string): Promise<UserSubmission | undefined>;
+  updateUserSubmission(id: string, data: Partial<UserSubmission>): Promise<UserSubmission | undefined>;
 
   sessionStore: session.Store;
 }
@@ -3801,6 +3809,49 @@ export class DatabaseStorage implements IStorage {
 
   async deletePlatformIssue(id: string): Promise<void> {
     await db.delete(platformIssues).where(eq(platformIssues.id, id));
+  }
+
+  async createUserSubmission(submission: InsertUserSubmission): Promise<UserSubmission> {
+    const [created] = await db.insert(userSubmissions).values(submission).returning();
+    return created;
+  }
+
+  async getUserSubmissions(userId: string): Promise<UserSubmission[]> {
+    return await db.select().from(userSubmissions)
+      .where(eq(userSubmissions.userId, userId))
+      .orderBy(desc(userSubmissions.createdAt));
+  }
+
+  async getAllUserSubmissions(): Promise<(UserSubmission & { userName?: string; userEmail?: string })[]> {
+    const results = await db.select({
+      submission: userSubmissions,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+    })
+    .from(userSubmissions)
+    .leftJoin(users, eq(userSubmissions.userId, users.id))
+    .orderBy(desc(userSubmissions.createdAt));
+
+    return results.map(r => ({
+      ...r.submission,
+      userName: r.firstName && r.lastName ? `${r.firstName} ${r.lastName}` : undefined,
+      userEmail: r.email || undefined,
+    }));
+  }
+
+  async getUserSubmission(id: string): Promise<UserSubmission | undefined> {
+    const [submission] = await db.select().from(userSubmissions)
+      .where(eq(userSubmissions.id, id));
+    return submission || undefined;
+  }
+
+  async updateUserSubmission(id: string, data: Partial<UserSubmission>): Promise<UserSubmission | undefined> {
+    const [updated] = await db.update(userSubmissions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(userSubmissions.id, id))
+      .returning();
+    return updated || undefined;
   }
 }
 

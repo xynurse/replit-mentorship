@@ -6370,6 +6370,93 @@ export async function registerRoutes(
     }
   });
 
+  // ==========================================
+  // User Submissions (Issues & Suggestions)
+  // ==========================================
+
+  // User creates a submission
+  app.post("/api/submissions", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { type, title, description } = req.body;
+
+      if (!title || typeof title !== "string" || !title.trim()) {
+        return res.status(400).json({ message: "Title is required" });
+      }
+      if (!description || typeof description !== "string" || !description.trim()) {
+        return res.status(400).json({ message: "Description is required" });
+      }
+      const validTypes = ["ISSUE", "SUGGESTION"];
+      if (!type || !validTypes.includes(type)) {
+        return res.status(400).json({ message: "Type must be ISSUE or SUGGESTION" });
+      }
+
+      const submission = await storage.createUserSubmission({
+        userId: user.id,
+        type,
+        title: title.trim(),
+        description: description.trim(),
+      });
+      res.status(201).json(submission);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // User views their own submissions
+  app.get("/api/submissions", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const submissions = await storage.getUserSubmissions(user.id);
+      res.json(submissions);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin views all submissions
+  app.get("/api/admin/submissions", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const submissions = await storage.getAllUserSubmissions();
+      res.json(submissions);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Admin updates a submission (status + response)
+  app.patch("/api/admin/submissions/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { status, adminResponse } = req.body;
+      const updateData: any = {};
+
+      const validStatuses = ["SUBMITTED", "UNDER_REVIEW", "IN_PROGRESS", "COMPLETED", "DECLINED"];
+      if (status !== undefined) {
+        if (!validStatuses.includes(status)) {
+          return res.status(400).json({ message: "Invalid status value" });
+        }
+        updateData.status = status;
+      }
+      if (adminResponse !== undefined) {
+        const trimmed = typeof adminResponse === "string" ? adminResponse.trim() : "";
+        updateData.adminResponse = trimmed || null;
+        if (trimmed) {
+          updateData.respondedById = user.id;
+          updateData.respondedAt = new Date();
+        }
+      }
+
+      const submission = await storage.updateUserSubmission(req.params.id, updateData);
+      if (!submission) {
+        return res.status(404).json({ message: "Submission not found" });
+      }
+      res.json(submission);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return httpServer;
 }
 
