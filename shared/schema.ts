@@ -1655,3 +1655,33 @@ export const insertPlatformIssueSchema = createInsertSchema(platformIssues).omit
 
 export type PlatformIssue = typeof platformIssues.$inferSelect;
 export type InsertPlatformIssue = z.infer<typeof insertPlatformIssueSchema>;
+
+export const submissionTypeEnum = pgEnum("submission_type", ["ISSUE", "SUGGESTION"]);
+export const submissionStatusEnum = pgEnum("submission_status", ["SUBMITTED", "UNDER_REVIEW", "IN_PROGRESS", "COMPLETED", "DECLINED"]);
+
+export const userSubmissions = pgTable("user_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  type: submissionTypeEnum("type").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  status: submissionStatusEnum("status").notNull().default("SUBMITTED"),
+  adminResponse: text("admin_response"),
+  respondedById: varchar("responded_by_id").references(() => users.id),
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertUserSubmissionSchema = createInsertSchema(userSubmissions).omit({
+  id: true,
+  status: true,
+  adminResponse: true,
+  respondedById: true,
+  respondedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UserSubmission = typeof userSubmissions.$inferSelect;
+export type InsertUserSubmission = z.infer<typeof insertUserSubmissionSchema>;
