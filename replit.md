@@ -25,7 +25,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Core Features
 
-- **Document Management System**: Utilizes Replit Object Storage for cloud-based file persistence. Features automatic folder types (SYSTEM, PERSONAL, SHARED), hierarchical organization, version control, granular access control, and secure file sharing with Uppy integration for uploads.
+- **Document Management System**: Utilizes Replit Object Storage for cloud-based file persistence. Features automatic folder types (SYSTEM, PERSONAL, SHARED), hierarchical organization, version control, granular access control, and secure file sharing with Uppy integration for uploads. In-browser document viewing via `/api/documents/:id/view` endpoint (Content-Disposition: inline) with PDF iframe preview, image preview, and download fallback for other file types.
 - **Notification System**: 21 event types with priority levels and customizable email preferences (INSTANT, DAILY_DIGEST, WEEKLY_DIGEST, NEVER). Real-time delivery via Socket.io and an inbox for management. Admins can broadcast announcements.
 - **Mentor-Mentee Connections System**: Manages mentor-mentee pairings, supports multi-mentee assignments for mentors, and allows mentors to view mentee goals. Features a status workflow (PROPOSED → ACTIVE → PAUSED/COMPLETED/TERMINATED) and automatic cohort creation for ad-hoc matches.
 - **Mentorship Journal System**: Allows mentees to track growth, learnings, and reflections with mood tracking and customizable visibility (PRIVATE, MENTOR_ONLY, PUBLIC). Mentors can provide feedback on mentee entries.
