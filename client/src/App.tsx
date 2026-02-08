@@ -98,7 +98,6 @@ function Router() {
       <ProtectedRoute path="/complete-profile" component={CompleteProfilePage} requireCompleteProfile={false} />
       <ProtectedRoute path="/profile/setup" component={MentorshipProfileSetupPage} requireCompleteProfile={false} />
       <ProtectedRoute path="/select-program" component={ProgramSelectorPage} requireCompleteProfile={false} />
-      <AdminRoute path="/admin" component={AdminDashboard} />
       <AdminRoute path="/admin/users" component={AdminUsers} />
       <AdminRoute path="/admin/cohorts" component={AdminCohorts} />
       <AdminRoute path="/admin/cohorts/:id" component={AdminCohortDetail} />
@@ -123,6 +122,7 @@ function Router() {
       <AdminRoute path="/admin/submissions" component={AdminSubmissions} />
       <AdminRoute path="/admin/programs" component={AdminPrograms} />
       <AdminRoute path="/admin/users/:userId/profile" component={AdminUserProfile} />
+      <AdminRoute path="/admin" component={AdminDashboard} />
       <LazyRoute path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
       <ProtectedRoute path="/goals" component={GoalsPage} />
