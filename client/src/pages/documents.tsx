@@ -164,15 +164,18 @@ export default function DocumentsPage() {
 
   const { data: systemFolder } = useQuery<Folder>({
     queryKey: ["/api/folders/system"],
+    refetchOnMount: "always",
   });
 
   const { data: personalFolder } = useQuery<Folder>({
     queryKey: ["/api/folders/personal"],
+    refetchOnMount: "always",
   });
 
   const { data: sharedDocuments, isLoading: sharedLoading } = useQuery<SharedDocument[]>({
     queryKey: ["/api/documents/shared-with-me"],
     enabled: activeTab === "shared",
+    refetchOnMount: "always",
   });
 
   const { data: shareableUsers } = useQuery<{ id: string; firstName: string; lastName: string; email: string }[]>({
@@ -186,21 +189,24 @@ export default function DocumentsPage() {
     ? (currentFolderId || personalFolder?.id || null)
     : null;
 
+  const activeCategoryFilter = categoryFilter === "ALL" ? "" : categoryFilter;
+
   const { data: documents, isLoading: docsLoading } = useQuery<Document[]>({
-    queryKey: ["/api/documents", effectiveFolderId, categoryFilter, searchQuery, activeTab],
+    queryKey: ["/api/documents", effectiveFolderId, activeCategoryFilter, searchQuery, activeTab],
     queryFn: async () => {
       if (activeTab === "shared") return [];
       const params = new URLSearchParams();
       if (effectiveFolderId) {
         params.set("folderId", effectiveFolderId);
       }
-      if (categoryFilter) params.set("category", categoryFilter);
+      if (activeCategoryFilter) params.set("category", activeCategoryFilter);
       if (searchQuery) params.set("search", searchQuery);
       const res = await fetch(`/api/documents?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch documents");
       return res.json();
     },
-    enabled: activeTab !== "shared" && (activeTab === "system" ? !!systemFolder : !!personalFolder),
+    enabled: activeTab !== "shared" && !!effectiveFolderId,
+    refetchOnMount: "always",
   });
 
   const { data: folders, isLoading: foldersLoading } = useQuery<Folder[]>({
@@ -215,7 +221,8 @@ export default function DocumentsPage() {
       if (!res.ok) throw new Error("Failed to fetch folders");
       return res.json();
     },
-    enabled: activeTab !== "shared" && (activeTab === "system" ? !!systemFolder : !!personalFolder),
+    enabled: activeTab !== "shared" && !!effectiveFolderId,
+    refetchOnMount: "always",
   });
 
   const createDocumentMutation = useMutation({
@@ -515,7 +522,8 @@ export default function DocumentsPage() {
     });
   };
 
-  const isLoading = docsLoading || foldersLoading || sharedLoading;
+  const isFolderLoading = activeTab === "system" ? !systemFolder : activeTab === "personal" ? !personalFolder : false;
+  const isLoading = activeTab === "shared" ? sharedLoading : (isFolderLoading || docsLoading || foldersLoading);
   
   // Check if folders are ready for upload operations
   const isFolderReady = activeTab === "shared" ? true : 
