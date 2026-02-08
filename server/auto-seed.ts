@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { users, applicationQuestions, threadCategories, menteeThreadCategories, programs, programMemberships } from "@shared/schema";
+import { users, applicationQuestions, threadCategories, menteeThreadCategories, programs, programMemberships, documents, folders } from "@shared/schema";
 import { hashPassword } from "./auth";
-import { count, eq, inArray } from "drizzle-orm";
+import { count, eq, inArray, and, isNull } from "drizzle-orm";
 
 function seedLog(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -301,5 +301,86 @@ export async function ensurePrograms() {
     seedLog("Programs ensured successfully");
   } catch (error) {
     seedLog(`Error ensuring programs: ${error}`);
+  }
+}
+
+export async function ensurePublicDocumentsInSystemFolder() {
+  try {
+    const [systemFolder] = await db.select().from(folders).where(
+      and(
+        eq(folders.scope, "SYSTEM"),
+        eq(folders.isSystemFolder, true),
+        isNull(folders.parentFolderId)
+      )
+    );
+
+    if (!systemFolder) {
+      seedLog("No system folder found, skipping public document migration");
+      return;
+    }
+
+    const subfolderConfigs = [
+      { name: "Track Guides", description: "Guides for each mentorship track", icon: "book-open" },
+      { name: "Mentorship Documents", description: "Handbooks, guides, and resources for the mentorship program", icon: "file-text" },
+    ];
+
+    const subfolderMap: Record<string, string> = {};
+    for (const config of subfolderConfigs) {
+      const [existing] = await db.select().from(folders).where(
+        and(
+          eq(folders.name, config.name),
+          eq(folders.parentFolderId, systemFolder.id),
+          eq(folders.scope, "SYSTEM")
+        )
+      );
+
+      if (existing) {
+        subfolderMap[config.name] = existing.id;
+      } else {
+        const [created] = await db.insert(folders).values({
+          name: config.name,
+          description: config.description,
+          parentFolderId: systemFolder.id,
+          scope: "SYSTEM",
+          visibility: "PUBLIC",
+          isSystemFolder: false,
+          icon: config.icon,
+        }).returning();
+        subfolderMap[config.name] = created.id;
+        seedLog(`Created system sub-folder: ${config.name}`);
+      }
+    }
+
+    const publicDocs = await db.select().from(documents).where(eq(documents.visibility, "PUBLIC"));
+
+    let movedCount = 0;
+    for (const doc of publicDocs) {
+      const currentFolder = doc.folderId
+        ? await db.select().from(folders).where(eq(folders.id, doc.folderId)).then(r => r[0])
+        : null;
+
+      const isAlreadyInSystem = currentFolder?.scope === "SYSTEM";
+      if (isAlreadyInSystem) continue;
+
+      const isTrackGuide = doc.name.toLowerCase().includes("track") && doc.name.toLowerCase().includes("guide");
+      const targetFolderName = isTrackGuide ? "Track Guides" : "Mentorship Documents";
+      const targetFolderId = subfolderMap[targetFolderName];
+
+      if (targetFolderId && doc.folderId !== targetFolderId) {
+        await db.update(documents)
+          .set({ folderId: targetFolderId })
+          .where(eq(documents.id, doc.id));
+        movedCount++;
+        seedLog(`Moved public document "${doc.name}" to system folder "${targetFolderName}"`);
+      }
+    }
+
+    if (movedCount > 0) {
+      seedLog(`Moved ${movedCount} public documents to system folders`);
+    } else {
+      seedLog("All public documents already in system folders");
+    }
+  } catch (error) {
+    seedLog(`Error ensuring public documents in system folder: ${error}`);
   }
 }
