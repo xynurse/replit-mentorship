@@ -77,6 +77,7 @@ const adminMenuItems = [
   { title: "Audit Logs", url: "/admin/audit-logs", icon: ScrollText },
   { title: "Error Logs", url: "/admin/error-logs", icon: AlertTriangle },
   { title: "Platform Status", url: "/admin/platform-status", icon: Radio },
+  { title: "Programs", url: "/admin/programs", icon: GraduationCap },
   { title: "User Submissions", url: "/admin/submissions", icon: Inbox },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
