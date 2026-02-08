@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { users, applicationQuestions, threadCategories, menteeThreadCategories } from "@shared/schema";
+import { users, applicationQuestions, threadCategories, menteeThreadCategories, programs, programMemberships } from "@shared/schema";
 import { hashPassword } from "./auth";
-import { count, eq } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 
 function seedLog(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -244,5 +244,62 @@ export async function ensureRequiredUsers() {
     }
   } catch (error) {
     seedLog(`Error ensuring required users: ${error}`);
+  }
+}
+
+export async function ensurePrograms() {
+  try {
+    const requiredPrograms = [
+      {
+        id: "prog_sonsiel_mentorship",
+        name: "SONSIEL Mentorship Program",
+        slug: "sonsiel-mentorship",
+        description: "The flagship SONSIEL mentorship program connecting healthcare professionals for career development and growth.",
+        isActive: true,
+      },
+      {
+        id: "prog_nursehack4health",
+        name: "SONSIEL NurseHack4Health",
+        slug: "nursehack4health",
+        description: "NurseHack4Health program fostering innovation and technology adoption in nursing practice.",
+        isActive: true,
+      },
+    ];
+
+    for (const prog of requiredPrograms) {
+      const existing = await db.select().from(programs).where(eq(programs.id, prog.id)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(programs).values(prog);
+        seedLog(`Created program: ${prog.name} (${prog.id})`);
+      }
+    }
+
+    const adminUsers = await db.select({ id: users.id, email: users.email })
+      .from(users)
+      .where(inArray(users.role, ["SUPER_ADMIN", "ADMIN"]));
+
+    const allPrograms = await db.select().from(programs);
+    const allMemberships = await db.select().from(programMemberships);
+
+    for (const user of adminUsers) {
+      const userMemberships = allMemberships.filter(m => m.userId === user.id);
+      for (const prog of allPrograms) {
+        const alreadyEnrolled = userMemberships.some(m => m.programId === prog.id);
+        if (!alreadyEnrolled) {
+          const isFirst = userMemberships.length === 0;
+          await db.insert(programMemberships).values({
+            programId: prog.id,
+            userId: user.id,
+            role: "ADMIN",
+            isDefault: isFirst,
+          });
+          seedLog(`Enrolled ${user.email} in program: ${prog.name}`);
+        }
+      }
+    }
+
+    seedLog("Programs ensured successfully");
+  } catch (error) {
+    seedLog(`Error ensuring programs: ${error}`);
   }
 }
