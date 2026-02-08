@@ -6295,8 +6295,31 @@ export async function registerRoutes(
   // Get programs the current user belongs to
   app.get("/api/programs", requireAuth, async (req, res, next) => {
     try {
-      const memberships = await storage.getProgramMembershipsForUser(req.user!.id);
-      res.json(memberships);
+      const userRole = req.user!.role;
+      if (userRole === "SUPER_ADMIN" || userRole === "ADMIN") {
+        const allPrograms = await storage.getAllPrograms();
+        const memberships = await storage.getProgramMembershipsForUser(req.user!.id);
+        const membershipMap = new Map(memberships.map(m => [m.programId, m]));
+        const result = allPrograms.map(program => {
+          const existing = membershipMap.get(program.id);
+          if (existing) return existing;
+          return {
+            id: `virtual_${program.id}`,
+            programId: program.id,
+            userId: req.user!.id,
+            role: userRole === "SUPER_ADMIN" ? "ADMIN" : userRole,
+            isDefault: false,
+            joinedAt: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            program,
+          };
+        });
+        res.json(result);
+      } else {
+        const memberships = await storage.getProgramMembershipsForUser(req.user!.id);
+        res.json(memberships);
+      }
     } catch (error) {
       next(error);
     }
