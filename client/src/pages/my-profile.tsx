@@ -139,8 +139,8 @@ const INDUSTRIES = [
 
 const profileSchema = z.object({
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
-  jobTitle: z.string().min(1, "Position/title is required"),
-  organizationName: z.string().min(1, "Organization is required"),
+  jobTitle: z.string().optional().default(""),
+  organizationName: z.string().optional().default(""),
   preferredLanguage: z.string().default("en"),
   fieldsOfExpertise: z.array(z.string()).default([]),
   educationLevel: z.string().optional(),
@@ -322,8 +322,8 @@ export default function MyProfilePage() {
       preferredLanguage: userData?.preferredLanguage || "en",
       fieldsOfExpertise: userData?.fieldsOfExpertise || [],
       educationLevel: userData?.educationLevel || "",
-      yearsOfExperience: userData?.yearsOfExperience || 0,
-      yearsInSielAreas: userData?.yearsInSielAreas || 0,
+      yearsOfExperience: userData?.yearsOfExperience ?? undefined,
+      yearsInSielAreas: userData?.yearsInSielAreas ?? undefined,
       certificationsTraining: userData?.certificationsTraining || "",
       mentorshipRoleChoice: mentorshipRole || userData?.mentorshipRoleChoice || undefined,
       phone: userData?.phone || "",
@@ -414,8 +414,8 @@ export default function MyProfilePage() {
       preferredLanguage: "en",
       fieldsOfExpertise: [],
       educationLevel: "",
-      yearsOfExperience: 0,
-      yearsInSielAreas: 0,
+      yearsOfExperience: undefined,
+      yearsInSielAreas: undefined,
       certificationsTraining: "",
       mentorshipRoleChoice: undefined,
       phone: "",
@@ -500,13 +500,13 @@ export default function MyProfilePage() {
 
       const userUpdates = {
         bio: emptyToNull(values.bio),
-        jobTitle: values.jobTitle,
-        organizationName: values.organizationName,
+        jobTitle: emptyToNull(values.jobTitle),
+        organizationName: emptyToNull(values.organizationName),
         preferredLanguage: values.preferredLanguage,
         fieldsOfExpertise: values.fieldsOfExpertise,
         educationLevel: values.educationLevel || null,
-        yearsOfExperience: values.yearsOfExperience,
-        yearsInSielAreas: values.yearsInSielAreas,
+        yearsOfExperience: values.yearsOfExperience ?? null,
+        yearsInSielAreas: values.yearsInSielAreas ?? null,
         certificationsTraining: values.certificationsTraining,
         phone: emptyToNull(values.phone),
         linkedInUrl: emptyToNull(values.linkedInUrl),
@@ -722,7 +722,7 @@ export default function MyProfilePage() {
                         name="jobTitle"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Current Position/Title *</FormLabel>
+                            <FormLabel>Current Position/Title</FormLabel>
                             <FormControl>
                               <Input {...field} data-testid="input-job-title" />
                             </FormControl>
@@ -735,7 +735,7 @@ export default function MyProfilePage() {
                         name="organizationName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Institution/Organization *</FormLabel>
+                            <FormLabel>Institution/Organization</FormLabel>
                             <FormControl>
                               <Input {...field} data-testid="input-organization" />
                             </FormControl>
@@ -1024,7 +1024,8 @@ export default function MyProfilePage() {
                               <Input
                                 type="number"
                                 {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                value={field.value ?? ""}
+                                onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
                                 data-testid="input-years-experience"
                               />
                             </FormControl>
@@ -1042,7 +1043,8 @@ export default function MyProfilePage() {
                               <Input
                                 type="number"
                                 {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                value={field.value ?? ""}
+                                onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
                                 data-testid="input-years-siel"
                               />
                             </FormControl>
