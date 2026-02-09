@@ -35,11 +35,9 @@ function UnauthorizedState() {
 export function ProtectedRoute({
   path,
   component: Component,
-  requireCompleteProfile = true,
 }: {
   path: string;
   component: React.ComponentType;
-  requireCompleteProfile?: boolean;
 }) {
   const { user, isLoading } = useAuth();
 
@@ -53,10 +51,6 @@ export function ProtectedRoute({
 
   if (user.mustChangePassword && path !== "/change-password") {
     return <Route path={path}><Redirect to="/change-password" /></Route>;
-  }
-
-  if (requireCompleteProfile && !user.isProfileComplete && path !== "/my-profile") {
-    return <Route path={path}><Redirect to="/my-profile" /></Route>;
   }
 
   return (
@@ -87,10 +81,6 @@ export function AdminRoute({
 
   if (user.mustChangePassword) {
     return <Route path={path}><Redirect to="/change-password" /></Route>;
-  }
-
-  if (!user.isProfileComplete) {
-    return <Route path={path}><Redirect to="/my-profile" /></Route>;
   }
 
   if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {

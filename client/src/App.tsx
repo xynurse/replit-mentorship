@@ -94,10 +94,10 @@ function Router() {
       <LazyRoute path="/register" component={RegisterPage} />
       <LazyRoute path="/forgot-password" component={ForgotPasswordPage} />
       <LazyRoute path="/reset-password/:token" component={ResetPasswordPage} />
-      <ProtectedRoute path="/change-password" component={ChangePasswordPage} requireCompleteProfile={false} />
-      <ProtectedRoute path="/complete-profile" component={CompleteProfilePage} requireCompleteProfile={false} />
-      <ProtectedRoute path="/profile/setup" component={MentorshipProfileSetupPage} requireCompleteProfile={false} />
-      <ProtectedRoute path="/select-program" component={ProgramSelectorPage} requireCompleteProfile={false} />
+      <ProtectedRoute path="/change-password" component={ChangePasswordPage} />
+      <ProtectedRoute path="/complete-profile" component={CompleteProfilePage} />
+      <ProtectedRoute path="/profile/setup" component={MentorshipProfileSetupPage} />
+      <ProtectedRoute path="/select-program" component={ProgramSelectorPage} />
       <AdminRoute path="/admin/users" component={AdminUsers} />
       <AdminRoute path="/admin/cohorts" component={AdminCohorts} />
       <AdminRoute path="/admin/cohorts/:id" component={AdminCohortDetail} />
@@ -130,7 +130,7 @@ function Router() {
       <ProtectedRoute path="/privacy" component={PrivacyPage} />
       <ProtectedRoute path="/search" component={SearchPage} />
       <ProtectedRoute path="/certificates" component={CertificatesPage} />
-      <ProtectedRoute path="/onboarding" component={OnboardingPage} requireCompleteProfile={false} />
+      <ProtectedRoute path="/onboarding" component={OnboardingPage} />
       <ProtectedRoute path="/settings" component={SettingsPage} />
       <ProtectedRoute path="/connections" component={ConnectionsPage} />
       <ProtectedRoute path="/mentee/:id" component={MenteeDetailPage} />
@@ -144,7 +144,7 @@ function Router() {
       <ProtectedRoute path="/feedback" component={SubmissionsPage} />
       <ProtectedRoute path="/profile/:userId" component={ProfileViewPage} />
       <ProtectedRoute path="/profile" component={ProfileViewPage} />
-      <ProtectedRoute path="/my-profile" component={MyProfilePage} requireCompleteProfile={false} />
+      <ProtectedRoute path="/my-profile" component={MyProfilePage} />
       <ProtectedRoute path="/" component={HomePage} />
       <LazyRoute component={NotFound} />
     </Switch>
