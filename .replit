@@ -45,3 +45,7 @@ integrations = ["javascript_database:1.0.0", "javascript_auth_all_persistance:1.
 
 [userenv.production]
 NODE_ENV = "production"
+APP_URL = "https://mentorship.sonsiel.org"
+
+[userenv.development]
+APP_URL = "https://mentorship.sonsiel.org"
