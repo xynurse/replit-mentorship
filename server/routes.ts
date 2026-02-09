@@ -3021,7 +3021,7 @@ export async function registerRoutes(
 
       if (validatedData.folderId) {
         const folder = await storage.getFolder(validatedData.folderId);
-        if (folder && folder.isSystemFolder && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+        if (folder && folder.scope === 'SYSTEM' && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
           return res.status(403).json({ message: "Only administrators can upload documents to system resource folders" });
         }
       }
@@ -3372,14 +3372,14 @@ export async function registerRoutes(
         ownerId: user.id,
       });
 
-      // Restrict folder creation in system folders to admins only
+      // Restrict folder creation in system resource folders to admins only
       if (validatedData.parentId) {
         const parentFolder = await storage.getFolder(validatedData.parentId);
-        if (parentFolder && parentFolder.isSystemFolder && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+        if (parentFolder && parentFolder.scope === 'SYSTEM' && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
           return res.status(403).json({ message: "Only administrators can create folders in system resource areas" });
         }
       }
-      if (validatedData.isSystemFolder && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+      if (validatedData.scope === 'SYSTEM' && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
         return res.status(403).json({ message: "Only administrators can create system folders" });
       }
 
