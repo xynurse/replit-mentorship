@@ -472,6 +472,25 @@ export async function registerRoutes(
       });
 
       const { password: _, ...safeUser } = user;
+
+      // Automatically send welcome email with temporary password
+      try {
+        const { sendWelcomeEmail, getTrustedBaseUrl } = await import("./email");
+        const baseUrl = getTrustedBaseUrl();
+        const emailResult = await sendWelcomeEmail({
+          email,
+          firstName,
+          lastName,
+          temporaryPassword: password,
+          loginUrl: baseUrl,
+        });
+        if (!emailResult.success) {
+          console.warn(`Welcome email failed for ${email}:`, emailResult.error);
+        }
+      } catch (emailError) {
+        console.warn(`Failed to send welcome email to ${email}:`, emailError);
+      }
+
       res.status(201).json({ ...safeUser, tempPassword: password });
     } catch (error: any) {
       // Handle duplicate email constraint error
@@ -583,6 +602,24 @@ export async function registerRoutes(
             email: userData.email || "unknown",
             error: error.message || "Unknown error"
           });
+        }
+      }
+
+      // Send welcome emails for successfully created users
+      if (results.successful.length > 0) {
+        try {
+          const { sendBulkWelcomeEmails, getTrustedBaseUrl } = await import("./email");
+          const baseUrl = getTrustedBaseUrl();
+          const emailUsers = results.successful.map(u => ({
+            email: u.email,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            temporaryPassword: u.tempPassword,
+          }));
+          const emailResults = await sendBulkWelcomeEmails(emailUsers, baseUrl);
+          console.log(`Bulk import: sent ${emailResults.successful.length} welcome emails, ${emailResults.failed.length} failed`);
+        } catch (emailError) {
+          console.warn('Failed to send bulk welcome emails:', emailError);
         }
       }
 
@@ -2981,6 +3018,14 @@ export async function registerRoutes(
         ...req.body,
         uploadedById: user.id,
       });
+
+      if (validatedData.folderId) {
+        const folder = await storage.getFolder(validatedData.folderId);
+        if (folder && folder.isSystemFolder && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+          return res.status(403).json({ message: "Only administrators can upload documents to system resource folders" });
+        }
+      }
+
       const doc = await storage.createDocument(validatedData);
       
       // Send notifications for PUBLIC visibility documents in system folders
@@ -3321,11 +3366,23 @@ export async function registerRoutes(
   // Create folder
   app.post("/api/folders", requireAuth, async (req, res, next) => {
     try {
-      const userId = (req.user as any).id;
+      const user = req.user as any;
       const validatedData = insertFolderSchema.parse({
         ...req.body,
-        ownerId: userId,
+        ownerId: user.id,
       });
+
+      // Restrict folder creation in system folders to admins only
+      if (validatedData.parentId) {
+        const parentFolder = await storage.getFolder(validatedData.parentId);
+        if (parentFolder && parentFolder.isSystemFolder && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+          return res.status(403).json({ message: "Only administrators can create folders in system resource areas" });
+        }
+      }
+      if (validatedData.isSystemFolder && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+        return res.status(403).json({ message: "Only administrators can create system folders" });
+      }
+
       const folder = await storage.createFolder(validatedData);
       res.status(201).json(folder);
     } catch (error) {

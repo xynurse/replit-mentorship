@@ -550,7 +550,7 @@ export default function DocumentsPage() {
               <DialogTrigger asChild>
                 <Button 
                   data-testid="button-upload-document"
-                  disabled={activeTab === "shared" || !isFolderReady}
+                  disabled={activeTab === "shared" || !isFolderReady || (activeTab === "system" && user?.role !== "ADMIN" && user?.role !== "SUPER_ADMIN")}
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   Upload
@@ -693,7 +693,7 @@ export default function DocumentsPage() {
                 <Button 
                   variant="outline" 
                   data-testid="button-new-folder"
-                  disabled={activeTab === "shared" || !isFolderReady}
+                  disabled={activeTab === "shared" || !isFolderReady || (activeTab === "system" && user?.role !== "ADMIN" && user?.role !== "SUPER_ADMIN")}
                 >
                   <FolderPlus className="h-4 w-4 mr-2" />
                   New Folder
@@ -1165,10 +1165,12 @@ export default function DocumentsPage() {
                   <p className="text-muted-foreground mb-4">
                     Upload your first document to get started.
                   </p>
-                  <Button onClick={() => setShowUploadDialog(true)} data-testid="button-empty-upload">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Document
-                  </Button>
+                  {(activeTab !== "system" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") && (
+                    <Button onClick={() => setShowUploadDialog(true)} data-testid="button-empty-upload">
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Document
+                    </Button>
+                  )}
                 </div>
               ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
