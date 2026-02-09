@@ -4,6 +4,9 @@ let connectionSettings: any;
 
 // Get trusted base URL from environment (not from request headers to prevent injection)
 export function getTrustedBaseUrl(): string {
+  if (process.env.APP_URL) {
+    return process.env.APP_URL.replace(/\/$/, '');
+  }
   if (process.env.REPLIT_DEPLOYMENT_URL) {
     return process.env.REPLIT_DEPLOYMENT_URL;
   }
@@ -13,7 +16,6 @@ export function getTrustedBaseUrl(): string {
   if (process.env.REPLIT_DOMAINS) {
     return `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
   }
-  // Fallback for local development
   return 'https://localhost:5000';
 }
 
