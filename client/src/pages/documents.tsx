@@ -428,7 +428,7 @@ export default function DocumentsPage() {
         throw new Error(errorMsg);
       }
       const arrayBuffer = await response.arrayBuffer();
-      const contentType = response.headers.get('Content-Type') || doc.mimeType || 'application/octet-stream';
+      const contentType = doc.mimeType || response.headers.get('Content-Type') || 'application/octet-stream';
       const blob = new Blob([arrayBuffer], { type: contentType });
       const url = URL.createObjectURL(blob);
       setViewBlobUrl(url);

@@ -3147,11 +3147,25 @@ export async function registerRoutes(
         const fileName = doc.name + (doc.mimeType === 'application/pdf' ? '.pdf' : '');
         res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
         res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-        if (doc.mimeType) {
-          res.setHeader('Content-Type', doc.mimeType);
-        }
         
-        await objectStorageService.downloadObject(objectFile, res);
+        // Stream file directly with correct Content-Type from document record
+        // (downloadObject can override Content-Type with GCS metadata which may be wrong for presigned uploads)
+        const correctContentType = doc.mimeType || 'application/octet-stream';
+        const [metadata] = await objectFile.getMetadata();
+        res.set({
+          'Content-Type': correctContentType,
+          'Content-Length': metadata.size?.toString() || '',
+          'Cache-Control': 'private, max-age=3600',
+        });
+        
+        const stream = objectFile.createReadStream();
+        stream.on('error', (err) => {
+          console.error('[view] Stream error:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Error streaming file' });
+          }
+        });
+        stream.pipe(res);
       } catch (err) {
         console.error(`[view] Error viewing file: ${doc.fileUrl}`, err);
         if (err instanceof ObjectNotFoundError) {
