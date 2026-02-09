@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Save, User, Briefcase, GraduationCap, Users, Heart, Camera } from "lucide-react";
+import { Loader2, Save, User, Briefcase, GraduationCap, Users, Camera } from "lucide-react";
 import { useState, useRef } from "react";
 import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -77,6 +77,66 @@ const MONTHLY_HOURS_OPTIONS = [
   { value: "10-15", label: "10-15 hours" },
 ];
 
+const CAREER_STAGES = [
+  { value: "student", label: "Student" },
+  { value: "early_career", label: "Early Career" },
+  { value: "mid_career", label: "Mid Career" },
+  { value: "senior", label: "Senior" },
+];
+
+const COMMUNICATION_TOOLS = [
+  "Email", "Zoom", "Google Meet", "Microsoft Teams", "Phone", "Slack", "WhatsApp"
+];
+
+const TIMEZONE_OPTIONS = [
+  { value: "America/New_York", label: "Eastern Time (ET)" },
+  { value: "America/Chicago", label: "Central Time (CT)" },
+  { value: "America/Denver", label: "Mountain Time (MT)" },
+  { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
+  { value: "America/Anchorage", label: "Alaska Time (AKT)" },
+  { value: "Pacific/Honolulu", label: "Hawaii Time (HT)" },
+  { value: "America/Puerto_Rico", label: "Atlantic Time (AT)" },
+  { value: "Europe/London", label: "GMT / London" },
+  { value: "Europe/Paris", label: "CET / Paris" },
+  { value: "America/Sao_Paulo", label: "Brasilia Time (BRT)" },
+  { value: "Asia/Tokyo", label: "Japan Time (JST)" },
+  { value: "Australia/Sydney", label: "Australian Eastern (AEST)" },
+];
+
+const INTEREST_AREAS = [
+  { key: "interestScienceResearch", label: "Science & Research" },
+  { key: "interestProductDevelopment", label: "Product Development" },
+  { key: "interestInnovation", label: "Innovation" },
+  { key: "interestBusinessStrategy", label: "Business Strategy" },
+  { key: "interestEntrepreneurship", label: "Entrepreneurship" },
+  { key: "interestIntrapreneurship", label: "Intrapreneurship" },
+  { key: "interestLeadership", label: "Leadership" },
+  { key: "interestNetworking", label: "Networking" },
+  { key: "interestProfessionalDevelopment", label: "Professional Development" },
+  { key: "interestDigitalTech", label: "Digital Technology" },
+  { key: "interestEthicalSocial", label: "Ethical & Social Responsibility" },
+];
+
+const COMFORT_AREAS = [
+  { key: "comfortScienceResearch", label: "Science & Research" },
+  { key: "comfortProductDevelopment", label: "Product Development" },
+  { key: "comfortInnovation", label: "Innovation" },
+  { key: "comfortBusinessStrategy", label: "Business Strategy" },
+  { key: "comfortEntrepreneurship", label: "Entrepreneurship" },
+  { key: "comfortIntrapreneurship", label: "Intrapreneurship" },
+  { key: "comfortLeadership", label: "Leadership" },
+  { key: "comfortNetworking", label: "Networking" },
+  { key: "comfortProfessionalDevelopment", label: "Professional Development" },
+  { key: "comfortDigitalTech", label: "Digital Technology" },
+  { key: "comfortEthicalSocial", label: "Ethical & Social Responsibility" },
+];
+
+const INDUSTRIES = [
+  "Healthcare", "Pharmaceuticals", "Biotechnology", "Medical Devices",
+  "Digital Health", "Public Health", "Academic/Research", "Government",
+  "Non-Profit", "Consulting", "Technology", "Finance", "Other"
+];
+
 const profileSchema = z.object({
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
   jobTitle: z.string().min(1, "Position/title is required"),
@@ -88,16 +148,47 @@ const profileSchema = z.object({
   yearsInSielAreas: z.number().min(0).optional(),
   certificationsTraining: z.string().optional(),
   mentorshipRoleChoice: z.enum(["seeking_mentor", "providing_mentorship", "both"]).optional(),
-  
+  phone: z.string().optional(),
+  linkedInUrl: z.string().optional(),
+  timezone: z.string().default("America/New_York"),
+  languagesSpoken: z.array(z.string()).default(["English"]),
+  isSonsielMember: z.boolean().optional(),
+  interestedInMembership: z.boolean().optional(),
+
   previouslyBeenMentored: z.boolean().optional(),
+  menteeExperienceDescription: z.string().optional(),
   hopingToGain: z.array(z.string()).default([]),
   specificSkillsSeeking: z.string().optional(),
   menteePrimaryMotivations: z.string().optional(),
   menteePreferredMethods: z.array(z.string()).default([]),
   menteePreferredDuration: z.string().optional(),
   menteePastChallenges: z.string().optional(),
+  menteePastSuccesses: z.string().optional(),
   menteeEffectiveStructures: z.string().optional(),
-  
+  careerStage: z.string().optional(),
+  shortTermGoals: z.string().optional(),
+  longTermVision: z.string().optional(),
+  currentProjectOrIdea: z.string().optional(),
+  preferredMentorCharacteristics: z.string().optional(),
+  interestScienceResearch: z.number().min(0).max(2).default(0),
+  interestProductDevelopment: z.number().min(0).max(2).default(0),
+  interestInnovation: z.number().min(0).max(2).default(0),
+  interestBusinessStrategy: z.number().min(0).max(2).default(0),
+  interestEntrepreneurship: z.number().min(0).max(2).default(0),
+  interestIntrapreneurship: z.number().min(0).max(2).default(0),
+  interestLeadership: z.number().min(0).max(2).default(0),
+  interestNetworking: z.number().min(0).max(2).default(0),
+  interestProfessionalDevelopment: z.number().min(0).max(2).default(0),
+  interestDigitalTech: z.number().min(0).max(2).default(0),
+  interestEthicalSocial: z.number().min(0).max(2).default(0),
+  menteeMonthlyHoursAvailable: z.string().optional(),
+  menteeAvailabilityNotes: z.string().optional(),
+  menteePreferredCommunicationTools: z.array(z.string()).default([]),
+  menteeResourcesNeeded: z.string().optional(),
+  menteeProgramSuggestions: z.string().optional(),
+  willingToPay: z.string().optional(),
+  referralSource: z.string().optional(),
+
   previouslyServedAsMentor: z.boolean().optional(),
   mentorshipExperienceDescription: z.string().optional(),
   skillsToShare: z.string().optional(),
@@ -112,9 +203,60 @@ const profileSchema = z.object({
   resourcesNeeded: z.string().optional(),
   programExpectations: z.string().optional(),
   programSuggestions: z.string().optional(),
+  maxMentees: z.number().min(0).default(2),
+  preferredMenteeStages: z.array(z.string()).default([]),
+  openToMentoringOutsideExpertise: z.boolean().optional(),
+  mentorCertificationsTraining: z.string().optional(),
+  notableAchievements: z.string().optional(),
+  industriesExperience: z.array(z.string()).default([]),
+  comfortScienceResearch: z.number().min(0).max(2).default(0),
+  comfortProductDevelopment: z.number().min(0).max(2).default(0),
+  comfortInnovation: z.number().min(0).max(2).default(0),
+  comfortBusinessStrategy: z.number().min(0).max(2).default(0),
+  comfortEntrepreneurship: z.number().min(0).max(2).default(0),
+  comfortIntrapreneurship: z.number().min(0).max(2).default(0),
+  comfortLeadership: z.number().min(0).max(2).default(0),
+  comfortNetworking: z.number().min(0).max(2).default(0),
+  comfortProfessionalDevelopment: z.number().min(0).max(2).default(0),
+  comfortDigitalTech: z.number().min(0).max(2).default(0),
+  comfortEthicalSocial: z.number().min(0).max(2).default(0),
+  mentorAvailabilityNotes: z.string().optional(),
+  mentorPreferredCommunicationTools: z.array(z.string()).default([]),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
+
+function RatingRow({ label, value, onChange, namePrefix, testIdPrefix }: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  namePrefix: string;
+  testIdPrefix: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-2">
+      <span className="text-sm font-medium min-w-[180px]">{label}</span>
+      <RadioGroup
+        value={String(value)}
+        onValueChange={(v) => onChange(parseInt(v))}
+        className="flex items-center gap-4"
+      >
+        <div className="flex items-center space-x-1">
+          <RadioGroupItem value="0" id={`${namePrefix}-0`} data-testid={`${testIdPrefix}-0`} />
+          <Label htmlFor={`${namePrefix}-0`} className="text-xs text-muted-foreground">0</Label>
+        </div>
+        <div className="flex items-center space-x-1">
+          <RadioGroupItem value="1" id={`${namePrefix}-1`} data-testid={`${testIdPrefix}-1`} />
+          <Label htmlFor={`${namePrefix}-1`} className="text-xs text-muted-foreground">1</Label>
+        </div>
+        <div className="flex items-center space-x-1">
+          <RadioGroupItem value="2" id={`${namePrefix}-2`} data-testid={`${testIdPrefix}-2`} />
+          <Label htmlFor={`${namePrefix}-2`} className="text-xs text-muted-foreground">2</Label>
+        </div>
+      </RadioGroup>
+    </div>
+  );
+}
 
 export default function MyProfilePage() {
   const { user } = useAuth();
@@ -184,14 +326,47 @@ export default function MyProfilePage() {
       yearsInSielAreas: userData?.yearsInSielAreas || 0,
       certificationsTraining: userData?.certificationsTraining || "",
       mentorshipRoleChoice: mentorshipRole || userData?.mentorshipRoleChoice || undefined,
+      phone: userData?.phone || "",
+      linkedInUrl: userData?.linkedInUrl || "",
+      timezone: userData?.timezone || "America/New_York",
+      languagesSpoken: userData?.languagesSpoken || ["English"],
+      isSonsielMember: userData?.isSonsielMember || false,
+      interestedInMembership: userData?.interestedInMembership || false,
+
       previouslyBeenMentored: menteeProfile?.previouslyBeenMentored || false,
+      menteeExperienceDescription: menteeProfile?.mentorshipExperienceDescription || "",
       hopingToGain: menteeProfile?.hopingToGain || [],
       specificSkillsSeeking: menteeProfile?.specificSkillsSeeking || "",
       menteePrimaryMotivations: menteeProfile?.primaryMotivations || "",
       menteePreferredMethods: menteeProfile?.preferredMethods || [],
       menteePreferredDuration: menteeProfile?.preferredDuration || "",
       menteePastChallenges: menteeProfile?.pastChallenges || "",
+      menteePastSuccesses: menteeProfile?.pastSuccesses || "",
       menteeEffectiveStructures: menteeProfile?.effectiveStructures || "",
+      careerStage: menteeProfile?.careerStage || "",
+      shortTermGoals: menteeProfile?.shortTermGoals || "",
+      longTermVision: menteeProfile?.longTermVision || "",
+      currentProjectOrIdea: menteeProfile?.currentProjectOrIdea || "",
+      preferredMentorCharacteristics: menteeProfile?.preferredMentorCharacteristics || "",
+      interestScienceResearch: menteeProfile?.interestScienceResearch ?? 0,
+      interestProductDevelopment: menteeProfile?.interestProductDevelopment ?? 0,
+      interestInnovation: menteeProfile?.interestInnovation ?? 0,
+      interestBusinessStrategy: menteeProfile?.interestBusinessStrategy ?? 0,
+      interestEntrepreneurship: menteeProfile?.interestEntrepreneurship ?? 0,
+      interestIntrapreneurship: menteeProfile?.interestIntrapreneurship ?? 0,
+      interestLeadership: menteeProfile?.interestLeadership ?? 0,
+      interestNetworking: menteeProfile?.interestNetworking ?? 0,
+      interestProfessionalDevelopment: menteeProfile?.interestProfessionalDevelopment ?? 0,
+      interestDigitalTech: menteeProfile?.interestDigitalTech ?? 0,
+      interestEthicalSocial: menteeProfile?.interestEthicalSocial ?? 0,
+      menteeMonthlyHoursAvailable: menteeProfile?.monthlyHoursAvailable || "",
+      menteeAvailabilityNotes: menteeProfile?.availabilityNotes || "",
+      menteePreferredCommunicationTools: menteeProfile?.preferredCommunicationTools || [],
+      menteeResourcesNeeded: menteeProfile?.resourcesNeeded || "",
+      menteeProgramSuggestions: menteeProfile?.programSuggestions || "",
+      willingToPay: menteeProfile?.willingToPay || "",
+      referralSource: menteeProfile?.referralSource || "",
+
       previouslyServedAsMentor: mentorProfileExtended?.previouslyServedAsMentor || false,
       mentorshipExperienceDescription: mentorProfileExtended?.mentorshipExperienceDescription || "",
       skillsToShare: mentorProfileExtended?.skillsToShare || "",
@@ -206,6 +381,25 @@ export default function MyProfilePage() {
       resourcesNeeded: mentorProfileExtended?.resourcesNeeded || "",
       programExpectations: mentorProfileExtended?.programExpectations || "",
       programSuggestions: mentorProfileExtended?.programSuggestions || "",
+      maxMentees: mentorProfileExtended?.maxMentees ?? 2,
+      preferredMenteeStages: mentorProfileExtended?.preferredMenteeStages || [],
+      openToMentoringOutsideExpertise: mentorProfileExtended?.openToMentoringOutsideExpertise || false,
+      mentorCertificationsTraining: mentorProfileExtended?.certificationsTraining || "",
+      notableAchievements: mentorProfileExtended?.notableAchievements || "",
+      industriesExperience: mentorProfileExtended?.industriesExperience || [],
+      comfortScienceResearch: mentorProfileExtended?.comfortScienceResearch ?? 0,
+      comfortProductDevelopment: mentorProfileExtended?.comfortProductDevelopment ?? 0,
+      comfortInnovation: mentorProfileExtended?.comfortInnovation ?? 0,
+      comfortBusinessStrategy: mentorProfileExtended?.comfortBusinessStrategy ?? 0,
+      comfortEntrepreneurship: mentorProfileExtended?.comfortEntrepreneurship ?? 0,
+      comfortIntrapreneurship: mentorProfileExtended?.comfortIntrapreneurship ?? 0,
+      comfortLeadership: mentorProfileExtended?.comfortLeadership ?? 0,
+      comfortNetworking: mentorProfileExtended?.comfortNetworking ?? 0,
+      comfortProfessionalDevelopment: mentorProfileExtended?.comfortProfessionalDevelopment ?? 0,
+      comfortDigitalTech: mentorProfileExtended?.comfortDigitalTech ?? 0,
+      comfortEthicalSocial: mentorProfileExtended?.comfortEthicalSocial ?? 0,
+      mentorAvailabilityNotes: mentorProfileExtended?.availabilityNotes || "",
+      mentorPreferredCommunicationTools: mentorProfileExtended?.preferredCommunicationTools || [],
     };
   }
 
@@ -224,14 +418,45 @@ export default function MyProfilePage() {
       yearsInSielAreas: 0,
       certificationsTraining: "",
       mentorshipRoleChoice: undefined,
+      phone: "",
+      linkedInUrl: "",
+      timezone: "America/New_York",
+      languagesSpoken: ["English"],
+      isSonsielMember: false,
+      interestedInMembership: false,
       previouslyBeenMentored: false,
+      menteeExperienceDescription: "",
       hopingToGain: [],
       specificSkillsSeeking: "",
       menteePrimaryMotivations: "",
       menteePreferredMethods: [],
       menteePreferredDuration: "",
       menteePastChallenges: "",
+      menteePastSuccesses: "",
       menteeEffectiveStructures: "",
+      careerStage: "",
+      shortTermGoals: "",
+      longTermVision: "",
+      currentProjectOrIdea: "",
+      preferredMentorCharacteristics: "",
+      interestScienceResearch: 0,
+      interestProductDevelopment: 0,
+      interestInnovation: 0,
+      interestBusinessStrategy: 0,
+      interestEntrepreneurship: 0,
+      interestIntrapreneurship: 0,
+      interestLeadership: 0,
+      interestNetworking: 0,
+      interestProfessionalDevelopment: 0,
+      interestDigitalTech: 0,
+      interestEthicalSocial: 0,
+      menteeMonthlyHoursAvailable: "",
+      menteeAvailabilityNotes: "",
+      menteePreferredCommunicationTools: [],
+      menteeResourcesNeeded: "",
+      menteeProgramSuggestions: "",
+      willingToPay: "",
+      referralSource: "",
       previouslyServedAsMentor: false,
       mentorshipExperienceDescription: "",
       skillsToShare: "",
@@ -246,6 +471,25 @@ export default function MyProfilePage() {
       resourcesNeeded: "",
       programExpectations: "",
       programSuggestions: "",
+      maxMentees: 2,
+      preferredMenteeStages: [],
+      openToMentoringOutsideExpertise: false,
+      mentorCertificationsTraining: "",
+      notableAchievements: "",
+      industriesExperience: [],
+      comfortScienceResearch: 0,
+      comfortProductDevelopment: 0,
+      comfortInnovation: 0,
+      comfortBusinessStrategy: 0,
+      comfortEntrepreneurship: 0,
+      comfortIntrapreneurship: 0,
+      comfortLeadership: 0,
+      comfortNetworking: 0,
+      comfortProfessionalDevelopment: 0,
+      comfortDigitalTech: 0,
+      comfortEthicalSocial: 0,
+      mentorAvailabilityNotes: "",
+      mentorPreferredCommunicationTools: [],
     },
     values: formValues,
   });
@@ -264,17 +508,48 @@ export default function MyProfilePage() {
         yearsOfExperience: values.yearsOfExperience,
         yearsInSielAreas: values.yearsInSielAreas,
         certificationsTraining: values.certificationsTraining,
+        phone: emptyToNull(values.phone),
+        linkedInUrl: emptyToNull(values.linkedInUrl),
+        timezone: values.timezone,
+        languagesSpoken: values.languagesSpoken,
+        isSonsielMember: values.isSonsielMember,
+        interestedInMembership: values.interestedInMembership,
       };
 
       const menteeProfile = {
         previouslyBeenMentored: values.previouslyBeenMentored,
+        mentorshipExperienceDescription: emptyToNull(values.menteeExperienceDescription),
         hopingToGain: values.hopingToGain,
         specificSkillsSeeking: emptyToNull(values.specificSkillsSeeking),
         primaryMotivations: emptyToNull(values.menteePrimaryMotivations),
         preferredMethods: values.menteePreferredMethods,
         preferredDuration: emptyToNull(values.menteePreferredDuration),
         pastChallenges: emptyToNull(values.menteePastChallenges),
+        pastSuccesses: emptyToNull(values.menteePastSuccesses),
         effectiveStructures: emptyToNull(values.menteeEffectiveStructures),
+        careerStage: emptyToNull(values.careerStage),
+        shortTermGoals: emptyToNull(values.shortTermGoals),
+        longTermVision: emptyToNull(values.longTermVision),
+        currentProjectOrIdea: emptyToNull(values.currentProjectOrIdea),
+        preferredMentorCharacteristics: emptyToNull(values.preferredMentorCharacteristics),
+        interestScienceResearch: values.interestScienceResearch,
+        interestProductDevelopment: values.interestProductDevelopment,
+        interestInnovation: values.interestInnovation,
+        interestBusinessStrategy: values.interestBusinessStrategy,
+        interestEntrepreneurship: values.interestEntrepreneurship,
+        interestIntrapreneurship: values.interestIntrapreneurship,
+        interestLeadership: values.interestLeadership,
+        interestNetworking: values.interestNetworking,
+        interestProfessionalDevelopment: values.interestProfessionalDevelopment,
+        interestDigitalTech: values.interestDigitalTech,
+        interestEthicalSocial: values.interestEthicalSocial,
+        monthlyHoursAvailable: emptyToNull(values.menteeMonthlyHoursAvailable),
+        availabilityNotes: emptyToNull(values.menteeAvailabilityNotes),
+        preferredCommunicationTools: values.menteePreferredCommunicationTools,
+        resourcesNeeded: emptyToNull(values.menteeResourcesNeeded),
+        programSuggestions: emptyToNull(values.menteeProgramSuggestions),
+        willingToPay: emptyToNull(values.willingToPay),
+        referralSource: emptyToNull(values.referralSource),
       };
 
       const mentorProfileExtended = {
@@ -292,6 +567,25 @@ export default function MyProfilePage() {
         resourcesNeeded: emptyToNull(values.resourcesNeeded),
         programExpectations: emptyToNull(values.programExpectations),
         programSuggestions: emptyToNull(values.programSuggestions),
+        maxMentees: values.maxMentees,
+        preferredMenteeStages: values.preferredMenteeStages,
+        openToMentoringOutsideExpertise: values.openToMentoringOutsideExpertise,
+        certificationsTraining: emptyToNull(values.mentorCertificationsTraining),
+        notableAchievements: emptyToNull(values.notableAchievements),
+        industriesExperience: values.industriesExperience,
+        comfortScienceResearch: values.comfortScienceResearch,
+        comfortProductDevelopment: values.comfortProductDevelopment,
+        comfortInnovation: values.comfortInnovation,
+        comfortBusinessStrategy: values.comfortBusinessStrategy,
+        comfortEntrepreneurship: values.comfortEntrepreneurship,
+        comfortIntrapreneurship: values.comfortIntrapreneurship,
+        comfortLeadership: values.comfortLeadership,
+        comfortNetworking: values.comfortNetworking,
+        comfortProfessionalDevelopment: values.comfortProfessionalDevelopment,
+        comfortDigitalTech: values.comfortDigitalTech,
+        comfortEthicalSocial: values.comfortEthicalSocial,
+        availabilityNotes: emptyToNull(values.mentorAvailabilityNotes),
+        preferredCommunicationTools: values.mentorPreferredCommunicationTools,
       };
 
       return apiRequest("POST", "/api/profile/setup", {
@@ -301,7 +595,7 @@ export default function MyProfilePage() {
         mentorProfileExtended: values.mentorshipRoleChoice === "providing_mentorship" || values.mentorshipRoleChoice === "both" ? mentorProfileExtended : undefined,
       });
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profile/complete"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       toast({ title: "Profile saved successfully" });
@@ -317,6 +611,7 @@ export default function MyProfilePage() {
 
   const mentorshipRole = form.watch("mentorshipRoleChoice");
   const previouslyServedAsMentor = form.watch("previouslyServedAsMentor");
+  const previouslyBeenMentored = form.watch("previouslyBeenMentored");
 
   if (isLoading) {
     return (
@@ -379,16 +674,16 @@ export default function MyProfilePage() {
                   <Users className="h-4 w-4 mr-2" />
                   Role
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="mentee" 
+                <TabsTrigger
+                  value="mentee"
                   disabled={mentorshipRole !== "seeking_mentor" && mentorshipRole !== "both"}
                   data-testid="tab-mentee"
                 >
                   <GraduationCap className="h-4 w-4 mr-2" />
                   Mentee
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="mentor" 
+                <TabsTrigger
+                  value="mentor"
                   disabled={mentorshipRole !== "providing_mentorship" && mentorshipRole !== "both"}
                   data-testid="tab-mentor"
                 >
@@ -502,6 +797,153 @@ export default function MyProfilePage() {
 
                 <Card>
                   <CardHeader>
+                    <CardTitle>Contact & Social</CardTitle>
+                    <CardDescription>Phone, LinkedIn, timezone, and languages</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Phone Number</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="e.g., +1 (555) 123-4567" data-testid="input-phone" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="linkedInUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>LinkedIn Profile URL</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="https://linkedin.com/in/yourprofile" data-testid="input-linkedin-url" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="timezone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Timezone</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-timezone">
+                                <SelectValue placeholder="Select timezone" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {TIMEZONE_OPTIONS.map((tz) => (
+                                <SelectItem key={tz.value} value={tz.value}>
+                                  {tz.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="languagesSpoken"
+                      render={() => (
+                        <FormItem>
+                          <FormLabel>Languages Spoken</FormLabel>
+                          <FormDescription>Select all languages you speak</FormDescription>
+                          <div className="grid grid-cols-3 gap-2 mt-2">
+                            {["English", "Spanish", "Portuguese", "French", "German", "Mandarin", "Japanese", "Korean", "Arabic"].map((lang) => (
+                              <FormField
+                                key={lang}
+                                control={form.control}
+                                name="languagesSpoken"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(lang)}
+                                        onCheckedChange={(checked) => {
+                                          const current = field.value || [];
+                                          if (checked) {
+                                            field.onChange([...current, lang]);
+                                          } else {
+                                            field.onChange(current.filter((v) => v !== lang));
+                                          }
+                                        }}
+                                        data-testid={`checkbox-lang-${lang.toLowerCase()}`}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">{lang}</FormLabel>
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Membership</CardTitle>
+                    <CardDescription>SONSIEL membership status</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="isSonsielMember"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              data-testid="checkbox-sonsiel-member"
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>I am a SONSIEL member</FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="interestedInMembership"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              data-testid="checkbox-interested-membership"
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>I am interested in SONSIEL membership</FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
                     <CardTitle>Professional Background</CardTitle>
                     <CardDescription>Your expertise, education, and experience</CardDescription>
                   </CardHeader>
@@ -579,9 +1021,9 @@ export default function MyProfilePage() {
                           <FormItem>
                             <FormLabel>Years of Experience in Your Field</FormLabel>
                             <FormControl>
-                              <Input 
-                                type="number" 
-                                {...field} 
+                              <Input
+                                type="number"
+                                {...field}
                                 onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                                 data-testid="input-years-experience"
                               />
@@ -597,9 +1039,9 @@ export default function MyProfilePage() {
                           <FormItem>
                             <FormLabel>Years in Science/Innovation/Entrepreneurship/Leadership</FormLabel>
                             <FormControl>
-                              <Input 
-                                type="number" 
-                                {...field} 
+                              <Input
+                                type="number"
+                                {...field}
                                 onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                                 data-testid="input-years-siel"
                               />
@@ -618,8 +1060,8 @@ export default function MyProfilePage() {
                           <FormLabel>Certifications or Additional Training</FormLabel>
                           <FormDescription>List any certifications or training relevant to mentorship</FormDescription>
                           <FormControl>
-                            <Textarea 
-                              {...field} 
+                            <Textarea
+                              {...field}
                               rows={3}
                               placeholder="e.g., Certified Executive Coach, Healthcare Leadership Certificate..."
                               data-testid="input-certifications"
@@ -685,7 +1127,82 @@ export default function MyProfilePage() {
               <TabsContent value="mentee" className="space-y-6 mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Mentee Experience & Goals</CardTitle>
+                    <CardTitle>Career Context</CardTitle>
+                    <CardDescription>Your current career stage and goals</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="careerStage"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Career Stage</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-career-stage">
+                                <SelectValue placeholder="Select career stage" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {CAREER_STAGES.map((stage) => (
+                                <SelectItem key={stage.value} value={stage.value}>
+                                  {stage.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="shortTermGoals"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Short-Term Career Goals</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} placeholder="What do you want to accomplish in the next 6-12 months?" data-testid="input-short-term-goals" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="longTermVision"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Long-Term Vision</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} placeholder="Where do you see yourself in 3-5 years?" data-testid="input-long-term-vision" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="currentProjectOrIdea"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current Project or Idea</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} placeholder="Describe any current project or idea you're working on..." data-testid="input-current-project" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Experience & Goals</CardTitle>
                     <CardDescription>Tell us about your mentee background and what you hope to achieve</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -707,6 +1224,22 @@ export default function MyProfilePage() {
                         </FormItem>
                       )}
                     />
+
+                    {previouslyBeenMentored && (
+                      <FormField
+                        control={form.control}
+                        name="menteeExperienceDescription"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Please describe your mentorship experience</FormLabel>
+                            <FormControl>
+                              <Textarea {...field} rows={3} data-testid="input-mentee-experience-description" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <FormField
                       control={form.control}
@@ -770,6 +1303,50 @@ export default function MyProfilePage() {
                           <FormLabel>What are your primary motivations for seeking a mentor?</FormLabel>
                           <FormControl>
                             <Textarea {...field} rows={3} data-testid="input-mentee-motivations" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Separator className="my-4" />
+
+                    <FormField
+                      control={form.control}
+                      name="menteePastChallenges"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>What challenges have you encountered in past mentorship experiences?</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} data-testid="input-mentee-past-challenges" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="menteePastSuccesses"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>What successes have you had in past mentorship experiences?</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} data-testid="input-mentee-past-successes" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="menteeEffectiveStructures"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>What structure have you found most effective to support mentorship?</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} data-testid="input-mentee-effective-structures" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -847,23 +1424,42 @@ export default function MyProfilePage() {
                         </FormItem>
                       )}
                     />
-                  </CardContent>
-                </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Past Experience</CardTitle>
-                    <CardDescription>Share your previous mentorship experiences</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="menteeMonthlyHoursAvailable"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Monthly Hours Available</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value || ""}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-mentee-monthly-hours">
+                                  <SelectValue placeholder="Select hours" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {MONTHLY_HOURS_OPTIONS.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
                     <FormField
                       control={form.control}
-                      name="menteePastChallenges"
+                      name="menteeAvailabilityNotes"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>What challenges or successes have you encountered in past mentorship experiences?</FormLabel>
+                          <FormLabel>Availability Notes</FormLabel>
                           <FormControl>
-                            <Textarea {...field} rows={3} data-testid="input-mentee-past-challenges" />
+                            <Textarea {...field} rows={2} placeholder="Any additional availability details..." data-testid="input-mentee-availability-notes" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -872,12 +1468,151 @@ export default function MyProfilePage() {
 
                     <FormField
                       control={form.control}
-                      name="menteeEffectiveStructures"
+                      name="menteePreferredCommunicationTools"
+                      render={() => (
+                        <FormItem>
+                          <FormLabel>Preferred Communication Tools</FormLabel>
+                          <div className="grid grid-cols-3 gap-2 mt-2">
+                            {COMMUNICATION_TOOLS.map((tool) => (
+                              <FormField
+                                key={tool}
+                                control={form.control}
+                                name="menteePreferredCommunicationTools"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(tool)}
+                                        onCheckedChange={(checked) => {
+                                          const current = field.value || [];
+                                          if (checked) {
+                                            field.onChange([...current, tool]);
+                                          } else {
+                                            field.onChange(current.filter((v) => v !== tool));
+                                          }
+                                        }}
+                                        data-testid={`checkbox-mentee-comm-${tool.toLowerCase().replace(/\s+/g, '-')}`}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">{tool}</FormLabel>
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="preferredMentorCharacteristics"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>What structure have you found most effective to support mentorship?</FormLabel>
+                          <FormLabel>What do you look for in a mentor?</FormLabel>
                           <FormControl>
-                            <Textarea {...field} rows={3} data-testid="input-mentee-effective-structures" />
+                            <Textarea {...field} rows={3} placeholder="Describe the characteristics or qualities you value in a mentor..." data-testid="input-preferred-mentor-characteristics" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Interest Areas</CardTitle>
+                    <CardDescription>Rate your interest level in each area (0 = Not Interested, 1 = Somewhat, 2 = Very Interested)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-1 divide-y">
+                      {INTEREST_AREAS.map((area) => (
+                        <FormField
+                          key={area.key}
+                          control={form.control}
+                          name={area.key as keyof ProfileFormValues}
+                          render={({ field }) => (
+                            <RatingRow
+                              label={area.label}
+                              value={(field.value as number) || 0}
+                              onChange={field.onChange}
+                              namePrefix={area.key}
+                              testIdPrefix={`radio-${area.key}`}
+                            />
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Program & Resources</CardTitle>
+                    <CardDescription>Help us understand your needs and how you found us</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="menteeResourcesNeeded"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>What resources do you need to succeed?</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} data-testid="input-mentee-resources-needed" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="menteeProgramSuggestions"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Suggestions for the program</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} data-testid="input-mentee-program-suggestions" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="willingToPay"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Would you be willing to pay for mentorship?</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-willing-to-pay">
+                                <SelectValue placeholder="Select option" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="yes">Yes</SelectItem>
+                              <SelectItem value="no">No</SelectItem>
+                              <SelectItem value="maybe">Maybe</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="referralSource"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>How did you hear about this program?</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="e.g., colleague, social media, website..." data-testid="input-referral-source" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -890,7 +1625,94 @@ export default function MyProfilePage() {
               <TabsContent value="mentor" className="space-y-6 mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Mentor Experience & Motivation</CardTitle>
+                    <CardTitle>Capacity & Preferences</CardTitle>
+                    <CardDescription>How many mentees you can take on and who you prefer to mentor</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="maxMentees"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Maximum Number of Mentees</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              data-testid="input-max-mentees"
+                            />
+                          </FormControl>
+                          <FormDescription>How many mentees can you support at the same time?</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="preferredMenteeStages"
+                      render={() => (
+                        <FormItem>
+                          <FormLabel>Preferred Mentee Career Stages</FormLabel>
+                          <FormDescription>Select the career stages you prefer to mentor</FormDescription>
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            {CAREER_STAGES.map((stage) => (
+                              <FormField
+                                key={stage.value}
+                                control={form.control}
+                                name="preferredMenteeStages"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(stage.value)}
+                                        onCheckedChange={(checked) => {
+                                          const current = field.value || [];
+                                          if (checked) {
+                                            field.onChange([...current, stage.value]);
+                                          } else {
+                                            field.onChange(current.filter((v) => v !== stage.value));
+                                          }
+                                        }}
+                                        data-testid={`checkbox-mentee-stage-${stage.value}`}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">{stage.label}</FormLabel>
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="openToMentoringOutsideExpertise"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              data-testid="checkbox-open-outside-expertise"
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>Open to mentoring outside my core area of expertise</FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Experience & Motivation</CardTitle>
                     <CardDescription>Tell us about your mentoring background and what drives you</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -952,6 +1774,76 @@ export default function MyProfilePage() {
                           <FormControl>
                             <Textarea {...field} rows={3} data-testid="input-mentor-motivations" />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Separator className="my-4" />
+
+                    <FormField
+                      control={form.control}
+                      name="mentorCertificationsTraining"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Mentor-Specific Certifications or Training</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} placeholder="e.g., Certified Mentor, Coaching Credentials..." data-testid="input-mentor-certifications" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="notableAchievements"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Notable Achievements</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={3} placeholder="Awards, publications, patents, or other notable accomplishments..." data-testid="input-notable-achievements" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="industriesExperience"
+                      render={() => (
+                        <FormItem>
+                          <FormLabel>Industries of Experience</FormLabel>
+                          <FormDescription>Select all industries you have experience in</FormDescription>
+                          <div className="grid grid-cols-3 gap-2 mt-2">
+                            {INDUSTRIES.map((industry) => (
+                              <FormField
+                                key={industry}
+                                control={form.control}
+                                name="industriesExperience"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(industry)}
+                                        onCheckedChange={(checked) => {
+                                          const current = field.value || [];
+                                          if (checked) {
+                                            field.onChange([...current, industry]);
+                                          } else {
+                                            field.onChange(current.filter((v) => v !== industry));
+                                          }
+                                        }}
+                                        data-testid={`checkbox-industry-${industry.toLowerCase().replace(/[\s/]+/g, '-')}`}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">{industry}</FormLabel>
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -1067,6 +1959,88 @@ export default function MyProfilePage() {
                         </FormItem>
                       )}
                     />
+
+                    <Separator className="my-4" />
+
+                    <FormField
+                      control={form.control}
+                      name="mentorAvailabilityNotes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Availability Notes</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} rows={2} placeholder="Any additional availability details..." data-testid="input-mentor-availability-notes" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="mentorPreferredCommunicationTools"
+                      render={() => (
+                        <FormItem>
+                          <FormLabel>Preferred Communication Tools</FormLabel>
+                          <div className="grid grid-cols-3 gap-2 mt-2">
+                            {COMMUNICATION_TOOLS.map((tool) => (
+                              <FormField
+                                key={tool}
+                                control={form.control}
+                                name="mentorPreferredCommunicationTools"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(tool)}
+                                        onCheckedChange={(checked) => {
+                                          const current = field.value || [];
+                                          if (checked) {
+                                            field.onChange([...current, tool]);
+                                          } else {
+                                            field.onChange(current.filter((v) => v !== tool));
+                                          }
+                                        }}
+                                        data-testid={`checkbox-mentor-comm-${tool.toLowerCase().replace(/\s+/g, '-')}`}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">{tool}</FormLabel>
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Comfort Areas</CardTitle>
+                    <CardDescription>Rate your comfort level mentoring in each area (0 = Not Comfortable, 1 = Somewhat, 2 = Very Comfortable)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-1 divide-y">
+                      {COMFORT_AREAS.map((area) => (
+                        <FormField
+                          key={area.key}
+                          control={form.control}
+                          name={area.key as keyof ProfileFormValues}
+                          render={({ field }) => (
+                            <RatingRow
+                              label={area.label}
+                              value={(field.value as number) || 0}
+                              onChange={field.onChange}
+                              namePrefix={area.key}
+                              testIdPrefix={`radio-${area.key}`}
+                            />
+                          )}
+                        />
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -1173,8 +2147,8 @@ export default function MyProfilePage() {
             </Tabs>
 
             <div className="flex justify-end pt-4">
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={saveProfileMutation.isPending}
                 data-testid="button-save-profile"
               >
