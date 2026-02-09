@@ -31,13 +31,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search,
-  Filter,
   ChevronLeft,
   ChevronRight,
   Eye,
   CheckCircle,
   XCircle,
   RefreshCw,
+  CalendarIcon,
+  Download,
+  User,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -59,7 +61,7 @@ interface AuditLog {
   success: boolean;
   errorMessage: string | null;
   metadata: Record<string, any> | null;
-  createdAt: string;
+  timestamp: string;
 }
 
 interface AuditLogResponse {
@@ -69,24 +71,60 @@ interface AuditLogResponse {
   offset: number;
 }
 
-const actionTypes = [
-  "LOGIN_SUCCESS", "LOGIN_FAILED", "LOGOUT", "PASSWORD_CHANGED", "PASSWORD_RESET_REQUESTED",
-  "USER_CREATED", "USER_UPDATED", "USER_DELETED", "USER_ACTIVATED", "USER_DEACTIVATED",
-  "ROLE_CHANGED", "PROFILE_UPDATED", "PROFILE_COMPLETED",
-  "COHORT_CREATED", "COHORT_UPDATED", "COHORT_DELETED", "MEMBER_ADDED", "MEMBER_REMOVED",
-  "APPLICATION_SUBMITTED", "APPLICATION_APPROVED", "APPLICATION_REJECTED",
-  "MATCH_CREATED", "MATCH_UPDATED", "MATCH_ENDED",
-  "TASK_CREATED", "TASK_UPDATED", "TASK_DELETED", "TASK_COMPLETED",
-  "GOAL_CREATED", "GOAL_UPDATED", "GOAL_DELETED", "GOAL_ACHIEVED",
-  "DOCUMENT_UPLOADED", "DOCUMENT_VIEWED", "DOCUMENT_DOWNLOADED", "DOCUMENT_DELETED", "DOCUMENT_SHARED",
-  "MESSAGE_SENT", "CONVERSATION_CREATED",
-  "NOTIFICATION_SENT", "EMAIL_SENT",
-  "SETTINGS_CHANGED", "DATA_EXPORTED",
-];
+interface SafeUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
+const actionCategories: Record<string, string[]> = {
+  "Authentication": [
+    "LOGIN_SUCCESS", "LOGIN_FAILED", "LOGOUT",
+    "PASSWORD_RESET_REQUESTED", "PASSWORD_RESET_COMPLETED", "PASSWORD_CHANGED",
+    "EMAIL_VERIFICATION", "EMAIL_CHANGE",
+    "ACCOUNT_LOCKED", "ACCOUNT_UNLOCKED",
+    "SESSION_EXPIRED", "SESSION_INVALIDATED",
+  ],
+  "Users": [
+    "USER_CREATED", "USER_UPDATED", "USER_DELETED",
+    "USER_ROLE_CHANGED", "USER_ACTIVATED", "USER_DEACTIVATED",
+    "PROFILE_UPDATED", "PREFERENCES_CHANGED",
+  ],
+  "Cohorts & Applications": [
+    "COHORT_CREATED", "COHORT_UPDATED", "COHORT_DELETED", "COHORT_STATUS_CHANGED",
+    "APPLICATION_SUBMITTED", "APPLICATION_REVIEWED", "APPLICATION_APPROVED", "APPLICATION_REJECTED",
+  ],
+  "Matches": [
+    "MATCH_CREATED", "MATCH_UPDATED", "MATCH_ACTIVATED", "MATCH_TERMINATED",
+  ],
+  "Documents": [
+    "DOCUMENT_UPLOADED", "DOCUMENT_UPDATED", "DOCUMENT_DELETED",
+    "DOCUMENT_SHARED", "DOCUMENT_ACCESS_REVOKED", "DOCUMENT_DOWNLOADED", "DOCUMENT_VIEWED",
+  ],
+  "Tasks & Goals": [
+    "TASK_CREATED", "TASK_UPDATED", "TASK_COMPLETED",
+    "GOAL_CREATED", "GOAL_UPDATED", "GOAL_COMPLETED",
+  ],
+  "Messages": [
+    "MESSAGE_SENT", "MESSAGE_EDITED", "MESSAGE_DELETED",
+  ],
+  "Communications": [
+    "NOTIFICATION_SENT", "EMAIL_SENT",
+  ],
+  "System": [
+    "SETTINGS_CHANGED", "BULK_OPERATION_PERFORMED", "DATA_EXPORTED", "REPORT_GENERATED",
+    "SCHEDULED_JOB_EXECUTED", "ERROR_OCCURRED",
+  ],
+};
+
+const allActionTypes = Object.values(actionCategories).flat();
 
 const resourceTypes = [
-  "USER", "COHORT", "APPLICATION", "MATCH", "TASK", "GOAL", "DOCUMENT",
-  "MESSAGE", "CONVERSATION", "NOTIFICATION", "SYSTEM",
+  "USER", "SESSION", "COHORT", "TRACK", "APPLICATION", "MATCH", "MEETING",
+  "DOCUMENT", "FOLDER", "MESSAGE", "CONVERSATION", "TASK", "GOAL", "MILESTONE",
+  "NOTIFICATION", "SETTINGS", "SYSTEM",
 ];
 
 export default function AuditLogs() {
@@ -94,20 +132,30 @@ export default function AuditLogs() {
   const [actionFilter, setActionFilter] = useState<string>("");
   const [resourceTypeFilter, setResourceTypeFilter] = useState<string>("");
   const [successFilter, setSuccessFilter] = useState<string>("");
+  const [userFilter, setUserFilter] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [page, setPage] = useState(0);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-  const limit = 20;
+  const limit = 25;
+
+  const { data: usersData } = useQuery<SafeUser[]>({
+    queryKey: ["/api/users"],
+  });
 
   const queryParams = new URLSearchParams();
   if (search) queryParams.append("search", search);
-  if (actionFilter) queryParams.append("action", actionFilter);
-  if (resourceTypeFilter) queryParams.append("resourceType", resourceTypeFilter);
-  if (successFilter) queryParams.append("success", successFilter);
+  if (actionFilter && actionFilter !== "all") queryParams.append("action", actionFilter);
+  if (resourceTypeFilter && resourceTypeFilter !== "all") queryParams.append("resourceType", resourceTypeFilter);
+  if (successFilter && successFilter !== "all") queryParams.append("success", successFilter);
+  if (userFilter && userFilter !== "all") queryParams.append("actorId", userFilter);
+  if (startDate) queryParams.append("startDate", new Date(startDate).toISOString());
+  if (endDate) queryParams.append("endDate", new Date(endDate + "T23:59:59").toISOString());
   queryParams.append("limit", limit.toString());
   queryParams.append("offset", (page * limit).toString());
 
   const { data, isLoading, refetch } = useQuery<AuditLogResponse>({
-    queryKey: ["/api/audit-logs", search, actionFilter, resourceTypeFilter, successFilter, page],
+    queryKey: ["/api/audit-logs", search, actionFilter, resourceTypeFilter, successFilter, userFilter, startDate, endDate, page],
     queryFn: async () => {
       const res = await fetch(`/api/audit-logs?${queryParams.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch audit logs");
@@ -122,17 +170,55 @@ export default function AuditLogs() {
     setActionFilter("");
     setResourceTypeFilter("");
     setSuccessFilter("");
+    setUserFilter("");
+    setStartDate("");
+    setEndDate("");
     setPage(0);
   };
 
-  const getActionBadgeVariant = (action: string) => {
-    if (action.includes("DELETED") || action.includes("FAILED") || action.includes("REJECTED")) {
+  const hasActiveFilters = search || actionFilter || resourceTypeFilter || successFilter || userFilter || startDate || endDate;
+
+  const getActionBadgeVariant = (action: string): "default" | "destructive" | "secondary" | "outline" => {
+    if (action.includes("DELETED") || action.includes("FAILED") || action.includes("REJECTED") || action.includes("LOCKED") || action === "ERROR_OCCURRED") {
       return "destructive";
     }
-    if (action.includes("CREATED") || action.includes("SUCCESS") || action.includes("APPROVED") || action.includes("COMPLETED") || action.includes("ACHIEVED")) {
+    if (action.includes("CREATED") || action.includes("SUCCESS") || action.includes("APPROVED") || action.includes("COMPLETED") || action.includes("ACHIEVED") || action.includes("ACTIVATED") || action.includes("UNLOCKED") || action === "EMAIL_VERIFICATION") {
       return "default";
     }
+    if (action.includes("EMAIL_SENT") || action.includes("NOTIFICATION_SENT")) {
+      return "outline";
+    }
     return "secondary";
+  };
+
+  const formatAction = (action: string) => {
+    return action.replace(/_/g, " ");
+  };
+
+  const exportLogs = () => {
+    if (!data?.logs) return;
+    const csvRows = [
+      ["Timestamp", "Actor Email", "Actor Role", "Action", "Resource Type", "Resource Name", "Status", "IP Address", "Error Message", "Metadata"].join(","),
+      ...data.logs.map(log => [
+        format(new Date(log.timestamp), "yyyy-MM-dd HH:mm:ss"),
+        log.actorEmail || log.actorType,
+        log.actorRole || "-",
+        log.action,
+        log.resourceType,
+        log.resourceName || "-",
+        log.success ? "Success" : "Failed",
+        log.ipAddress || "-",
+        log.errorMessage || "-",
+        log.metadata ? JSON.stringify(log.metadata) : "-",
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+    ];
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `audit-logs-${format(new Date(), "yyyy-MM-dd-HHmmss")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -143,17 +229,32 @@ export default function AuditLogs() {
             <h1 className="text-2xl font-semibold" data-testid="text-page-title">Audit Logs</h1>
             <p className="text-muted-foreground">
               Track all system activities and user actions
+              {data?.totalCount !== undefined && (
+                <span className="ml-2">({data.totalCount.toLocaleString()} total entries)</span>
+              )}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            data-testid="button-refresh"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportLogs}
+              disabled={!data?.logs?.length}
+              data-testid="button-export"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              data-testid="button-refresh"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -163,6 +264,7 @@ export default function AuditLogs() {
           <CardContent>
             <div className="flex flex-wrap gap-3 items-end">
               <div className="flex-1 min-w-[200px]">
+                <label className="text-sm text-muted-foreground mb-1 block">Search</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -177,41 +279,102 @@ export default function AuditLogs() {
                   />
                 </div>
               </div>
-              <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v); setPage(0); }}>
-                <SelectTrigger className="w-[180px]" data-testid="select-action">
-                  <SelectValue placeholder="Action" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Actions</SelectItem>
-                  {actionTypes.map((action) => (
-                    <SelectItem key={action} value={action}>{action.replace(/_/g, " ")}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={resourceTypeFilter} onValueChange={(v) => { setResourceTypeFilter(v); setPage(0); }}>
-                <SelectTrigger className="w-[150px]" data-testid="select-resource-type">
-                  <SelectValue placeholder="Resource" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Resources</SelectItem>
-                  {resourceTypes.map((type) => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={successFilter} onValueChange={(v) => { setSuccessFilter(v); setPage(0); }}>
-                <SelectTrigger className="w-[130px]" data-testid="select-success">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="true">Success</SelectItem>
-                  <SelectItem value="false">Failed</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="ghost" onClick={clearFilters} data-testid="button-clear-filters">
-                Clear Filters
-              </Button>
+              <div className="w-[220px]">
+                <label className="text-sm text-muted-foreground mb-1 block">Filter by User</label>
+                <Select value={userFilter} onValueChange={(v) => { setUserFilter(v); setPage(0); }}>
+                  <SelectTrigger data-testid="select-user">
+                    <User className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="All Users" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    {usersData?.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.firstName} {user.lastName} ({user.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-[200px]">
+                <label className="text-sm text-muted-foreground mb-1 block">Action</label>
+                <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v); setPage(0); }}>
+                  <SelectTrigger data-testid="select-action">
+                    <SelectValue placeholder="All Actions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Actions</SelectItem>
+                    {Object.entries(actionCategories).map(([category, actions]) => (
+                      <div key={category}>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{category}</div>
+                        {actions.map((action) => (
+                          <SelectItem key={action} value={action}>{formatAction(action)}</SelectItem>
+                        ))}
+                      </div>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-[150px]">
+                <label className="text-sm text-muted-foreground mb-1 block">Resource</label>
+                <Select value={resourceTypeFilter} onValueChange={(v) => { setResourceTypeFilter(v); setPage(0); }}>
+                  <SelectTrigger data-testid="select-resource-type">
+                    <SelectValue placeholder="All Resources" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Resources</SelectItem>
+                    {resourceTypes.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-[130px]">
+                <label className="text-sm text-muted-foreground mb-1 block">Status</label>
+                <Select value={successFilter} onValueChange={(v) => { setSuccessFilter(v); setPage(0); }}>
+                  <SelectTrigger data-testid="select-success">
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="true">Success</SelectItem>
+                    <SelectItem value="false">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 items-end mt-3">
+              <div className="w-[180px]">
+                <label className="text-sm text-muted-foreground mb-1 block">From Date</label>
+                <div className="relative">
+                  <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => { setStartDate(e.target.value); setPage(0); }}
+                    className="pl-9"
+                    data-testid="input-start-date"
+                  />
+                </div>
+              </div>
+              <div className="w-[180px]">
+                <label className="text-sm text-muted-foreground mb-1 block">To Date</label>
+                <div className="relative">
+                  <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => { setEndDate(e.target.value); setPage(0); }}
+                    className="pl-9"
+                    data-testid="input-end-date"
+                  />
+                </div>
+              </div>
+              {hasActiveFilters && (
+                <Button variant="ghost" onClick={clearFilters} data-testid="button-clear-filters">
+                  Clear All Filters
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -246,14 +409,14 @@ export default function AuditLogs() {
                 ) : data?.logs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No audit logs found
+                      No audit logs found matching your filters
                     </TableCell>
                   </TableRow>
                 ) : (
                   data?.logs.map((log) => (
                     <TableRow key={log.id} data-testid={`row-audit-log-${log.id}`}>
-                      <TableCell className="text-sm">
-                        {format(new Date(log.createdAt), "MMM d, yyyy HH:mm:ss")}
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {format(new Date(log.timestamp), "MMM d, yyyy HH:mm:ss")}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
@@ -267,7 +430,7 @@ export default function AuditLogs() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={getActionBadgeVariant(log.action)} className="text-xs">
-                          {log.action.replace(/_/g, " ")}
+                          {formatAction(log.action)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -311,7 +474,7 @@ export default function AuditLogs() {
                                 <div className="grid grid-cols-2 gap-4">
                                   <div>
                                     <label className="text-sm font-medium text-muted-foreground">Action</label>
-                                    <p className="text-sm">{log.action.replace(/_/g, " ")}</p>
+                                    <p className="text-sm">{formatAction(log.action)}</p>
                                   </div>
                                   <div>
                                     <label className="text-sm font-medium text-muted-foreground">Resource Type</label>
@@ -326,12 +489,28 @@ export default function AuditLogs() {
                                     <p className="text-sm">{log.actorRole || "-"}</p>
                                   </div>
                                   <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Resource Name</label>
+                                    <p className="text-sm">{log.resourceName || "-"}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Resource ID</label>
+                                    <p className="text-sm font-mono text-xs">{log.resourceId || "-"}</p>
+                                  </div>
+                                  <div>
                                     <label className="text-sm font-medium text-muted-foreground">IP Address</label>
                                     <p className="text-sm">{log.ipAddress || "-"}</p>
                                   </div>
                                   <div>
                                     <label className="text-sm font-medium text-muted-foreground">Timestamp</label>
-                                    <p className="text-sm">{format(new Date(log.createdAt), "PPpp")}</p>
+                                    <p className="text-sm">{format(new Date(log.timestamp), "PPpp")}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Status</label>
+                                    <p className="text-sm">{log.success ? "Success" : "Failed"}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Actor Type</label>
+                                    <p className="text-sm">{log.actorType}</p>
                                   </div>
                                 </div>
 

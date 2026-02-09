@@ -8,6 +8,7 @@ import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, UserRole, registerSchema, completeProfileSchema } from "@shared/schema";
 import { sendPasswordResetEmail } from "./email";
+import { AuditService } from "./audit";
 
 declare global {
   namespace Express {
@@ -110,6 +111,15 @@ export function setupAuth(app: Express) {
           
           if (!user) {
             console.log(`[LOGIN DEBUG] FAILED - User not found for email: "${normalizedEmail}"`);
+            const systemAudit = AuditService.system();
+            await systemAudit.log({
+              action: 'LOGIN_FAILED',
+              resourceType: 'USER',
+              resourceName: normalizedEmail,
+              success: false,
+              errorMessage: 'User not found',
+              metadata: { attemptedEmail: normalizedEmail },
+            });
             return done(null, false, { message: "Invalid email or password" });
           }
           
@@ -122,6 +132,15 @@ export function setupAuth(app: Express) {
               (new Date(user.lockedUntil).getTime() - Date.now()) / 60000
             );
             console.log(`[LOGIN DEBUG] FAILED - Account locked for ${minutesRemaining} more minutes`);
+            const lockAudit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role });
+            await lockAudit.log({
+              action: 'LOGIN_FAILED',
+              resourceType: 'USER',
+              resourceId: user.id,
+              resourceName: user.email,
+              success: false,
+              errorMessage: `Account locked for ${minutesRemaining} more minutes`,
+            });
             return done(null, false, { 
               message: `Account locked. Try again in ${minutesRemaining} minutes.` 
             });
@@ -129,6 +148,15 @@ export function setupAuth(app: Express) {
 
           if (!user.isActive) {
             console.log(`[LOGIN DEBUG] FAILED - Account is deactivated`);
+            const inactiveAudit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role });
+            await inactiveAudit.log({
+              action: 'LOGIN_FAILED',
+              resourceType: 'USER',
+              resourceId: user.id,
+              resourceName: user.email,
+              success: false,
+              errorMessage: 'Account is deactivated',
+            });
             return done(null, false, { message: "Account is deactivated" });
           }
 
@@ -139,15 +167,34 @@ export function setupAuth(app: Express) {
             console.log(`[LOGIN DEBUG] FAILED - Invalid password for user: ${user.email}`);
             await storage.incrementFailedLoginAttempts(user.id);
             
+            const userAudit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role });
+            
             const updatedUser = await storage.getUser(user.id);
             if (updatedUser && updatedUser.failedLoginAttempts && updatedUser.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
               const lockUntil = new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000);
               await storage.lockAccount(user.id, lockUntil);
               console.log(`[LOGIN DEBUG] Account locked due to too many failed attempts`);
+              await userAudit.log({
+                action: 'ACCOUNT_LOCKED',
+                resourceType: 'USER',
+                resourceId: user.id,
+                resourceName: user.email,
+                metadata: { reason: 'Too many failed login attempts', lockedUntil: lockUntil.toISOString(), failedAttempts: updatedUser.failedLoginAttempts },
+              });
               return done(null, false, { 
                 message: `Too many failed attempts. Account locked for ${LOCKOUT_DURATION_MINUTES} minutes.` 
               });
             }
+            
+            await userAudit.log({
+              action: 'LOGIN_FAILED',
+              resourceType: 'USER',
+              resourceId: user.id,
+              resourceName: user.email,
+              success: false,
+              errorMessage: 'Invalid password',
+              metadata: { failedAttempts: updatedUser?.failedLoginAttempts || 1 },
+            });
             
             return done(null, false, { message: "Invalid email or password" });
           }
@@ -213,8 +260,17 @@ export function setupAuth(app: Express) {
         isProfileComplete: false,
       });
 
-      req.login(user, (err) => {
+      req.login(user, async (err) => {
         if (err) return next(err);
+        
+        const audit = AuditService.fromRequest(req);
+        await audit.log({
+          action: 'USER_CREATED',
+          resourceType: 'USER',
+          resourceId: user.id,
+          resourceName: user.email,
+          metadata: { role, firstName, lastName, registrationMethod: 'self' },
+        });
         
         const { password: _, ...safeUser } = user;
         res.status(201).json(safeUser);
@@ -234,15 +290,33 @@ export function setupAuth(app: Express) {
       const maxAge = req.body.rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
       req.session.cookie.maxAge = maxAge;
 
-      req.login(user, (err) => {
+      req.login(user, async (err) => {
         if (err) return next(err);
+        const audit = AuditService.fromRequest(req);
+        await audit.log({
+          action: 'LOGIN_SUCCESS',
+          resourceType: 'USER',
+          resourceId: user.id,
+          resourceName: user.email,
+          metadata: { rememberMe: !!req.body.rememberMe },
+        });
         const { password: _, ...safeUser } = user;
         res.status(200).json(safeUser);
       });
     })(req, res, next);
   });
 
-  app.post("/api/logout", (req, res, next) => {
+  app.post("/api/logout", async (req, res, next) => {
+    const user = req.user;
+    if (user) {
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'LOGOUT',
+        resourceType: 'USER',
+        resourceId: user.id,
+        resourceName: user.email,
+      });
+    }
     req.logout((err) => {
       if (err) return next(err);
       req.session.destroy((err) => {
@@ -286,11 +360,17 @@ export function setupAuth(app: Express) {
         });
         console.log(`[PASSWORD RESET DEBUG] Reset token saved to database, expires: ${resetExpires.toISOString()}`);
 
-        // Use production URL for password reset emails
         const resetUrl = `https://mentorship.sonsiel.org/reset-password/${resetToken}`;
         console.log(`[PASSWORD RESET DEBUG] Reset URL generated: ${resetUrl}`);
 
-        // Send the password reset email - wait for it to complete
+        const audit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role, ipAddress: req.headers['x-forwarded-for']?.toString()?.split(',')[0]?.trim() || req.socket?.remoteAddress || null, userAgent: req.headers['user-agent'] || null });
+        await audit.log({
+          action: 'PASSWORD_RESET_REQUESTED',
+          resourceType: 'USER',
+          resourceId: user.id,
+          resourceName: user.email,
+        });
+
         try {
           const emailResult = await sendPasswordResetEmail({
             email: user.email,
@@ -300,9 +380,16 @@ export function setupAuth(app: Express) {
 
           if (!emailResult.success) {
             console.error(`[PASSWORD RESET DEBUG] FAILED - Email send error for ${email}:`, emailResult.error);
-            // Return error to user so they know something went wrong
             return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
           }
+          
+          await audit.log({
+            action: 'EMAIL_SENT',
+            resourceType: 'USER',
+            resourceId: user.id,
+            resourceName: user.email,
+            metadata: { emailType: 'password_reset', recipient: user.email },
+          });
           
           console.log(`[PASSWORD RESET DEBUG] SUCCESS - Password reset email sent to ${email}`);
         } catch (emailError: any) {
@@ -358,6 +445,14 @@ export function setupAuth(app: Express) {
         lockedUntil: null,
       });
 
+      const audit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role, ipAddress: req.headers['x-forwarded-for']?.toString()?.split(',')[0]?.trim() || req.socket?.remoteAddress || null, userAgent: req.headers['user-agent'] || null });
+      await audit.log({
+        action: 'PASSWORD_RESET_COMPLETED',
+        resourceType: 'USER',
+        resourceId: user.id,
+        resourceName: user.email,
+      });
+
       console.log(`[RESET PASSWORD DEBUG] SUCCESS - Password reset completed for ${user.email}`);
       res.json({ message: "Password reset successful" });
     } catch (error) {
@@ -390,11 +485,19 @@ export function setupAuth(app: Express) {
         return res.status(401).json({ message: "Current password is incorrect" });
       }
 
-      // Hash and save new password, clear mustChangePassword flag
       const hashedPassword = await hashPassword(newPassword);
       await storage.updateUser(user.id, {
         password: hashedPassword,
         mustChangePassword: false,
+      });
+
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'PASSWORD_CHANGED',
+        resourceType: 'USER',
+        resourceId: user.id,
+        resourceName: user.email,
+        metadata: { mustChangePassword: !!user.mustChangePassword },
       });
 
       console.log(`[CHANGE PASSWORD] SUCCESS - Password changed for ${user.email}`);
@@ -431,6 +534,14 @@ export function setupAuth(app: Express) {
         isVerified: true,
         emailVerificationToken: null,
         emailVerificationExpires: null,
+      });
+
+      const audit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role });
+      await audit.log({
+        action: 'EMAIL_VERIFICATION',
+        resourceType: 'USER',
+        resourceId: user.id,
+        resourceName: user.email,
       });
 
       res.json({ message: "Email verified successfully" });

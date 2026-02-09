@@ -249,11 +249,21 @@ export async function registerRoutes(
   app.patch("/api/users/:id/deactivate", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
       const { id } = req.params;
+      const targetUser = await storage.getUser(id);
       const updatedUser = await storage.updateUser(id, { isActive: false });
       
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
+
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_DEACTIVATED',
+        resourceType: 'USER',
+        resourceId: id,
+        resourceName: targetUser?.email || updatedUser.email,
+        metadata: { deactivatedBy: req.user!.email },
+      });
 
       res.json({ message: "User deactivated successfully" });
     } catch (error) {
@@ -264,11 +274,21 @@ export async function registerRoutes(
   app.patch("/api/users/:id/activate", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
       const { id } = req.params;
+      const targetUser = await storage.getUser(id);
       const updatedUser = await storage.updateUser(id, { isActive: true });
       
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
+
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_ACTIVATED',
+        resourceType: 'USER',
+        resourceId: id,
+        resourceName: targetUser?.email || updatedUser.email,
+        metadata: { activatedBy: req.user!.email },
+      });
 
       res.json({ message: "User activated successfully" });
     } catch (error) {
@@ -297,8 +317,16 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Only Super Admins can delete admin accounts" });
       }
       
-      // Permanently delete the user
       await storage.deleteUser(id);
+      
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_DELETED',
+        resourceType: 'USER',
+        resourceId: id,
+        resourceName: userToDelete.email,
+        metadata: { deletedBy: req.user!.email, deletedUserRole: userToDelete.role },
+      });
       
       res.json({ message: "User deleted successfully" });
     } catch (error) {
@@ -408,6 +436,15 @@ export async function registerRoutes(
         // For now, we keep the profile data but it won't affect role inference
       }
 
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_UPDATED',
+        resourceType: 'USER',
+        resourceId: id,
+        resourceName: user.email,
+        metadata: { updatedBy: req.user!.email, mentorshipRole, sectionsUpdated: Object.keys(req.body).filter(k => req.body[k]) },
+      });
+
       res.json({ message: "Profile updated successfully" });
     } catch (error) {
       next(error);
@@ -473,7 +510,15 @@ export async function registerRoutes(
 
       const { password: _, ...safeUser } = user;
 
-      // Automatically send welcome email with temporary password
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_CREATED',
+        resourceType: 'USER',
+        resourceId: user.id,
+        resourceName: user.email,
+        metadata: { role, firstName, lastName, createdBy: req.user!.email, registrationMethod: 'admin' },
+      });
+
       try {
         const { sendWelcomeEmail, getTrustedBaseUrl } = await import("./email");
         const baseUrl = getTrustedBaseUrl();
@@ -484,8 +529,25 @@ export async function registerRoutes(
           temporaryPassword: password,
           loginUrl: baseUrl,
         });
-        if (!emailResult.success) {
+        if (emailResult.success) {
+          await audit.log({
+            action: 'EMAIL_SENT',
+            resourceType: 'USER',
+            resourceId: user.id,
+            resourceName: user.email,
+            metadata: { emailType: 'welcome', recipient: email },
+          });
+        } else {
           console.warn(`Welcome email failed for ${email}:`, emailResult.error);
+          await audit.log({
+            action: 'EMAIL_SENT',
+            resourceType: 'USER',
+            resourceId: user.id,
+            resourceName: user.email,
+            success: false,
+            errorMessage: emailResult.error || 'Failed to send welcome email',
+            metadata: { emailType: 'welcome', recipient: email },
+          });
         }
       } catch (emailError) {
         console.warn(`Failed to send welcome email to ${email}:`, emailError);
@@ -501,7 +563,6 @@ export async function registerRoutes(
     }
   });
 
-  // Admin update user role
   app.patch("/api/admin/users/:id/role", requireRole("SUPER_ADMIN"), async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -511,11 +572,23 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid role" });
       }
 
+      const previousUser = await storage.getUser(id);
       const updatedUser = await storage.updateUser(id, { role });
       
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
+
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_ROLE_CHANGED',
+        resourceType: 'USER',
+        resourceId: id,
+        resourceName: updatedUser.email,
+        previousState: { role: previousUser?.role },
+        newState: { role },
+        metadata: { changedBy: req.user!.email, previousRole: previousUser?.role, newRole: role },
+      });
 
       const { password: _, ...safeUser } = updatedUser;
       res.json(safeUser);
@@ -766,6 +839,28 @@ export async function registerRoutes(
           const user = await storage.getUser(userId);
           results.failed.push({ userId, email: user?.email || "unknown", error: error.message || "Unknown error" });
         }
+      }
+
+      const audit = AuditService.fromRequest(req);
+      for (const s of results.successful) {
+        await audit.log({
+          action: 'EMAIL_SENT',
+          resourceType: 'USER',
+          resourceId: s.userId,
+          resourceName: s.email,
+          metadata: { emailType: 'welcome', recipient: s.email, sentBy: req.user!.email },
+        });
+      }
+      for (const f of results.failed) {
+        await audit.log({
+          action: 'EMAIL_SENT',
+          resourceType: 'USER',
+          resourceId: f.userId,
+          resourceName: f.email,
+          success: false,
+          errorMessage: f.error,
+          metadata: { emailType: 'welcome', recipient: f.email, sentBy: req.user!.email },
+        });
       }
 
       res.json({
@@ -1762,6 +1857,16 @@ export async function registerRoutes(
       }
       
       const { password: _, ...safeUser } = updatedUser;
+
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'PROFILE_UPDATED',
+        resourceType: 'USER',
+        resourceId: userId,
+        resourceName: updatedUser.email,
+        metadata: { mentorshipRole, sectionsUpdated: Object.keys(req.body).filter(k => req.body[k]) },
+      });
+
       res.json({ 
         success: true, 
         user: safeUser,
@@ -3067,6 +3172,15 @@ export async function registerRoutes(
         }
       }
       
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'DOCUMENT_UPLOADED',
+        resourceType: 'DOCUMENT',
+        resourceId: doc.id,
+        resourceName: doc.name,
+        metadata: { folderId: doc.folderId, visibility: doc.visibility, mimeType: doc.mimeType },
+      });
+
       res.status(201).json(doc);
     } catch (error) {
       next(error);
