@@ -144,7 +144,7 @@ function Router() {
       <ProtectedRoute path="/feedback" component={SubmissionsPage} />
       <ProtectedRoute path="/profile/:userId" component={ProfileViewPage} />
       <ProtectedRoute path="/profile" component={ProfileViewPage} />
-      <ProtectedRoute path="/my-profile" component={MyProfilePage} />
+      <ProtectedRoute path="/my-profile" component={MyProfilePage} requireCompleteProfile={false} />
       <ProtectedRoute path="/" component={HomePage} />
       <LazyRoute component={NotFound} />
     </Switch>

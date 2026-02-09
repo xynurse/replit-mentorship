@@ -1,6 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Save, User, Briefcase, GraduationCap, Users, Heart, Camera } from "lucide-react";
+import { useLocation } from "wouter";
+import { Loader2, Save, User, Briefcase, GraduationCap, Users, Heart, Camera, ClipboardList } from "lucide-react";
 import { useState, useRef } from "react";
 import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Form,
   FormControl,
@@ -119,6 +121,8 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 export default function MyProfilePage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const isFirstTimeSetup = !user?.isProfileComplete;
   const [activeTab, setActiveTab] = useState("core");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -301,10 +305,16 @@ export default function MyProfilePage() {
         mentorProfileExtended: values.mentorshipRoleChoice === "providing_mentorship" || values.mentorshipRoleChoice === "both" ? mentorProfileExtended : undefined,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/profile/complete"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({ title: "Profile saved successfully" });
+      if (isFirstTimeSetup) {
+        queryClient.setQueryData(["/api/user"], (old: any) => old ? { ...old, isProfileComplete: true } : old);
+        toast({ title: "Profile completed!", description: "Welcome to SONSIEL Mentorship Hub" });
+        setTimeout(() => setLocation("/"), 100);
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+        toast({ title: "Profile saved successfully" });
+      }
     },
     onError: () => {
       toast({ title: "Failed to save profile", variant: "destructive" });
@@ -328,9 +338,19 @@ export default function MyProfilePage() {
     );
   }
 
-  return (
-    <DashboardLayout>
+  const profileContent = (
       <div className="container max-w-4xl p-6">
+        {isFirstTimeSetup && (
+          <Alert className="mb-6 border-primary/30 bg-primary/5" data-testid="alert-complete-profile">
+            <ClipboardList className="h-5 w-5 text-primary" />
+            <AlertTitle className="text-lg">Welcome, {user?.firstName}!</AlertTitle>
+            <AlertDescription>
+              Please complete your profile information below to get started with your mentorship experience. 
+              Fill in the details across each tab, then click "Save Profile" at the bottom when you're done.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="mb-6 flex items-center gap-4">
           <div className="relative group">
             <Avatar className="h-16 w-16 border-2 border-border">
@@ -361,8 +381,13 @@ export default function MyProfilePage() {
             />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold">My Profile</h1>
-            <p className="text-muted-foreground">Manage your profile information and mentorship preferences</p>
+            <h1 className="text-2xl font-semibold">{isFirstTimeSetup ? "Complete Your Profile" : "My Profile"}</h1>
+            <p className="text-muted-foreground">
+              {isFirstTimeSetup 
+                ? "Set up your profile to connect with mentors and mentees"
+                : "Manage your profile information and mentorship preferences"
+              }
+            </p>
           </div>
         </div>
 
@@ -1180,12 +1205,12 @@ export default function MyProfilePage() {
                 {saveProfileMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    {isFirstTimeSetup ? "Completing..." : "Saving..."}
                   </>
                 ) : (
                   <>
                     <Save className="mr-2 h-4 w-4" />
-                    Save Profile
+                    {isFirstTimeSetup ? "Complete Profile" : "Save Profile"}
                   </>
                 )}
               </Button>
@@ -1193,6 +1218,11 @@ export default function MyProfilePage() {
           </form>
         </Form>
       </div>
+  );
+
+  return (
+    <DashboardLayout>
+      {profileContent}
     </DashboardLayout>
   );
 }
