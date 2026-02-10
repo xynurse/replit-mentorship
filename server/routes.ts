@@ -3720,6 +3720,70 @@ export async function registerRoutes(
     }
   });
 
+  // Share document with multiple users at once
+  app.post("/api/documents/:id/share-bulk", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const currentUser = req.user as any;
+      const doc = await storage.getDocument(req.params.id);
+
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+
+      const { userIds, message } = req.body;
+
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ message: "At least one user ID is required" });
+      }
+
+      const results: { userId: string; success: boolean; error?: string }[] = [];
+
+      for (const userId of userIds) {
+        try {
+          await storage.grantDocumentAccess({
+            documentId: req.params.id,
+            userId,
+            accessType: "VIEW",
+            grantedById: currentUser.id,
+          });
+
+          await storage.createNotification({
+            userId,
+            type: "DOCUMENT_SHARED",
+            title: "Document Shared",
+            message: `${currentUser.firstName} ${currentUser.lastName} shared a document with you: ${doc.name}${message ? ` - "${message}"` : ""}`,
+            priority: "NORMAL",
+            resourceType: "DOCUMENT",
+            resourceId: doc.id,
+            data: { documentId: doc.id, sharedById: currentUser.id, message: message || null },
+          });
+
+          results.push({ userId, success: true });
+        } catch (err: any) {
+          results.push({ userId, success: false, error: err.message });
+        }
+      }
+
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'DOCUMENT_SHARED',
+        resourceType: 'DOCUMENT',
+        resourceId: doc.id,
+        resourceName: doc.name,
+        metadata: { recipientCount: userIds.length, message },
+      });
+
+      res.status(201).json({
+        success: true,
+        sharedCount: results.filter(r => r.success).length,
+        totalRequested: userIds.length,
+        results,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // ============= GOAL MANAGEMENT ROUTES =============
 
   // Get goals with filtering

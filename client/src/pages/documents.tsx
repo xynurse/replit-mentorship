@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
@@ -128,8 +129,9 @@ export default function DocumentsPage() {
   
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareDocumentId, setShareDocumentId] = useState<string | null>(null);
-  const [shareUserId, setShareUserId] = useState<string>("");
+  const [shareUserIds, setShareUserIds] = useState<string[]>([]);
   const [shareMessage, setShareMessage] = useState("");
+  const [shareUserSearch, setShareUserSearch] = useState("");
   
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
@@ -161,6 +163,9 @@ export default function DocumentsPage() {
   const [documentDescription, setDocumentDescription] = useState("");
   const [documentCategory, setDocumentCategory] = useState<DocumentCategory>("OTHER");
   const [documentVisibility, setDocumentVisibility] = useState<DocumentVisibility>("PRIVATE");
+  const [uploadShareUserIds, setUploadShareUserIds] = useState<string[]>([]);
+  const [uploadShareSearch, setUploadShareSearch] = useState("");
+  const [uploadShareEnabled, setUploadShareEnabled] = useState(false);
 
   const { data: systemFolder } = useQuery<Folder>({
     queryKey: ["/api/folders/system"],
@@ -180,7 +185,7 @@ export default function DocumentsPage() {
 
   const { data: shareableUsers } = useQuery<{ id: string; firstName: string; lastName: string; email: string }[]>({
     queryKey: ["/api/users/messageable"],
-    enabled: showShareDialog,
+    enabled: showShareDialog || (uploadShareEnabled && showUploadDialog),
   });
 
   const effectiveFolderId = activeTab === "system" 
@@ -236,18 +241,52 @@ export default function DocumentsPage() {
       category: DocumentCategory;
       visibility: DocumentVisibility;
       folderId?: string | null;
+      shareWithUserIds?: string[];
     }) => {
-      const res = await apiRequest("POST", "/api/documents", data);
-      return res.json();
+      const { shareWithUserIds, ...docData } = data;
+      const res = await apiRequest("POST", "/api/documents", docData);
+      const doc = await res.json();
+
+      let shareError = false;
+      let sharedCount = 0;
+      if (shareWithUserIds && shareWithUserIds.length > 0) {
+        try {
+          if (shareWithUserIds.length === 1) {
+            await apiRequest("POST", `/api/documents/${doc.id}/share`, {
+              userId: shareWithUserIds[0],
+            });
+            sharedCount = 1;
+          } else {
+            const shareRes = await apiRequest("POST", `/api/documents/${doc.id}/share-bulk`, {
+              userIds: shareWithUserIds,
+            });
+            const shareResult = await shareRes.json();
+            sharedCount = shareResult.sharedCount || 0;
+          }
+        } catch {
+          shareError = true;
+        }
+      }
+      return { doc, sharedCount, shareError, requestedShareCount: shareWithUserIds?.length || 0 };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
-      toast({ title: "Document uploaded successfully" });
+      if (result.shareError) {
+        toast({
+          title: "Document uploaded, but sharing failed",
+          description: "The document was saved. You can try sharing it again from the document menu.",
+          variant: "destructive",
+        });
+      } else if (result.sharedCount > 0) {
+        toast({ title: `Document uploaded and shared with ${result.sharedCount} user${result.sharedCount !== 1 ? "s" : ""}` });
+      } else {
+        toast({ title: "Document uploaded successfully" });
+      }
       setShowUploadDialog(false);
       resetUploadForm();
     },
     onError: () => {
-      toast({ title: "Failed to create document", variant: "destructive" });
+      toast({ title: "Failed to upload document", variant: "destructive" });
     },
   });
 
@@ -295,19 +334,28 @@ export default function DocumentsPage() {
   });
 
   const shareDocumentMutation = useMutation({
-    mutationFn: async (data: { documentId: string; userId: string; message?: string }) => {
-      const res = await apiRequest("POST", `/api/documents/${data.documentId}/share`, {
-        userId: data.userId,
+    mutationFn: async (data: { documentId: string; userIds: string[]; message?: string }) => {
+      if (data.userIds.length === 1) {
+        const res = await apiRequest("POST", `/api/documents/${data.documentId}/share`, {
+          userId: data.userIds[0],
+          message: data.message,
+        });
+        return res.json();
+      }
+      const res = await apiRequest("POST", `/api/documents/${data.documentId}/share-bulk`, {
+        userIds: data.userIds,
         message: data.message,
       });
       return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Document shared successfully" });
+    onSuccess: (result: any) => {
+      const count = result?.sharedCount || 1;
+      toast({ title: `Document shared with ${count} user${count !== 1 ? "s" : ""} successfully` });
       setShowShareDialog(false);
       setShareDocumentId(null);
-      setShareUserId("");
+      setShareUserIds([]);
       setShareMessage("");
+      setShareUserSearch("");
     },
     onError: () => {
       toast({ title: "Failed to share document", variant: "destructive" });
@@ -336,10 +384,10 @@ export default function DocumentsPage() {
   });
 
   const handleShareDocument = () => {
-    if (!shareDocumentId || !shareUserId) return;
+    if (!shareDocumentId || shareUserIds.length === 0) return;
     shareDocumentMutation.mutate({
       documentId: shareDocumentId,
-      userId: shareUserId,
+      userIds: shareUserIds,
       message: shareMessage,
     });
   };
@@ -468,6 +516,9 @@ export default function DocumentsPage() {
     setDocumentDescription("");
     setDocumentCategory("OTHER");
     setDocumentVisibility("PRIVATE");
+    setUploadShareUserIds([]);
+    setUploadShareSearch("");
+    setUploadShareEnabled(false);
   };
 
   const handleUploadComplete = (result: any) => {
@@ -493,7 +544,6 @@ export default function DocumentsPage() {
   const handleSaveDocument = () => {
     if (!uploadedFile) return;
     
-    // Use effectiveFolderId to save to the correct folder based on active tab
     const targetFolderId = currentFolderId || effectiveFolderId;
     
     createDocumentMutation.mutate({
@@ -506,6 +556,7 @@ export default function DocumentsPage() {
       category: documentCategory,
       visibility: documentVisibility,
       folderId: targetFolderId,
+      shareWithUserIds: uploadShareEnabled ? uploadShareUserIds : undefined,
     });
   };
 
@@ -664,6 +715,111 @@ export default function DocumentsPage() {
                           </Select>
                         </div>
                       </div>
+
+                      {isAdmin && (
+                        <div className="space-y-2 border-t pt-4">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              id="upload-share-toggle"
+                              className="h-4 w-4 rounded border-input"
+                              checked={uploadShareEnabled}
+                              onChange={(e) => {
+                                setUploadShareEnabled(e.target.checked);
+                                if (!e.target.checked) {
+                                  setUploadShareUserIds([]);
+                                  setUploadShareSearch("");
+                                }
+                              }}
+                              data-testid="checkbox-upload-share-toggle"
+                            />
+                            <Label htmlFor="upload-share-toggle" className="cursor-pointer">
+                              Share with specific users after upload
+                            </Label>
+                          </div>
+                          {uploadShareEnabled && (
+                            <div className="space-y-2 pl-1">
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  placeholder="Search users..."
+                                  value={uploadShareSearch}
+                                  onChange={(e) => setUploadShareSearch(e.target.value)}
+                                  className="pl-9"
+                                  data-testid="input-upload-share-search"
+                                />
+                              </div>
+                              {uploadShareUserIds.length > 0 && (
+                                <p className="text-sm text-muted-foreground">
+                                  {uploadShareUserIds.length} user{uploadShareUserIds.length !== 1 ? "s" : ""} selected
+                                </p>
+                              )}
+                              <ScrollArea className="h-[150px] border rounded-md">
+                                <div className="p-2 space-y-1">
+                                  {(() => {
+                                    const filtered = shareableUsers?.filter((u) => {
+                                      if (!uploadShareSearch) return true;
+                                      const q = uploadShareSearch.toLowerCase();
+                                      return u.firstName.toLowerCase().includes(q) ||
+                                        u.lastName.toLowerCase().includes(q) ||
+                                        u.email.toLowerCase().includes(q);
+                                    }) || [];
+                                    return (
+                                      <>
+                                        {filtered.length > 1 && (
+                                          <label className="flex items-center gap-3 p-2 rounded-md hover-elevate cursor-pointer" data-testid="checkbox-upload-select-all">
+                                            <input
+                                              type="checkbox"
+                                              className="h-4 w-4 rounded border-input"
+                                              checked={filtered.length > 0 && filtered.every(u => uploadShareUserIds.includes(u.id))}
+                                              onChange={(e) => {
+                                                if (e.target.checked) {
+                                                  setUploadShareUserIds(prev => [...new Set([...prev, ...filtered.map(u => u.id)])]);
+                                                } else {
+                                                  const filteredIds = new Set(filtered.map(u => u.id));
+                                                  setUploadShareUserIds(prev => prev.filter(id => !filteredIds.has(id)));
+                                                }
+                                              }}
+                                            />
+                                            <span className="text-sm font-medium">Select All ({filtered.length})</span>
+                                          </label>
+                                        )}
+                                        {filtered.map((u) => (
+                                          <label
+                                            key={u.id}
+                                            className="flex items-center gap-3 p-2 rounded-md hover-elevate cursor-pointer"
+                                            data-testid={`checkbox-upload-user-${u.id}`}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              className="h-4 w-4 rounded border-input"
+                                              checked={uploadShareUserIds.includes(u.id)}
+                                              onChange={(e) => {
+                                                if (e.target.checked) {
+                                                  setUploadShareUserIds(prev => [...prev, u.id]);
+                                                } else {
+                                                  setUploadShareUserIds(prev => prev.filter(id => id !== u.id));
+                                                }
+                                              }}
+                                            />
+                                            <div className="flex flex-col min-w-0">
+                                              <span className="text-sm font-medium">{u.firstName} {u.lastName}</span>
+                                              <span className="text-xs text-muted-foreground truncate">{u.email}</span>
+                                            </div>
+                                          </label>
+                                        ))}
+                                        {filtered.length === 0 && (
+                                          <p className="text-sm text-muted-foreground text-center py-4">No users found</p>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              </ScrollArea>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -681,7 +837,16 @@ export default function DocumentsPage() {
                       disabled={createDocumentMutation.isPending}
                       data-testid="button-save-document"
                     >
-                      Save Document
+                      {createDocumentMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          {uploadShareEnabled && uploadShareUserIds.length > 0 ? "Uploading & Sharing..." : "Saving..."}
+                        </>
+                      ) : (
+                        uploadShareEnabled && uploadShareUserIds.length > 0
+                          ? `Save & Share with ${uploadShareUserIds.length} User${uploadShareUserIds.length !== 1 ? "s" : ""}`
+                          : "Save Document"
+                      )}
                     </Button>
                   </DialogFooter>
                 )}
@@ -778,29 +943,104 @@ export default function DocumentsPage() {
         </Tabs>
 
         {/* Share Document Dialog */}
-        <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
-          <DialogContent>
+        <Dialog open={showShareDialog} onOpenChange={(open) => {
+          setShowShareDialog(open);
+          if (!open) {
+            setShareUserIds([]);
+            setShareMessage("");
+            setShareUserSearch("");
+          }
+        }}>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Share Document</DialogTitle>
               <DialogDescription>
-                Share this document with another user. They will receive a notification.
+                Select one or more users to share this document with. They will each receive a notification.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label>Share with User</Label>
-                <Select value={shareUserId} onValueChange={setShareUserId}>
-                  <SelectTrigger data-testid="select-share-user">
-                    <SelectValue placeholder="Select a user" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shareableUsers?.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.firstName} {u.lastName} ({u.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Share with Users</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users by name or email..."
+                    value={shareUserSearch}
+                    onChange={(e) => setShareUserSearch(e.target.value)}
+                    className="pl-9"
+                    data-testid="input-share-user-search"
+                  />
+                </div>
+                {shareUserIds.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {shareUserIds.length} user{shareUserIds.length !== 1 ? "s" : ""} selected
+                  </p>
+                )}
+                <ScrollArea className="h-[200px] border rounded-md">
+                  <div className="p-2 space-y-1">
+                    {(() => {
+                      const filtered = shareableUsers?.filter((u) => {
+                        if (!shareUserSearch) return true;
+                        const q = shareUserSearch.toLowerCase();
+                        return u.firstName.toLowerCase().includes(q) ||
+                          u.lastName.toLowerCase().includes(q) ||
+                          u.email.toLowerCase().includes(q);
+                      }) || [];
+                      return (
+                        <>
+                          {filtered.length > 1 && (
+                            <label
+                              className="flex items-center gap-3 p-2 rounded-md hover-elevate cursor-pointer"
+                              data-testid="checkbox-select-all"
+                            >
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-input"
+                                checked={filtered.length > 0 && filtered.every(u => shareUserIds.includes(u.id))}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setShareUserIds(prev => [...new Set([...prev, ...filtered.map(u => u.id)])]);
+                                  } else {
+                                    const filteredIds = new Set(filtered.map(u => u.id));
+                                    setShareUserIds(prev => prev.filter(id => !filteredIds.has(id)));
+                                  }
+                                }}
+                              />
+                              <span className="text-sm font-medium">Select All ({filtered.length})</span>
+                            </label>
+                          )}
+                          {filtered.map((u) => (
+                            <label
+                              key={u.id}
+                              className="flex items-center gap-3 p-2 rounded-md hover-elevate cursor-pointer"
+                              data-testid={`checkbox-user-${u.id}`}
+                            >
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-input"
+                                checked={shareUserIds.includes(u.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setShareUserIds(prev => [...prev, u.id]);
+                                  } else {
+                                    setShareUserIds(prev => prev.filter(id => id !== u.id));
+                                  }
+                                }}
+                              />
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-sm font-medium">{u.firstName} {u.lastName}</span>
+                                <span className="text-xs text-muted-foreground truncate">{u.email}</span>
+                              </div>
+                            </label>
+                          ))}
+                          {filtered.length === 0 && (
+                            <p className="text-sm text-muted-foreground text-center py-4">No users found</p>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </ScrollArea>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="share-message">Message (optional)</Label>
@@ -808,7 +1048,7 @@ export default function DocumentsPage() {
                   id="share-message"
                   value={shareMessage}
                   onChange={(e) => setShareMessage(e.target.value)}
-                  placeholder="Add a message for the recipient..."
+                  placeholder="Add a message for the recipients..."
                   data-testid="input-share-message"
                 />
               </div>
@@ -819,11 +1059,20 @@ export default function DocumentsPage() {
               </Button>
               <Button
                 onClick={handleShareDocument}
-                disabled={!shareUserId || shareDocumentMutation.isPending}
+                disabled={shareUserIds.length === 0 || shareDocumentMutation.isPending}
                 data-testid="button-confirm-share"
               >
-                <Send className="h-4 w-4 mr-2" />
-                Share
+                {shareDocumentMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sharing...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Share with {shareUserIds.length || ""} User{shareUserIds.length !== 1 ? "s" : ""}
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
