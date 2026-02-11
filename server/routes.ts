@@ -527,7 +527,7 @@ export async function registerRoutes(
           firstName,
           lastName,
           temporaryPassword: password,
-          loginUrl: baseUrl,
+          loginUrl: `${baseUrl}/login`,
         });
         if (emailResult.success) {
           await audit.log({
@@ -689,7 +689,7 @@ export async function registerRoutes(
             lastName: u.lastName,
             temporaryPassword: u.tempPassword,
           }));
-          const emailResults = await sendBulkWelcomeEmails(emailUsers, baseUrl);
+          const emailResults = await sendBulkWelcomeEmails(emailUsers, `${baseUrl}/login`);
           console.log(`Bulk import: sent ${emailResults.successful.length} welcome emails, ${emailResults.failed.length} failed`);
         } catch (emailError) {
           console.warn('Failed to send bulk welcome emails:', emailError);

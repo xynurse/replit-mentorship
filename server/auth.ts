@@ -360,7 +360,8 @@ export function setupAuth(app: Express) {
         });
         console.log(`[PASSWORD RESET DEBUG] Reset token saved to database, expires: ${resetExpires.toISOString()}`);
 
-        const resetUrl = `https://mentorship.sonsiel.org/reset-password/${resetToken}`;
+        const { getTrustedBaseUrl } = await import("./email");
+        const resetUrl = `${getTrustedBaseUrl()}/reset-password/${resetToken}`;
         console.log(`[PASSWORD RESET DEBUG] Reset URL generated: ${resetUrl}`);
 
         const audit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role, ipAddress: req.headers['x-forwarded-for']?.toString()?.split(',')[0]?.trim() || req.socket?.remoteAddress || null, userAgent: req.headers['user-agent'] || null });
