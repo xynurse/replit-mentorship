@@ -125,8 +125,8 @@ function countFilled(...values: (string | number | boolean | string[] | null | u
   return { filled, total };
 }
 
-function InfoRow({ icon: Icon, label, value, href }: { icon: any; label: string; value: string | null | undefined; href?: string }) {
-  if (!value) return null;
+function InfoRow({ icon: Icon, label, value, href, alwaysShow }: { icon: any; label: string; value: string | null | undefined; href?: string; alwaysShow?: boolean }) {
+  if (!value && !alwaysShow) return null;
   return (
     <div className="flex items-start gap-3 py-2">
       <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
@@ -134,24 +134,32 @@ function InfoRow({ icon: Icon, label, value, href }: { icon: any; label: string;
       </div>
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
-        {href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm font-medium underline hover:opacity-80 break-all" data-testid={`link-${label.toLowerCase().replace(/\s/g, '-')}`}>
-            {value}
-          </a>
+        {value ? (
+          href ? (
+            <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm font-medium underline hover:opacity-80 break-all" data-testid={`link-${label.toLowerCase().replace(/\s/g, '-')}`}>
+              {value}
+            </a>
+          ) : (
+            <p className="text-sm font-medium break-words" data-testid={`text-${label.toLowerCase().replace(/\s/g, '-')}`}>{value}</p>
+          )
         ) : (
-          <p className="text-sm font-medium break-words" data-testid={`text-${label.toLowerCase().replace(/\s/g, '-')}`}>{value}</p>
+          <p className="text-sm text-muted-foreground italic" data-testid={`text-${label.toLowerCase().replace(/\s/g, '-')}`}>Not provided</p>
         )}
       </div>
     </div>
   );
 }
 
-function TextBlock({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null;
+function TextBlock({ label, value, alwaysShow }: { label: string; value: string | null | undefined; alwaysShow?: boolean }) {
+  if (!value && !alwaysShow) return null;
   return (
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground font-medium">{label}</p>
-      <p className="text-sm leading-relaxed">{value}</p>
+      {value ? (
+        <p className="text-sm leading-relaxed">{value}</p>
+      ) : (
+        <p className="text-sm text-muted-foreground italic">Not provided</p>
+      )}
     </div>
   );
 }
@@ -259,8 +267,8 @@ export default function ProfileViewPage() {
   const mentorshipRoleDisplay = formatMentorshipRole(profile.mentorshipRoleChoice);
   const menteeProfile = profile.menteeProfile;
   const mentorProfile = profile.mentorProfileExtended;
-  const isMentor = profile.role === "MENTOR" || profile.role === "SUPER_ADMIN" || profile.role === "ADMIN";
-  const isMentee = profile.role === "MENTEE";
+  const showMentorSection = profile.role === "MENTOR" || profile.role === "SUPER_ADMIN" || profile.role === "ADMIN" || !!mentorProfile;
+  const showMenteeSection = profile.role === "MENTEE" || !!menteeProfile;
   const photoUrl = profile.profileImage
     ? `/api/profile-photo/${profile.id}`
     : undefined;
@@ -435,183 +443,203 @@ export default function ProfileViewPage() {
           </CardContent>
         </Card>
 
-        {menteeProfile && (
+        {showMenteeSection && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <GraduationCap className="h-4 w-4" />
                 Mentee Profile
               </CardTitle>
-              <SectionCompleteness section="mentee" {...countFilled(
-                menteeProfile.careerStage,
-                menteeProfile.preferredDuration,
-                menteeProfile.monthlyHoursAvailable,
-                menteeProfile.shortTermGoals,
-                menteeProfile.longTermVision,
-                menteeProfile.specificSkillsSeeking,
-                menteeProfile.primaryMotivations,
-                menteeProfile.hopingToGain,
-                menteeProfile.preferredMethods,
-              )} />
+              {menteeProfile && (
+                <SectionCompleteness section="mentee" {...countFilled(
+                  menteeProfile.careerStage,
+                  menteeProfile.preferredDuration,
+                  menteeProfile.monthlyHoursAvailable,
+                  menteeProfile.shortTermGoals,
+                  menteeProfile.longTermVision,
+                  menteeProfile.specificSkillsSeeking,
+                  menteeProfile.primaryMotivations,
+                  menteeProfile.hopingToGain,
+                  menteeProfile.preferredMethods,
+                )} />
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoRow icon={Target} label="Career Stage" value={formatCareerStage(menteeProfile.careerStage)} />
-                <InfoRow icon={Clock} label="Preferred Duration" value={formatDuration(menteeProfile.preferredDuration)} />
-                <InfoRow icon={Clock} label="Monthly Availability" value={menteeProfile.monthlyHoursAvailable ? `${menteeProfile.monthlyHoursAvailable} hours` : null} />
-                <InfoRow icon={CheckCircle} label="Previously Mentored" value={menteeProfile.previouslyBeenMentored ? "Yes" : menteeProfile.previouslyBeenMentored === false ? "No" : null} />
+                <InfoRow icon={Target} label="Career Stage" value={formatCareerStage(menteeProfile?.careerStage)} alwaysShow />
+                <InfoRow icon={Clock} label="Preferred Duration" value={formatDuration(menteeProfile?.preferredDuration)} alwaysShow />
+                <InfoRow icon={Clock} label="Monthly Availability" value={menteeProfile?.monthlyHoursAvailable ? `${menteeProfile.monthlyHoursAvailable} hours` : null} alwaysShow />
+                <InfoRow icon={CheckCircle} label="Previously Mentored" value={menteeProfile?.previouslyBeenMentored ? "Yes" : menteeProfile?.previouslyBeenMentored === false ? "No" : null} alwaysShow />
               </div>
 
-              {menteeProfile.previouslyBeenMentored && menteeProfile.mentorshipExperienceDescription && (
-                <TextBlock label="Previous Mentorship Experience" value={menteeProfile.mentorshipExperienceDescription} />
+              {menteeProfile?.previouslyBeenMentored && (
+                <TextBlock label="Previous Mentorship Experience" value={menteeProfile.mentorshipExperienceDescription} alwaysShow />
               )}
 
-              <TextBlock label="Short-Term Goals" value={menteeProfile.shortTermGoals} />
-              <TextBlock label="Long-Term Vision" value={menteeProfile.longTermVision} />
-              <TextBlock label="Current Project or Idea" value={menteeProfile.currentProjectOrIdea} />
-              <TextBlock label="Primary Motivations" value={menteeProfile.primaryMotivations} />
-              <TextBlock label="Specific Skills Seeking" value={menteeProfile.specificSkillsSeeking} />
-              <TextBlock label="Preferred Mentor Characteristics" value={menteeProfile.preferredMentorCharacteristics} />
-              <TextBlock label="Past Successes" value={menteeProfile.pastSuccesses} />
-              <TextBlock label="Past Challenges" value={menteeProfile.pastChallenges} />
-              <TextBlock label="Effective Structures" value={menteeProfile.effectiveStructures} />
-              <TextBlock label="Resources Needed" value={menteeProfile.resourcesNeeded} />
-              <TextBlock label="Program Suggestions" value={menteeProfile.programSuggestions} />
-              <TextBlock label="Availability Notes" value={menteeProfile.availabilityNotes} />
+              <TextBlock label="Short-Term Goals" value={menteeProfile?.shortTermGoals} alwaysShow />
+              <TextBlock label="Long-Term Vision" value={menteeProfile?.longTermVision} alwaysShow />
+              <TextBlock label="Current Project or Idea" value={menteeProfile?.currentProjectOrIdea} alwaysShow />
+              <TextBlock label="Primary Motivations" value={menteeProfile?.primaryMotivations} alwaysShow />
+              <TextBlock label="Specific Skills Seeking" value={menteeProfile?.specificSkillsSeeking} alwaysShow />
+              <TextBlock label="Preferred Mentor Characteristics" value={menteeProfile?.preferredMentorCharacteristics} alwaysShow />
+              <TextBlock label="Past Successes" value={menteeProfile?.pastSuccesses} alwaysShow />
+              <TextBlock label="Past Challenges" value={menteeProfile?.pastChallenges} alwaysShow />
+              <TextBlock label="Effective Structures" value={menteeProfile?.effectiveStructures} alwaysShow />
+              <TextBlock label="Resources Needed" value={menteeProfile?.resourcesNeeded} alwaysShow />
+              <TextBlock label="Program Suggestions" value={menteeProfile?.programSuggestions} alwaysShow />
+              <TextBlock label="Availability Notes" value={menteeProfile?.availabilityNotes} alwaysShow />
 
-              {menteeProfile.hopingToGain && menteeProfile.hopingToGain.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Hoping to Gain</p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Hoping to Gain</p>
+                {menteeProfile?.hopingToGain && menteeProfile.hopingToGain.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {menteeProfile.hopingToGain.map((item: string) => (
                       <Badge key={item} variant="outline">{item}</Badge>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Not provided</p>
+                )}
+              </div>
 
-              {menteeProfile.preferredMethods && menteeProfile.preferredMethods.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Preferred Methods</p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Preferred Methods</p>
+                {menteeProfile?.preferredMethods && menteeProfile.preferredMethods.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {menteeProfile.preferredMethods.map((method: string) => (
                       <Badge key={method} variant="secondary">{method}</Badge>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Not provided</p>
+                )}
+              </div>
 
-              {menteeProfile.preferredCommunicationTools && menteeProfile.preferredCommunicationTools.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Communication Tools</p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Communication Tools</p>
+                {menteeProfile?.preferredCommunicationTools && menteeProfile.preferredCommunicationTools.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {menteeProfile.preferredCommunicationTools.map((tool: string) => (
                       <Badge key={tool} variant="outline">{tool}</Badge>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Not provided</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
 
-        {mentorProfile && (
+        {showMentorSection && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Heart className="h-4 w-4" />
                 Mentor Profile
               </CardTitle>
-              <SectionCompleteness section="mentor" {...countFilled(
-                mentorProfile.maxMentees,
-                mentorProfile.preferredDuration,
-                mentorProfile.monthlyHoursAvailable,
-                mentorProfile.skillsToShare,
-                mentorProfile.primaryMotivations,
-                mentorProfile.mentoringTracks,
-                mentorProfile.preferredMethods,
-                mentorProfile.notableAchievements,
-                mentorProfile.programExpectations,
-              )} />
+              {mentorProfile && (
+                <SectionCompleteness section="mentor" {...countFilled(
+                  mentorProfile.maxMentees,
+                  mentorProfile.preferredDuration,
+                  mentorProfile.monthlyHoursAvailable,
+                  mentorProfile.skillsToShare,
+                  mentorProfile.primaryMotivations,
+                  mentorProfile.mentoringTracks,
+                  mentorProfile.preferredMethods,
+                  mentorProfile.notableAchievements,
+                  mentorProfile.programExpectations,
+                )} />
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoRow icon={Users} label="Max Mentees" value={mentorProfile.maxMentees ? `${mentorProfile.maxMentees}` : null} />
-                <InfoRow icon={Clock} label="Preferred Duration" value={formatDuration(mentorProfile.preferredDuration)} />
-                <InfoRow icon={Clock} label="Monthly Availability" value={mentorProfile.monthlyHoursAvailable ? `${mentorProfile.monthlyHoursAvailable} hours` : null} />
-                <InfoRow icon={CheckCircle} label="Previously Served as Mentor" value={mentorProfile.previouslyServedAsMentor ? "Yes" : mentorProfile.previouslyServedAsMentor === false ? "No" : null} />
-                <InfoRow icon={Globe} label="Open to Mentoring Outside Expertise" value={mentorProfile.openToMentoringOutsideExpertise ? "Yes" : mentorProfile.openToMentoringOutsideExpertise === false ? "No" : null} />
+                <InfoRow icon={Users} label="Max Mentees" value={mentorProfile?.maxMentees ? `${mentorProfile.maxMentees}` : null} alwaysShow />
+                <InfoRow icon={Clock} label="Preferred Duration" value={formatDuration(mentorProfile?.preferredDuration)} alwaysShow />
+                <InfoRow icon={Clock} label="Monthly Availability" value={mentorProfile?.monthlyHoursAvailable ? `${mentorProfile.monthlyHoursAvailable} hours` : null} alwaysShow />
+                <InfoRow icon={CheckCircle} label="Previously Served as Mentor" value={mentorProfile?.previouslyServedAsMentor ? "Yes" : mentorProfile?.previouslyServedAsMentor === false ? "No" : null} alwaysShow />
+                <InfoRow icon={Globe} label="Open to Mentoring Outside Expertise" value={mentorProfile?.openToMentoringOutsideExpertise ? "Yes" : mentorProfile?.openToMentoringOutsideExpertise === false ? "No" : null} alwaysShow />
               </div>
 
-              {mentorProfile.previouslyServedAsMentor && mentorProfile.mentorshipExperienceDescription && (
-                <TextBlock label="Mentorship Experience" value={mentorProfile.mentorshipExperienceDescription} />
+              {mentorProfile?.previouslyServedAsMentor && (
+                <TextBlock label="Mentorship Experience" value={mentorProfile.mentorshipExperienceDescription} alwaysShow />
               )}
 
-              <TextBlock label="Skills to Share" value={mentorProfile.skillsToShare} />
-              <TextBlock label="Primary Motivations" value={mentorProfile.primaryMotivations} />
-              <TextBlock label="Notable Achievements" value={mentorProfile.notableAchievements} />
-              <TextBlock label="Certifications & Training" value={mentorProfile.certificationsTraining} />
-              <TextBlock label="Past Successes" value={mentorProfile.pastSuccesses} />
-              <TextBlock label="Past Challenges" value={mentorProfile.pastChallenges} />
-              <TextBlock label="Availability Notes" value={mentorProfile.availabilityNotes} />
-              <TextBlock label="Program Expectations" value={mentorProfile.programExpectations} />
-              <TextBlock label="Program Suggestions" value={mentorProfile.programSuggestions} />
-              <TextBlock label="Resources Needed" value={mentorProfile.resourcesNeeded} />
+              <TextBlock label="Skills to Share" value={mentorProfile?.skillsToShare} alwaysShow />
+              <TextBlock label="Primary Motivations" value={mentorProfile?.primaryMotivations} alwaysShow />
+              <TextBlock label="Notable Achievements" value={mentorProfile?.notableAchievements} alwaysShow />
+              <TextBlock label="Certifications & Training" value={mentorProfile?.certificationsTraining} alwaysShow />
+              <TextBlock label="Past Successes" value={mentorProfile?.pastSuccesses} alwaysShow />
+              <TextBlock label="Past Challenges" value={mentorProfile?.pastChallenges} alwaysShow />
+              <TextBlock label="Availability Notes" value={mentorProfile?.availabilityNotes} alwaysShow />
+              <TextBlock label="Program Expectations" value={mentorProfile?.programExpectations} alwaysShow />
+              <TextBlock label="Program Suggestions" value={mentorProfile?.programSuggestions} alwaysShow />
+              <TextBlock label="Resources Needed" value={mentorProfile?.resourcesNeeded} alwaysShow />
 
-              {mentorProfile.mentoringTracks && mentorProfile.mentoringTracks.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Mentoring Tracks</p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Mentoring Tracks</p>
+                {mentorProfile?.mentoringTracks && mentorProfile.mentoringTracks.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {mentorProfile.mentoringTracks.map((track: string) => (
                       <Badge key={track} variant="secondary">{track}</Badge>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Not provided</p>
+                )}
+              </div>
 
-              {mentorProfile.preferredMethods && mentorProfile.preferredMethods.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Preferred Methods</p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Preferred Methods</p>
+                {mentorProfile?.preferredMethods && mentorProfile.preferredMethods.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {mentorProfile.preferredMethods.map((method: string) => (
                       <Badge key={method} variant="secondary">{method}</Badge>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Not provided</p>
+                )}
+              </div>
 
-              {mentorProfile.preferredMenteeStages && mentorProfile.preferredMenteeStages.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Preferred Mentee Stages</p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Preferred Mentee Stages</p>
+                {mentorProfile?.preferredMenteeStages && mentorProfile.preferredMenteeStages.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {mentorProfile.preferredMenteeStages.map((stage: string) => (
                       <Badge key={stage} variant="outline">{formatCareerStage(stage)}</Badge>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Not provided</p>
+                )}
+              </div>
 
-              {mentorProfile.industriesExperience && mentorProfile.industriesExperience.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Industry Experience</p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Industry Experience</p>
+                {mentorProfile?.industriesExperience && mentorProfile.industriesExperience.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {mentorProfile.industriesExperience.map((industry: string) => (
                       <Badge key={industry} variant="outline">{industry}</Badge>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Not provided</p>
+                )}
+              </div>
 
-              {mentorProfile.preferredCommunicationTools && mentorProfile.preferredCommunicationTools.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Communication Tools</p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Communication Tools</p>
+                {mentorProfile?.preferredCommunicationTools && mentorProfile.preferredCommunicationTools.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {mentorProfile.preferredCommunicationTools.map((tool: string) => (
                       <Badge key={tool} variant="outline">{tool}</Badge>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Not provided</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
