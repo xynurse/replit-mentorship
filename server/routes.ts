@@ -2321,12 +2321,9 @@ export async function registerRoutes(
   app.get("/api/matches/my", requireAuth, async (req, res, next) => {
     try {
       const userId = req.user!.id;
-      console.log(`[MATCHES DEBUG] /api/matches/my called for user: ${req.user!.email} (ID: ${userId}, Role: ${req.user!.role})`);
       const matches = await storage.getMatchesForUser(userId);
-      console.log(`[MATCHES DEBUG] Found ${matches.length} matches for user ${req.user!.email}:`, matches.map(m => ({ id: m.id, status: m.status, mentorId: m.mentor?.id, menteeId: m.mentee?.id, mentorName: m.mentor?.firstName, menteeName: m.mentee?.firstName })));
       res.json(matches);
     } catch (error) {
-      console.error(`[MATCHES DEBUG] Error fetching matches for user ${req.user?.email}:`, error);
       next(error);
     }
   });
