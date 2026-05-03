@@ -57,75 +57,22 @@ export async function registerRoutes(
     }
   });
 
-  // Email system diagnostic endpoint for admins
-  app.get("/api/admin/email-diagnostics", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
-    const diagnostics: any = {
+  app.get("/api/admin/email-diagnostics", requireRole("SUPER_ADMIN", "ADMIN"), async (_req, res) => {
+    const hasApiKey = !!process.env.RESEND_API_KEY;
+    res.json({
       timestamp: new Date().toISOString(),
       environment: {
         nodeEnv: process.env.NODE_ENV,
-        hasReplIdentity: !!process.env.REPL_IDENTITY,
-        hasWebReplRenewal: !!process.env.WEB_REPL_RENEWAL,
-        hasConnectorsHostname: !!process.env.REPLIT_CONNECTORS_HOSTNAME,
-        connectorsHostname: process.env.REPLIT_CONNECTORS_HOSTNAME || 'NOT SET',
-        isDeployment: !!process.env.REPLIT_DEPLOYMENT || !!process.env.WEB_REPL_RENEWAL,
+        runningOn: process.env.VERCEL ? "vercel" : "local",
       },
-      resendConnection: { status: 'unknown', error: null as string | null, fromEmail: null as string | null }
-    };
-
-    // Test Resend connection
-    try {
-      const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-      const xReplitToken = process.env.REPL_IDENTITY 
-        ? 'repl ' + process.env.REPL_IDENTITY 
-        : process.env.WEB_REPL_RENEWAL 
-        ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-        : null;
-
-      diagnostics.tokenType = process.env.REPL_IDENTITY ? 'repl' : process.env.WEB_REPL_RENEWAL ? 'depl' : 'none';
-
-      if (!xReplitToken) {
-        diagnostics.resendConnection.status = 'error';
-        diagnostics.resendConnection.error = 'No authentication token available (REPL_IDENTITY or WEB_REPL_RENEWAL)';
-      } else if (!hostname) {
-        diagnostics.resendConnection.status = 'error';
-        diagnostics.resendConnection.error = 'REPLIT_CONNECTORS_HOSTNAME not set';
-      } else {
-        const response = await fetch(
-          `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=resend`,
-          {
-            headers: {
-              'Accept': 'application/json',
-              'X_REPLIT_TOKEN': xReplitToken
-            }
-          }
-        );
-
-        diagnostics.resendConnection.httpStatus = response.status;
-
-        if (!response.ok) {
-          diagnostics.resendConnection.status = 'error';
-          diagnostics.resendConnection.error = `HTTP ${response.status}: ${await response.text()}`;
-        } else {
-          const data = await response.json();
-          const connectionSettings = data.items?.[0];
-          
-          if (!connectionSettings?.settings?.api_key) {
-            diagnostics.resendConnection.status = 'error';
-            diagnostics.resendConnection.error = 'Resend connector not configured or missing API key';
-            diagnostics.resendConnection.itemsCount = data.items?.length || 0;
-          } else {
-            diagnostics.resendConnection.status = 'connected';
-            diagnostics.resendConnection.fromEmail = connectionSettings.settings.from_email;
-            diagnostics.resendConnection.hasApiKey = true;
-          }
-        }
-      }
-    } catch (error: any) {
-      diagnostics.resendConnection.status = 'error';
-      diagnostics.resendConnection.error = error.message;
-    }
-
-    res.json(diagnostics);
+      resendConnection: {
+        status: hasApiKey ? "configured" : "error",
+        error: hasApiKey ? null : "RESEND_API_KEY is not set",
+        fromEmail:
+          process.env.RESEND_FROM_EMAIL ||
+          "SONSIEL Mentorship Hub <noreply@sonsiel.org>",
+      },
+    });
   });
 
   app.get("/api/users", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {

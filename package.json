@@ -5,10 +5,12 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "tsx script/build.ts",
-    "start": "NODE_ENV=production node dist/index.cjs",
+    "build": "vite build",
+    "build:legacy": "tsx script/build.ts",
+    "start": "NODE_ENV=production tsx server/index.ts",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "seed": "tsx scripts/seed-prod.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.18.0",

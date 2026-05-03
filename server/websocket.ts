@@ -1,298 +1,46 @@
-import { Server } from "socket.io";
+// Phase 1 stub: socket.io cannot run on Vercel Functions (no persistent
+// connections). Phase 2 will replace this with Ably.
+//
+// Until then, every export here is a safe no-op so route handlers that
+// import emitNotification/emitNotificationCountUpdate keep compiling and
+// running. Real-time UI features (typing indicators, online presence,
+// live message delivery) will be silent until Ably is wired in.
+//
+// To restore the original implementation, see the git history of this file
+// in the replit-mentorship repo (server/websocket.ts pre-migration).
+
 import type { Server as HTTPServer } from "http";
-import type { Request, RequestHandler } from "express";
-import { storage } from "./storage";
+import type { RequestHandler } from "express";
 
-const onlineUsers = new Map<string, Set<string>>();
-const typingUsers = new Map<string, Set<string>>();
-let ioInstance: Server | null = null;
-
-export function setupWebSocket(httpServer: HTTPServer, sessionMiddleware: RequestHandler) {
-  const io = new Server(httpServer, {
-    cors: {
-      origin: process.env.NODE_ENV === "production" ? false : "*",
-      credentials: true,
-    },
-    path: "/socket.io",
-  });
-  
-  ioInstance = io;
-
-  io.use((socket, next) => {
-    sessionMiddleware(socket.request as Request, {} as any, (err?: any) => {
-      if (err) next(err);
-      else next();
-    });
-  });
-
-  io.use((socket, next) => {
-    const session = (socket.request as any).session;
-    if (session?.passport?.user) {
-      (socket as any).userId = session.passport.user;
-      next();
-    } else {
-      next(new Error("Unauthorized"));
+const REALTIME_DISABLED_LOG_ONCE = (() => {
+  let logged = false;
+  return () => {
+    if (!logged && process.env.NODE_ENV !== "test") {
+      logged = true;
+      console.warn(
+        "[realtime] socket.io is disabled in this build — Phase 2 (Ably) not yet wired in",
+      );
     }
-  });
+  };
+})();
 
-  io.on("connection", async (socket) => {
-    const userId = (socket as any).userId;
-    if (!userId) {
-      socket.disconnect();
-      return;
-    }
-
-    if (!onlineUsers.has(userId)) {
-      onlineUsers.set(userId, new Set());
-    }
-    onlineUsers.get(userId)!.add(socket.id);
-
-    const user = await storage.getUser(userId);
-    const conversations = await storage.getUserConversations(userId);
-    
-    for (const conv of conversations) {
-      socket.join(`conversation:${conv.id}`);
-    }
-
-    socket.join(`user:${userId}`);
-
-    io.emit("user:online", { userId, name: user ? `${user.firstName} ${user.lastName}` : "User" });
-
-    socket.on("conversation:join", async (conversationId: string) => {
-      const conv = await storage.getConversation(conversationId);
-      if (conv) {
-        const participants = await storage.getConversationParticipants(conversationId);
-        if (participants.some(p => p.userId === userId)) {
-          socket.join(`conversation:${conversationId}`);
-        }
-      }
-    });
-
-    socket.on("conversation:leave", (conversationId: string) => {
-      socket.leave(`conversation:${conversationId}`);
-    });
-
-    socket.on("message:send", async (data: { conversationId: string; content: string; replyToId?: string }) => {
-      try {
-        const participants = await storage.getConversationParticipants(data.conversationId);
-        if (!participants.some(p => p.userId === userId)) {
-          socket.emit("error", { message: "Not authorized to send to this conversation" });
-          return;
-        }
-
-        const message = await storage.createMessage({
-          conversationId: data.conversationId,
-          senderId: userId,
-          content: data.content,
-          messageType: "TEXT",
-          replyToId: data.replyToId,
-        });
-
-        const sender = await storage.getUser(userId);
-        const fullMessage = {
-          ...message,
-          sender: sender ? { id: sender.id, firstName: sender.firstName, lastName: sender.lastName, profileImage: sender.profileImage } : null,
-          attachments: [],
-        };
-
-        io.to(`conversation:${data.conversationId}`).emit("message:new", fullMessage);
-
-        // Send notifications to other participants (for direct messages)
-        const conversation = await storage.getConversation(data.conversationId);
-        if (sender && conversation && conversation.type === "DIRECT") {
-          const { sendNewMessageEmail, getTrustedBaseUrl } = await import("./email");
-          const baseUrl = getTrustedBaseUrl();
-          
-          for (const p of participants) {
-            if (p.userId !== userId) {
-              const recipient = await storage.getUser(p.userId);
-              if (recipient) {
-                // Create in-app notification
-                await storage.createNotification({
-                  userId: p.userId,
-                  type: "NEW_MESSAGE",
-                  title: "New Message",
-                  message: `${sender.firstName} ${sender.lastName} sent you a message`,
-                  priority: "NORMAL",
-                  resourceId: data.conversationId,
-                  resourceType: "MESSAGE",
-                });
-                
-                // Send real-time notification via socket
-                io.to(`user:${p.userId}`).emit("notification:unread", {
-                  conversationId: data.conversationId,
-                  messageId: message.id,
-                });
-                
-                // Emit notification count update
-                io.to(`user:${p.userId}`).emit("notification:count", {});
-                
-                // Send email notification (fire-and-forget, don't block)
-                Promise.resolve().then(() => 
-                  sendNewMessageEmail({
-                    email: recipient.email,
-                    recipientName: `${recipient.firstName} ${recipient.lastName}`,
-                    senderName: `${sender.firstName} ${sender.lastName}`,
-                    messagePreview: data.content,
-                    timestamp: new Date().toLocaleString(),
-                    dashboardUrl: baseUrl,
-                  }).catch((err: Error) => console.error('Failed to send new message email:', err))
-                );
-              }
-            }
-          }
-        } else {
-          // For non-direct messages, just send socket notifications
-          for (const p of participants) {
-            if (p.userId !== userId) {
-              io.to(`user:${p.userId}`).emit("notification:unread", {
-                conversationId: data.conversationId,
-                messageId: message.id,
-              });
-            }
-          }
-        }
-      } catch (error) {
-        socket.emit("error", { message: "Failed to send message" });
-      }
-    });
-
-    socket.on("message:edit", async (data: { messageId: string; content: string }) => {
-      try {
-        const message = await storage.getMessage(data.messageId);
-        if (message && message.senderId === userId) {
-          const updated = await storage.updateMessage(data.messageId, { content: data.content });
-          if (updated) {
-            io.to(`conversation:${message.conversationId}`).emit("message:updated", updated);
-          }
-        }
-      } catch (error) {
-        socket.emit("error", { message: "Failed to edit message" });
-      }
-    });
-
-    socket.on("message:delete", async (data: { messageId: string }) => {
-      try {
-        const message = await storage.getMessage(data.messageId);
-        if (message && message.senderId === userId) {
-          await storage.deleteMessage(data.messageId);
-          io.to(`conversation:${message.conversationId}`).emit("message:deleted", { messageId: data.messageId });
-        }
-      } catch (error) {
-        socket.emit("error", { message: "Failed to delete message" });
-      }
-    });
-
-    socket.on("message:reaction", async (data: { messageId: string; emoji: string; add: boolean }) => {
-      try {
-        const message = await storage.getMessage(data.messageId);
-        if (message) {
-          const participants = await storage.getConversationParticipants(message.conversationId);
-          if (!participants.some(p => p.userId === userId)) {
-            socket.emit("error", { message: "Not authorized to react in this conversation" });
-            return;
-          }
-
-          const reactions = (message.reactions as Record<string, string[]>) || {};
-          if (data.add) {
-            if (!reactions[data.emoji]) reactions[data.emoji] = [];
-            if (!reactions[data.emoji].includes(userId)) {
-              reactions[data.emoji].push(userId);
-            }
-          } else {
-            if (reactions[data.emoji]) {
-              reactions[data.emoji] = reactions[data.emoji].filter(id => id !== userId);
-              if (reactions[data.emoji].length === 0) {
-                delete reactions[data.emoji];
-              }
-            }
-          }
-          await storage.updateMessage(data.messageId, { reactions });
-          io.to(`conversation:${message.conversationId}`).emit("message:reaction", {
-            messageId: data.messageId,
-            reactions,
-          });
-        }
-      } catch (error) {
-        socket.emit("error", { message: "Failed to update reaction" });
-      }
-    });
-
-    socket.on("typing:start", (conversationId: string) => {
-      if (!typingUsers.has(conversationId)) {
-        typingUsers.set(conversationId, new Set());
-      }
-      typingUsers.get(conversationId)!.add(userId);
-      socket.to(`conversation:${conversationId}`).emit("typing:update", {
-        conversationId,
-        userIds: Array.from(typingUsers.get(conversationId) || []),
-      });
-    });
-
-    socket.on("typing:stop", (conversationId: string) => {
-      if (typingUsers.has(conversationId)) {
-        typingUsers.get(conversationId)!.delete(userId);
-        socket.to(`conversation:${conversationId}`).emit("typing:update", {
-          conversationId,
-          userIds: Array.from(typingUsers.get(conversationId) || []),
-        });
-      }
-    });
-
-    socket.on("messages:read", async (conversationId: string) => {
-      try {
-        await storage.markMessagesAsRead(conversationId, userId);
-        socket.to(`conversation:${conversationId}`).emit("messages:read", {
-          conversationId,
-          userId,
-          readAt: new Date().toISOString(),
-        });
-      } catch (error) {
-        socket.emit("error", { message: "Failed to mark messages as read" });
-      }
-    });
-
-    socket.on("disconnect", () => {
-      const userSockets = onlineUsers.get(userId);
-      if (userSockets) {
-        userSockets.delete(socket.id);
-        if (userSockets.size === 0) {
-          onlineUsers.delete(userId);
-          io.emit("user:offline", { userId });
-        }
-      }
-
-      Array.from(typingUsers.entries()).forEach(([convId, users]) => {
-        if (users.has(userId)) {
-          users.delete(userId);
-          io.to(`conversation:${convId}`).emit("typing:update", {
-            conversationId: convId,
-            userIds: Array.from(users),
-          });
-        }
-      });
-    });
-  });
-
-  return io;
+export function setupWebSocket(_httpServer: HTTPServer, _sessionMiddleware: RequestHandler) {
+  REALTIME_DISABLED_LOG_ONCE();
+  return null;
 }
 
 export function getOnlineUsers(): string[] {
-  return Array.from(onlineUsers.keys());
+  return [];
 }
 
-export function isUserOnline(userId: string): boolean {
-  return onlineUsers.has(userId) && onlineUsers.get(userId)!.size > 0;
+export function isUserOnline(_userId: string): boolean {
+  return false;
 }
 
-export function emitNotification(userId: string, notification: any) {
-  if (ioInstance) {
-    ioInstance.to(`user:${userId}`).emit("notification:new", notification);
-  }
+export function emitNotification(_userId: string, _notification: unknown) {
+  REALTIME_DISABLED_LOG_ONCE();
 }
 
-export function emitNotificationCountUpdate(userId: string, count: number) {
-  if (ioInstance) {
-    ioInstance.to(`user:${userId}`).emit("notification:count", { count });
-  }
+export function emitNotificationCountUpdate(_userId: string, _count: number) {
+  REALTIME_DISABLED_LOG_ONCE();
 }
