@@ -6,7 +6,7 @@ import { storage } from "./storage";
 import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema, insertReminderSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
-import { registerObjectStorageRoutes, ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
+import { registerObjectStorageRoutes, ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage/index";
 import { AuditService, createAuditMiddleware } from "./audit";
 
 const generalApiLimiter = rateLimit({

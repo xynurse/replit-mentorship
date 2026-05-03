@@ -23,8 +23,13 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+// vite-dev is intentionally NOT a CreateApp option — vite must never appear
+// in the static import graph that ends up in the Vercel function bundle
+// (it pulls in rollup, which needs platform-specific native binaries that
+// Vercel's npm install can miss). Dev entries call setupVite themselves
+// after createApp returns.
 export interface CreateAppOptions {
-  serveClient?: "vite-dev" | "static" | "none";
+  serveClient?: "static" | "none";
 }
 
 export async function createApp(
@@ -93,11 +98,7 @@ export async function createApp(
     },
   );
 
-  const mode = options.serveClient ?? "none";
-  if (mode === "vite-dev") {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
-  } else if (mode === "static") {
+  if ((options.serveClient ?? "none") === "static") {
     const { serveStatic } = await import("./static");
     serveStatic(app);
   }
