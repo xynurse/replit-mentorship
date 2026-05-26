@@ -92,10 +92,14 @@ export function ObjectUploader({
         className="hidden"
       />
       <Dialog open={isUploading}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent
+          className="sm:max-w-md overflow-hidden"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="min-w-0">
             <DialogTitle>Uploading…</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="truncate" title={activeFileName ?? undefined}>
               {activeFileName ?? "Sending file to storage"}
             </DialogDescription>
           </DialogHeader>

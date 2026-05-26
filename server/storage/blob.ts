@@ -161,19 +161,23 @@ export async function streamBlobToResponse(
     throw new ObjectNotFoundError();
   }
 
-  if (opts.contentType) res.setHeader("Content-Type", opts.contentType);
-  else if (result.blob.contentType)
-    res.setHeader("Content-Type", result.blob.contentType);
+  // Buffer the whole blob then write — documents are ≤50 MB so this is
+  // safe and avoids the foot-guns of piping ReadableStream → Express res
+  // (Content-Length mismatch, truncated chunks, compression middleware
+  // racing the stream, etc.). Profile photos are even smaller.
+  const arrayBuffer = await new Response(result.stream).arrayBuffer();
+  const body = Buffer.from(arrayBuffer);
 
-  if (result.blob.size) res.setHeader("Content-Length", String(result.blob.size));
-
+  res.setHeader(
+    "Content-Type",
+    opts.contentType || result.blob.contentType || "application/octet-stream",
+  );
+  res.setHeader("Content-Length", String(body.byteLength));
   if (opts.cacheControl) res.setHeader("Cache-Control", opts.cacheControl);
   if (opts.contentDisposition)
     res.setHeader("Content-Disposition", opts.contentDisposition);
 
-  const { Readable } = await import("stream");
-  // @ts-expect-error — Node 24 supports fromWeb; types may be slightly off
-  Readable.fromWeb(result.stream).pipe(res);
+  res.end(body);
 }
 
 // Private blob URLs have hostname `<store>.[a-z0-9]+.blob.vercel-storage.com`

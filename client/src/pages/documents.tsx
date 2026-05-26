@@ -1210,13 +1210,21 @@ export default function DocumentsPage() {
                       data-testid="img-document-viewer"
                     />
                   </div>
+                ) : viewingDocument.mimeType?.startsWith("text/") || viewingDocument.mimeType === "application/json" ? (
+                  <iframe
+                    src={viewBlobUrl}
+                    className="w-full h-full rounded-md border bg-background"
+                    title={viewingDocument.name}
+                    data-testid="iframe-text-viewer"
+                  />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-md border gap-4">
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-md border gap-4 p-6">
                     <File className="h-16 w-16 text-muted-foreground" />
-                    <div className="text-center">
+                    <div className="text-center max-w-md">
                       <p className="font-medium mb-1">Preview not available</p>
                       <p className="text-sm text-muted-foreground mb-4">
-                        This file type cannot be previewed in the browser. Use the download button to save it.
+                        This file type ({viewingDocument.mimeType || "unknown"}) can't be previewed inline.
+                        Word, Excel, and PowerPoint files need to be downloaded to view.
                       </p>
                       <Button onClick={() => viewingDocument && downloadDocument(viewingDocument)} data-testid="button-viewer-download-fallback">
                         <Download className="h-4 w-4 mr-2" />
