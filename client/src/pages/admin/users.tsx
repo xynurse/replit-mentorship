@@ -53,6 +53,9 @@ export default function AdminUsers() {
   const { user: currentUser } = useAuth();
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  // Dormancy: filter to users who haven't logged in within N days (or
+  // never have). Computed client-side against `users.lastLoginAt`.
+  const [dormancyFilter, setDormancyFilter] = useState<"all" | "14" | "30" | "60" | "90">("all");
   const [selectedUser, setSelectedUser] = useState<SafeUser | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
@@ -264,13 +267,40 @@ export default function AdminUsers() {
     },
   });
 
+  // Client-side dormancy filter. A user is "dormant" if their
+  // lastLoginAt is null (never logged in) OR older than the threshold.
+  const dormantThresholdMs =
+    dormancyFilter === "all" ? null : parseInt(dormancyFilter, 10) * 24 * 60 * 60 * 1000;
+
+  const displayedUsers = dormantThresholdMs === null
+    ? users
+    : users.filter((u) => {
+        if (!u.lastLoginAt) return true; // never logged in
+        const age = Date.now() - new Date(u.lastLoginAt).getTime();
+        return age >= dormantThresholdMs;
+      });
+
+  // Human-friendly "Last Active" formatter — relative time for recent,
+  // absolute date for older, special handling for never-logged-in.
+  function formatLastActive(date: Date | string | null | undefined): string {
+    if (!date) return "Never";
+    const d = new Date(date);
+    const diffMs = Date.now() - d.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    return format(d, "MMM d, yyyy");
+  }
+
   const columns: Column<SafeUser>[] = [
     {
       key: "select",
       header: "",
       className: "w-12",
       render: (user) => (
-        <Checkbox 
+        <Checkbox
           checked={selectedUserIds.includes(user.id)}
           onCheckedChange={(checked) => {
             if (checked) {
@@ -290,18 +320,20 @@ export default function AdminUsers() {
       sortable: true,
       accessor: (user) => `${user.firstName} ${user.lastName}`,
       render: (user) => (
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={user.profileImage || undefined} />
-            <AvatarFallback className="bg-primary/10 text-primary text-sm">
-              {user.firstName?.[0]}{user.lastName?.[0]}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="font-medium">{user.firstName} {user.lastName}</p>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
+        <Link href={`/admin/users/${user.id}/profile`}>
+          <div className="flex items-center gap-3 hover-elevate -mx-2 px-2 py-1 rounded-md cursor-pointer" data-testid={`row-user-${user.id}`}>
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={user.id && user.profileImage ? `/api/profile-photo/${user.id}` : undefined} />
+              <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                {user.firstName?.[0]}{user.lastName?.[0]}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-medium">{user.firstName} {user.lastName}</p>
+              <p className="text-sm text-muted-foreground">{user.email}</p>
+            </div>
           </div>
-        </div>
+        </Link>
       ),
     },
     {
@@ -329,6 +361,22 @@ export default function AdminUsers() {
           {user.isActive ? "Active" : "Inactive"}
         </Badge>
       ),
+    },
+    {
+      key: "lastLoginAt",
+      header: "Last Active",
+      sortable: true,
+      sortType: "date",
+      accessor: (user) => user.lastLoginAt,
+      render: (user) => {
+        const label = formatLastActive(user.lastLoginAt);
+        const isStale = !user.lastLoginAt || (Date.now() - new Date(user.lastLoginAt).getTime()) >= 30 * 24 * 60 * 60 * 1000;
+        return (
+          <span className={isStale ? "text-muted-foreground" : ""} data-testid={`last-active-${user.id}`}>
+            {label}
+          </span>
+        );
+      },
     },
     {
       key: "createdAt",
@@ -448,7 +496,11 @@ export default function AdminUsers() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <CardTitle>All Users</CardTitle>
-                <CardDescription>{users.length} users total</CardDescription>
+                <CardDescription>
+                  {dormancyFilter === "all"
+                    ? `${users.length} users total`
+                    : `${displayedUsers.length} dormant ${dormancyFilter}+ days of ${users.length} total`}
+                </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -471,6 +523,18 @@ export default function AdminUsers() {
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="true">Active</SelectItem>
                     <SelectItem value="false">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={dormancyFilter} onValueChange={(v) => setDormancyFilter(v as typeof dormancyFilter)}>
+                  <SelectTrigger className="w-40" data-testid="select-dormancy-filter">
+                    <SelectValue placeholder="Activity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Activity</SelectItem>
+                    <SelectItem value="14">Dormant 14+ days</SelectItem>
+                    <SelectItem value="30">Dormant 30+ days</SelectItem>
+                    <SelectItem value="60">Dormant 60+ days</SelectItem>
+                    <SelectItem value="90">Dormant 90+ days</SelectItem>
                   </SelectContent>
                 </Select>
                 {selectedUserIds.length > 0 && (
@@ -498,7 +562,7 @@ export default function AdminUsers() {
           </CardHeader>
           <CardContent>
             <DataTable
-              data={users}
+              data={displayedUsers}
               columns={columns}
               searchPlaceholder="Search users..."
               selectable

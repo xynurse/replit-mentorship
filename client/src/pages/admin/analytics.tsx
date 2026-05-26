@@ -632,31 +632,36 @@ export default function AnalyticsDashboard() {
               </div>
             ) : dashboard ? (
               <>
+                {/* Engagement row — what mentors and mentees are
+                    actively doing on the platform. Replaces the
+                    previous task-focused KPIs which weren't a
+                    meaningful internal metric. */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <KPICard
-                    title="Total Tasks"
-                    value={dashboard.taskMetrics.totalTasks}
-                    icon={CheckSquare}
+                    title="Conversations"
+                    value={dashboard.engagementMetrics.totalConversations}
+                    icon={MessageSquare}
                   />
                   <KPICard
-                    title="Completed Tasks"
-                    value={dashboard.taskMetrics.completedTasks}
-                    icon={CheckSquare}
-                    variant="success"
+                    title="Messages (Month)"
+                    value={dashboard.engagementMetrics.messagesThisMonth}
+                    icon={MessageSquare}
+                    description={`${dashboard.engagementMetrics.totalMessages} total all-time`}
                   />
                   <KPICard
-                    title="Overdue Tasks"
-                    value={dashboard.taskMetrics.overdueTasks}
-                    icon={CheckSquare}
-                    variant={dashboard.taskMetrics.overdueTasks > 0 ? "danger" : "default"}
+                    title="Documents Uploaded"
+                    value={dashboard.engagementMetrics.totalDocuments}
+                    icon={FileText}
                   />
                   <KPICard
-                    title="Task Completion Rate"
-                    value={`${dashboard.taskMetrics.completionRate}%`}
-                    icon={TrendingUp}
+                    title="Journal Entries"
+                    value={dashboard.journalMetrics.totalJournalEntries}
+                    icon={BookOpen}
+                    description={`${dashboard.journalMetrics.entriesThisMonth} this month (count only)`}
                   />
                 </div>
 
+                {/* Goals row — primary productivity metric. */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <KPICard
                     title="Total Goals"
@@ -703,9 +708,8 @@ export default function AnalyticsDashboard() {
                               <YAxis type="category" dataKey="trackName" width={100} className="text-xs" />
                               <Tooltip />
                               <Legend />
-                              <Bar dataKey="memberCount" name="Members" fill="hsl(var(--primary))" />
-                              <Bar dataKey="goalCount" name="Goals" fill="hsl(var(--accent))" />
-                              <Bar dataKey="taskCount" name="Tasks" fill="#10b981" />
+                              <Bar dataKey="memberCount" name="Members" fill="hsl(195 85% 41%)" />
+                              <Bar dataKey="goalCount" name="Goals" fill="hsl(262 83% 58%)" />
                             </BarChart>
                           </ResponsiveContainer>
                         </div>
