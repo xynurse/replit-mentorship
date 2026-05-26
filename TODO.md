@@ -1,8 +1,93 @@
-# TODO — Path to Production on Vercel
+# TODO — SONSIEL Mentorship Platform Roadmap
 
-What's left to ship the migrated SONSIEL Mentorship Platform end-to-end on Vercel under `mentorship.sonsiel.org`.
+What's left to ship and then evolve the platform. Migration (Phases 1–3) is done; the rest is the product roadmap requested 2026-05-25.
 
-Items are ordered by **what should happen first**. Each section calls out the why, the work, the verification step, and rough effort.
+Items are grouped by phase. Within a phase they're ordered by what should happen first.
+
+---
+
+## Phase 4 — Quick wins (P0, in flight)
+
+Small, low-ambiguity items being knocked out first.
+
+- [ ] **Change favicon** — needs source asset from user (logo / image file).
+- [ ] **Quick actions: split "View Documents"** into "View My Documents" + "View Platform Documents" on the dashboard.
+- [ ] **Analytics chart colors** — fix the mentee-gray contrast on user-distribution chart.
+- [ ] **Investigate missing mentor profiles in admin Connections** — only 2 mentees showing, no mentors. Could be a query bug or data state.
+- [ ] **Reactivate NurseHack4Health program** — Phase 1 migration soft-deleted it; user wants both programs active.
+
+---
+
+## Phase 5 — Dashboard insights
+
+More signal for mentors and mentees about what's going on for them.
+
+- [ ] **Recent activity widget** — latest messages, meetings, doc interactions, goal updates.
+- [ ] **Progress widget** — % goals complete, meetings logged, milestones hit, cohort week.
+- [ ] **Goals brief widget** — compact list, click goal → `/goals?focus=<id>`, click header → `/goals`.
+- [ ] **Mentor/mentee assignment card** — prominent corner card showing pairing + quick message.
+- [ ] **Hyperlink all stat boxes** — every dashboard metric routes to its detail page.
+- [ ] **Multi-program selector on login** — if user is in both SONSIEL Mentorship + NurseHack4Health, prompt them which to enter.
+
+---
+
+## Phase 6 — Profile, calendar, goals, docs
+
+User-facing pages that need depth.
+
+- [ ] **My Profile: render full onboarding survey** — every field from intake survey visible/editable.
+- [ ] **Calendar: agenda view toggle** — list-style alternative to month grid.
+- [ ] **Calendar: availability marking** — "I'm unavailable on…" blackout periods.
+- [ ] **Calendar: subscribed ICS feed** — per-user webcal:// URL for Google/Apple/Outlook sync.
+- [ ] **Goals page** — clear list, add, edit, progress UX.
+- [ ] **Documents page restructure** — My (collapsible) at top, System Resources below, Shared With Me right rail.
+
+---
+
+## Phase 7 — Admin tooling
+
+Admin views to manage the platform actively.
+
+- [ ] **Award certificates UI**.
+- [ ] **Upcoming meetings dashboard** (cross-match visibility).
+- [ ] **User list: click-through profile + Last Active column**.
+- [ ] **Dormant filters (14/30/60/90 days)**.
+- [ ] **Ping user** (in-app notification + email from admin profile view).
+- [ ] **Connections: unmatched toggle**.
+- [ ] **Productivity metrics overhaul** — drop tasks; track goals, conversations, documents, journals (count only).
+- [ ] **Analytics: clickable performance summary boxes**.
+
+---
+
+## Phase 8 — Application intake + onboarding workflow
+
+The biggest workstream. New users come in through this funnel end-to-end.
+
+- [ ] **External-facing application form** at `/apply` (public). Submission → admin queue + thank-you email with next steps.
+- [ ] **Application pipeline** — submitted → review → match → initial meeting → review status → admitted.
+- [ ] **Onboarding sign-off** — code of conduct + required docs.
+- [ ] **Admit flow** — provisions account, sends login email, pre-populates profile from intake data.
+
+---
+
+## Phase 9 — Theme rework (Notion-style)
+
+Initial scope (default): clean typography (Inter), restrained palette, lighter borders, more whitespace — a CSS/token pass. Defer sidebar restructure + block-style content layout to a follow-up unless explicitly requested.
+
+- [ ] **Typography + whitespace + palette pass**.
+
+---
+
+## Phase 10 — Meetings + Surveys
+
+- [ ] **Meeting integration** — Google Meet / Zoom. Start with a link field; later OAuth for auto-create.
+- [ ] **Survey builder** — native, writes to existing `surveys` schema.
+
+---
+
+## Carried over from migration
+
+See sections below — DNS cutover, token rotation, deploy/operational follow-ups still apply.
 
 ---
 

@@ -248,9 +248,15 @@ export default function HomePage() {
                   </Link>
                 </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href="/documents">
+                  <Link href="/documents?tab=personal">
                     <FileText className="mr-2 h-4 w-4" />
-                    View documents
+                    View My Documents
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href="/documents?tab=system">
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Platform Documents
                   </Link>
                 </Button>
               </CardContent>

@@ -118,7 +118,15 @@ export default function DocumentsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const defaultTab = (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") ? "personal" : "system";
+  // Respect ?tab=personal|system|shared from the URL so deep links from the
+  // dashboard quick actions (View My / View Platform Documents) land on the
+  // right tab.
+  const tabFromUrl = (() => {
+    if (typeof window === "undefined") return null;
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t === "system" || t === "personal" || t === "shared" ? t : null;
+  })();
+  const defaultTab = tabFromUrl ?? ((user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") ? "personal" : "system");
   const [activeTab, setActiveTab] = useState<"system" | "personal" | "shared">(defaultTab);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");

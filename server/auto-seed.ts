@@ -257,6 +257,13 @@ export async function ensurePrograms() {
         description: "The flagship SONSIEL mentorship program connecting healthcare professionals for career development and growth.",
         isActive: true,
       },
+      {
+        id: "prog_nursehack4health",
+        name: "SONSIEL NurseHack4Health",
+        slug: "nursehack4health",
+        description: "SONSIEL NurseHack4Health — innovation-focused mentorship for nurses driving healthcare hackathons and ventures.",
+        isActive: true,
+      },
     ];
 
     for (const prog of requiredPrograms) {

@@ -134,7 +134,18 @@ interface CohortAnalytics {
   completionRate: number;
 }
 
-const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+// Chart palette — each entry must have enough saturation + contrast to be
+// distinguishable in both light and dark mode. The previous value used
+// `hsl(var(--accent))` for index 1 which resolved to a washed-out
+// near-gray, making "Mentees" hard to read.
+const COLORS = [
+  "hsl(195 85% 41%)", // cyan        — Mentors
+  "hsl(262 83% 58%)", // violet      — Mentees
+  "hsl(160 84% 39%)", // emerald     — Admins
+  "hsl(38 92% 50%)",  // amber
+  "hsl(0 84% 60%)",   // rose
+  "hsl(217 91% 60%)", // blue
+];
 
 function KPICard({ 
   title, 
@@ -456,7 +467,11 @@ export default function AnalyticsDashboard() {
                             <XAxis dataKey="name" className="text-xs" />
                             <YAxis className="text-xs" />
                             <Tooltip />
-                            <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                              {userDistribution.map((_, index) => (
+                                <Cell key={`bar-cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Bar>
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
