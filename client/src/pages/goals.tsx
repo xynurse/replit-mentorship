@@ -62,7 +62,9 @@ import {
   Trash2,
   Edit,
   FileDown,
+  AlertCircle,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { exportGoalsToPDF, type GoalData } from "@/lib/pdf-export";
 import {
   DropdownMenu,
@@ -617,6 +619,23 @@ export default function GoalsPage() {
     ? Math.round((goals?.reduce((sum, g) => sum + (g.progress || 0), 0) || 0) / totalGoals)
     : 0;
 
+  // "Needs attention" = goal has a target date in the past AND isn't
+  // completed/cancelled yet. Surfaces at the top so users see what's
+  // sliding before drilling into the full list.
+  const isAtRisk = (g: Goal) => {
+    if (!g.targetDate) return false;
+    if (g.status === "COMPLETED") return false;
+    return new Date(g.targetDate) < new Date();
+  };
+  const atRiskGoals = goals?.filter(isAtRisk) || [];
+  const atRiskCount = atRiskGoals.length;
+
+  // Virtual filter on top of statusFilter/categoryFilter — when true,
+  // only at-risk goals show regardless of status selection.
+  const [atRiskOnly, setAtRiskOnly] = useState(false);
+  const visibleGoals = atRiskOnly ? atRiskGoals : (goals || []);
+  const hasActiveFilters = statusFilter !== "all" || categoryFilter !== "all" || atRiskOnly;
+
   const handleExportPDF = () => {
     if (!goals || !user) return;
     
@@ -700,10 +719,33 @@ export default function GoalsPage() {
               <div className="text-sm text-muted-foreground">Completed</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className={cn(
+              "cursor-pointer hover-elevate",
+              atRiskOnly && "border-red-500/60 bg-red-50/40 dark:bg-red-950/20",
+            )}
+            onClick={() => setAtRiskOnly((v) => !v)}
+            data-testid="card-needs-attention"
+          >
             <CardContent className="p-4">
-              <div className="text-2xl font-bold">{avgProgress}%</div>
-              <div className="text-sm text-muted-foreground">Avg Progress</div>
+              <div className={cn(
+                "text-2xl font-bold",
+                atRiskCount > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground",
+              )}>
+                {atRiskCount}
+              </div>
+              <div className="text-sm text-muted-foreground flex items-center gap-1">
+                {atRiskCount > 0 && <AlertCircle className="h-3 w-3" />}
+                Needs Attention
+                <span className="ml-auto text-xs opacity-60">
+                  {atRiskOnly ? "(filtering)" : "(click to filter)"}
+                </span>
+              </div>
+              {atRiskCount === 0 && (
+                <div className="text-xs text-muted-foreground/70 mt-0.5">
+                  Avg progress {avgProgress}%
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -754,12 +796,15 @@ export default function GoalsPage() {
               </Card>
             ))}
           </div>
-        ) : goals && goals.length > 0 ? (
+        ) : visibleGoals.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {goals.map((goal) => (
+            {visibleGoals.map((goal) => (
               <Card
                 key={goal.id}
-                className="hover-elevate cursor-pointer"
+                className={cn(
+                  "hover-elevate cursor-pointer",
+                  isAtRisk(goal) && "border-red-500/50 bg-red-50/30 dark:bg-red-950/10",
+                )}
                 onClick={() => {
                   setSelectedGoal(goal);
                   setShowDetailDialog(true);
@@ -788,6 +833,12 @@ export default function GoalsPage() {
                           <Badge variant="secondary">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Approved
+                          </Badge>
+                        )}
+                        {isAtRisk(goal) && (
+                          <Badge variant="destructive">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Past Due
                           </Badge>
                         )}
                       </div>
@@ -853,14 +904,17 @@ export default function GoalsPage() {
               </Card>
             ))}
           </div>
-        ) : (
-          <Card className="p-8 text-center">
+        ) : totalGoals === 0 ? (
+          // First-time empty state — user has no goals at all.
+          <Card className="p-8 text-center" data-testid="empty-no-goals-ever">
             <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <CardTitle className="mb-2">No goals found</CardTitle>
-            <CardDescription>
-              {isMentor 
-                ? "Your mentees haven't created any goals yet. Goals will appear here once they are set." 
-                : "Create your first SMART goal to start tracking your professional development"}
+            <CardTitle className="mb-2">
+              {isMentor ? "No mentee goals yet" : "Set your first goal"}
+            </CardTitle>
+            <CardDescription className="max-w-md mx-auto">
+              {isMentor
+                ? "Your mentees haven't created any goals yet. Goals will appear here as soon as they're set."
+                : "SMART goals make progress visible. Start with one — Specific, Measurable, Achievable, Relevant, Time-bound — and track your growth."}
             </CardDescription>
             {!isMentor && (
               <Button
@@ -872,6 +926,27 @@ export default function GoalsPage() {
                 Create SMART Goal
               </Button>
             )}
+          </Card>
+        ) : (
+          // Filtered-empty state — has goals but current filters yield none.
+          <Card className="p-8 text-center" data-testid="empty-no-goals-filtered">
+            <Target className="h-10 w-10 mx-auto text-muted-foreground/60 mb-3" />
+            <CardTitle className="mb-2 text-base">No goals match your filters</CardTitle>
+            <CardDescription className="max-w-md mx-auto">
+              Try clearing filters to see all your goals.
+            </CardDescription>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => {
+                setStatusFilter("all");
+                setCategoryFilter("all");
+                setAtRiskOnly(false);
+              }}
+              data-testid="button-clear-goal-filters"
+            >
+              Clear filters
+            </Button>
           </Card>
         )}
       </div>
