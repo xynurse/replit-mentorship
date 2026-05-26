@@ -34,37 +34,28 @@ Items are ordered by **what should happen first**. Each section calls out the wh
 
 ---
 
-## P0 — Phase 2: Ably (real-time stack)
+## P0 — Phase 2 wrap-up: provision Ably + smoke-test live updates
 
-**Why next.** REST-based messaging works, so this is polish, not blocker — but the client console is currently flooded with reconnect attempts to a non-existent socket.io server, and live notifications never push. Ably restores all of that with a managed service.
+**Status.** Code changes landed (1.2.0): `server/realtime/ably.ts`, `POST /api/ably/auth`, Ably emissions in 3 message routes, client hooks rewritten, socket.io fully removed. What's left is operational.
 
-**Effort:** ~3 hours.
+**Effort:** ~30 minutes once the Ably account is set up.
 
 ### Work
 
+- [x] Add `ably` v2 to dependencies; remove socket.io stack.
+- [x] Replace `server/websocket.ts` with `server/realtime/ably.ts`.
+- [x] Wire Ably emissions into the message routes; rewrite client hooks.
 - [ ] Sign up at https://ably.com (free tier: 6M messages/month).
 - [ ] Create an app for the mentorship platform; capture the API key.
-- [ ] Set `ABLY_API_KEY` in Vercel production + preview.
-- [ ] Add `ably` to `dependencies`.
-- [ ] Replace `server/websocket.ts` with an Ably-server module:
-  - `emitNotification(userId, payload)` → `realtime.channels.get('user:' + userId).publish('notification', payload)`
-  - `emitNotificationCountUpdate(userId, count)` → channel `user:<id>`, event `notification:count`
-  - The 14 socket.io events from the original implementation map onto Ably channels:
-    - `conversation:<id>` channel — events `message:new`, `message:updated`, `message:deleted`, `message:reaction`, `typing:update`, `messages:read`
-    - `user:<id>` channel — events `notification:unread`, `notification:count`, `notification:new`
-    - presence on `online` channel — for user-online/user-offline
-- [ ] Add a server route that mints Ably tokens scoped to the authenticated user (`POST /api/ably/auth`). Use `Realtime.tokens.requestToken({ clientId: req.user.id, capability: { ... } })`.
-- [ ] Replace `socket.io-client` usage in:
-  - `client/src/hooks/use-messaging.tsx` — subscribe to `conversation:<id>` and `user:<id>` channels.
-  - `client/src/components/notification-bell.tsx` — subscribe to `user:<id>`.
-- [ ] Remove `socket.io` and `socket.io-client` from `package.json`.
-- [ ] Delete `server/websocket.ts` Phase 1 stub.
+- [ ] Set `ABLY_API_KEY` in Vercel Production + Preview env. Also pull locally via `vercel env pull`.
+- [ ] Push Phase 2 to `main`; Vercel auto-deploys.
 
 ### Verification
 
 - [ ] Two browsers logged in as different users in the same conversation: typing in one shows the typing indicator in the other within 1s.
 - [ ] Sending a message in one shows up in the other without a page refresh.
 - [ ] Triggering an admin action that creates a notification (e.g., assign a task) updates the recipient's notification bell badge live.
+- [ ] Open browser devtools network tab and confirm Ably's WebSocket connection comes up (URL contains `realtime.ably.io`).
 
 ---
 
@@ -100,10 +91,10 @@ Done as part of Phase 3 (1.1.0):
 - [x] Delete `server/replit_integrations/`.
 - [x] Drop `@google-cloud/storage`, `google-auth-library`, `@uppy/*`.
 
-Once Phase 2 lands:
+Done as part of Phase 2 (1.2.0):
 
-- [ ] Delete the now-dead websocket stub (`server/websocket.ts` replaced by the Ably module).
-- [ ] Drop `socket.io`, `socket.io-client` from `dependencies`.
+- [x] Delete `server/websocket.ts` (replaced by `server/realtime/ably.ts`).
+- [x] Drop `socket.io`, `socket.io-client`, `@types/socket.io-client`, `bufferutil`.
 
 General hygiene (any time):
 

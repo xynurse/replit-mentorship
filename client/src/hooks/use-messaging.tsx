@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "./use-auth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { io, Socket } from "socket.io-client";
+import * as Ably from "ably";
 import type { Conversation, Message, User, ConversationParticipant } from "@shared/schema";
 
 type MessageWithSender = Message & {
@@ -19,7 +19,6 @@ type ConversationWithDetails = Conversation & {
 };
 
 interface MessagingContextType {
-  socket: Socket | null;
   isConnected: boolean;
   onlineUsers: Set<string>;
   typingUsers: Map<string, Set<string>>;
@@ -42,16 +41,19 @@ interface MessagingContextType {
 
 const MessagingContext = createContext<MessagingContextType | null>(null);
 
+const PRESENCE_CHANNEL = "presence:online";
+
 export function MessagingProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const ablyRef = useRef<Ably.Realtime | null>(null);
+  const conversationChannelRef = useRef<Ably.RealtimeChannel | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [typingUsers, setTypingUsers] = useState<Map<string, Set<string>>>(new Map());
   const [activeConversation, setActiveConversation] = useState<ConversationWithDetails | null>(null);
   const [messages, setMessages] = useState<MessageWithSender[]>([]);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: conversations = [], isLoading: isLoadingConversations } = useQuery<ConversationWithDetails[]>({
     queryKey: ["/api/conversations"],
@@ -72,279 +74,320 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (activeConversation) {
       refetchMessages().then(({ data }) => {
-        if (data) {
-          setMessages(data);
-        }
+        if (data) setMessages(data);
       });
     } else {
       setMessages([]);
     }
   }, [activeConversation, refetchMessages]);
 
+  // Connect to Ably (one Realtime instance per user session).
   useEffect(() => {
     if (!user) {
-      if (socket) {
-        socket.disconnect();
-        setSocket(null);
+      if (ablyRef.current) {
+        ablyRef.current.close();
+        ablyRef.current = null;
         setIsConnected(false);
       }
       return;
     }
 
-    const newSocket = io({
-      withCredentials: true,
-      transports: ["websocket", "polling"],
+    const client = new Ably.Realtime({
+      authUrl: "/api/ably/auth",
+      authMethod: "POST",
     });
+    ablyRef.current = client;
 
-    newSocket.on("connect", () => {
-      console.log("WebSocket connected");
-      setIsConnected(true);
-    });
-
-    newSocket.on("disconnect", () => {
-      console.log("WebSocket disconnected");
+    client.connection.on("connected", () => setIsConnected(true));
+    client.connection.on("disconnected", () => setIsConnected(false));
+    client.connection.on("failed", (err) => {
+      console.error("[ably] connection failed:", err);
       setIsConnected(false);
     });
 
-    newSocket.on("user:online", ({ userId }: { userId: string }) => {
-      setOnlineUsers(prev => new Set(Array.from(prev).concat(userId)));
+    // Subscribe to this user's notification channel.
+    const userChan = client.channels.get(`user:${user.id}`);
+    userChan.subscribe("notification:new", () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
     });
 
-    newSocket.on("user:offline", ({ userId }: { userId: string }) => {
-      setOnlineUsers(prev => {
-        const next = new Set(prev);
-        next.delete(userId);
-        return next;
-      });
+    // Presence: enter on connect, watch enter/leave to maintain onlineUsers.
+    const presenceChan = client.channels.get(PRESENCE_CHANNEL);
+    presenceChan.presence.subscribe("enter", (member) => {
+      if (member.clientId) {
+        setOnlineUsers((prev) => {
+          const next = new Set(prev);
+          next.add(member.clientId!);
+          return next;
+        });
+      }
     });
+    presenceChan.presence.subscribe("leave", (member) => {
+      if (member.clientId) {
+        setOnlineUsers((prev) => {
+          const next = new Set(prev);
+          next.delete(member.clientId!);
+          return next;
+        });
+      }
+    });
+    presenceChan.presence
+      .get()
+      .then((members) => {
+        const ids = members
+          .map((m) => m.clientId)
+          .filter((id): id is string => !!id);
+        setOnlineUsers(new Set(ids));
+      })
+      .catch((err) => console.error("[ably] presence.get failed:", err));
+    presenceChan.presence
+      .enter()
+      .catch((err) => console.error("[ably] presence.enter failed:", err));
 
-    newSocket.on("message:new", (message: MessageWithSender) => {
-      setMessages(prev => {
-        // Check if we already have this exact message
-        if (prev.some(m => m.id === message.id)) return prev;
-        // Replace any optimistic (temp) message with matching content from same sender
-        const tempMsgIndex = prev.findIndex(m => 
-          m.id && 
-          typeof m.id === 'string' && 
-          m.id.startsWith('temp-') && 
-          m.senderId === message.senderId && 
-          m.content === message.content &&
-          m.conversationId === message.conversationId
+    return () => {
+      presenceChan.presence.leave().catch(() => {});
+      userChan.unsubscribe();
+      client.close();
+      ablyRef.current = null;
+      setIsConnected(false);
+    };
+  }, [user, queryClient]);
+
+  // Subscribe/unsubscribe to the active conversation channel.
+  useEffect(() => {
+    const client = ablyRef.current;
+    if (!client || !activeConversation) {
+      conversationChannelRef.current = null;
+      return;
+    }
+
+    const chan = client.channels.get(`conversation:${activeConversation.id}`);
+    conversationChannelRef.current = chan;
+
+    const onNew = (msg: Ably.InboundMessage) => {
+      const message = msg.data as MessageWithSender;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === message.id)) return prev;
+        const tempIdx = prev.findIndex(
+          (m) =>
+            typeof m.id === "string" &&
+            m.id.startsWith("temp-") &&
+            m.senderId === message.senderId &&
+            m.content === message.content &&
+            m.conversationId === message.conversationId,
         );
-        if (tempMsgIndex >= 0) {
-          const updated = [...prev];
-          updated[tempMsgIndex] = message;
-          return updated;
+        if (tempIdx >= 0) {
+          const next = [...prev];
+          next[tempIdx] = message;
+          return next;
         }
         return [...prev, message];
       });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-    });
+    };
 
-    newSocket.on("message:edited", (message: MessageWithSender) => {
-      setMessages(prev => prev.map(m => m.id === message.id ? message : m));
-    });
+    const onEdited = (msg: Ably.InboundMessage) => {
+      const message = msg.data as MessageWithSender;
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? message : m)));
+    };
 
-    newSocket.on("message:deleted", ({ messageId }: { messageId: string }) => {
-      setMessages(prev => prev.filter(m => m.id !== messageId));
-    });
+    const onDeleted = (msg: Ably.InboundMessage) => {
+      const { messageId } = msg.data as { messageId: string };
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    };
 
-    newSocket.on("message:reaction", ({ messageId, reactions }: { messageId: string; reactions: any }) => {
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
-    });
+    const onReaction = (msg: Ably.InboundMessage) => {
+      const { messageId, reactions } = msg.data as { messageId: string; reactions: any };
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)));
+    };
 
-    newSocket.on("typing:start", ({ conversationId, userId }: { conversationId: string; userId: string }) => {
-      setTypingUsers(prev => {
+    const onTypingStart = (msg: Ably.InboundMessage) => {
+      const { userId } = msg.data as { userId: string };
+      if (userId === user?.id) return;
+      setTypingUsers((prev) => {
         const next = new Map(prev);
-        const users = next.get(conversationId) || new Set();
+        const users = next.get(activeConversation.id) || new Set<string>();
         users.add(userId);
-        next.set(conversationId, users);
+        next.set(activeConversation.id, users);
         return next;
       });
-    });
+    };
 
-    newSocket.on("typing:stop", ({ conversationId, userId }: { conversationId: string; userId: string }) => {
-      setTypingUsers(prev => {
+    const onTypingStop = (msg: Ably.InboundMessage) => {
+      const { userId } = msg.data as { userId: string };
+      setTypingUsers((prev) => {
         const next = new Map(prev);
-        const users = next.get(conversationId);
+        const users = next.get(activeConversation.id);
         if (users) {
           users.delete(userId);
-          if (users.size === 0) {
-            next.delete(conversationId);
-          } else {
-            next.set(conversationId, users);
-          }
+          if (users.size === 0) next.delete(activeConversation.id);
+          else next.set(activeConversation.id, users);
         }
         return next;
       });
-    });
+    };
 
-    newSocket.on("messages:read", ({ conversationId, userId, readAt }: { conversationId: string; userId: string; readAt: string }) => {
+    const onRead = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-    });
+    };
 
-    // Handle errors - remove any pending optimistic messages
-    newSocket.on("error", () => {
-      setMessages(prev => prev.filter(m => !(m.id && typeof m.id === 'string' && m.id.startsWith('temp-'))));
-    });
-
-    // Clean up optimistic messages on disconnect
-    newSocket.on("disconnect", () => {
-      setMessages(prev => prev.filter(m => !(m.id && typeof m.id === 'string' && m.id.startsWith('temp-'))));
-    });
-
-    setSocket(newSocket);
+    chan.subscribe("message:new", onNew);
+    chan.subscribe("message:edited", onEdited);
+    chan.subscribe("message:deleted", onDeleted);
+    chan.subscribe("message:reaction", onReaction);
+    chan.subscribe("typing:start", onTypingStart);
+    chan.subscribe("typing:stop", onTypingStop);
+    chan.subscribe("messages:read", onRead);
 
     return () => {
-      newSocket.disconnect();
-      setSocket(null);
+      chan.unsubscribe();
+      conversationChannelRef.current = null;
     };
-  }, [user, queryClient]);
+  }, [activeConversation, user?.id, queryClient]);
 
-  useEffect(() => {
-    if (socket && isConnected && activeConversation) {
-      socket.emit("conversation:join", { conversationId: activeConversation.id });
-      return () => {
-        socket.emit("conversation:leave", { conversationId: activeConversation.id });
+  const sendMessage = useCallback(
+    async (content: string, replyToId?: string) => {
+      if (!activeConversation || !user) return;
+
+      const optimisticMessage = {
+        id: `temp-${Date.now()}`,
+        conversationId: activeConversation.id,
+        senderId: user.id,
+        content,
+        messageType: "TEXT" as const,
+        replyToId: replyToId || null,
+        isEdited: false,
+        editedAt: null,
+        isDeleted: false,
+        deletedAt: null,
+        isPinned: false,
+        reactions: {},
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        sender: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          profileImage: user.profileImage,
+        },
+        attachments: [],
       };
-    }
-  }, [socket, isConnected, activeConversation]);
 
-  const sendMessage = useCallback(async (content: string, replyToId?: string) => {
-    if (!activeConversation) return;
-    
-    // Create optimistic message for immediate display
-    const optimisticMessage = {
-      id: `temp-${Date.now()}`,
-      conversationId: activeConversation.id,
-      senderId: user?.id || "",
-      content,
-      messageType: "TEXT" as const,
-      replyToId: replyToId || null,
-      isEdited: false,
-      editedAt: null,
-      isDeleted: false,
-      deletedAt: null,
-      isPinned: false,
-      reactions: {},
-      metadata: {},
-      createdAt: new Date().toISOString(),
-      sender: user ? { 
-        id: user.id, 
-        firstName: user.firstName, 
-        lastName: user.lastName, 
-        profileImage: user.profileImage 
-      } : null,
-      attachments: [],
-    };
-    
-    // Add optimistic message immediately
-    setMessages(prev => [...prev, optimisticMessage as any]);
-    
-    if (!socket || !isConnected) {
-      // Fall back to REST API
+      setMessages((prev) => [...prev, optimisticMessage as any]);
+
       try {
         const res = await apiRequest("POST", `/api/conversations/${activeConversation.id}/messages`, {
           content,
           replyToId,
         });
         const message = await res.json();
-        // Replace optimistic message with real one
-        setMessages(prev => prev.map(m => 
-          m.id === optimisticMessage.id ? message : m
-        ));
+        // Ably will deliver the real message; meanwhile patch in-place
+        // so the optimistic row gets the real id immediately for the sender.
+        setMessages((prev) =>
+          prev.map((m) => (m.id === optimisticMessage.id ? message : m)),
+        );
         queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       } catch (error) {
-        // Remove optimistic message on error
-        setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id));
       }
-      return;
-    }
+    },
+    [activeConversation, user, queryClient],
+  );
 
-    socket.emit("message:send", {
-      conversationId: activeConversation.id,
-      content,
-      replyToId,
-    });
-  }, [socket, isConnected, activeConversation, user, queryClient]);
+  const publishTyping = useCallback(
+    (event: "typing:start" | "typing:stop") => {
+      const chan = conversationChannelRef.current;
+      if (!chan || !user) return;
+      chan.publish(event, { userId: user.id }).catch(() => {});
+    },
+    [user],
+  );
 
   const startTyping = useCallback(() => {
-    if (!socket || !isConnected || !activeConversation) return;
-    
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    
-    socket.emit("typing:start", { conversationId: activeConversation.id });
-    
-    typingTimeoutRef.current = setTimeout(() => {
-      socket.emit("typing:stop", { conversationId: activeConversation.id });
-    }, 3000);
-  }, [socket, isConnected, activeConversation]);
+    if (!activeConversation) return;
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    publishTyping("typing:start");
+    typingTimeoutRef.current = setTimeout(() => publishTyping("typing:stop"), 3000);
+  }, [activeConversation, publishTyping]);
 
   const stopTyping = useCallback(() => {
-    if (!socket || !isConnected || !activeConversation) return;
-    
+    if (!activeConversation) return;
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
-    
-    socket.emit("typing:stop", { conversationId: activeConversation.id });
-  }, [socket, isConnected, activeConversation]);
+    publishTyping("typing:stop");
+  }, [activeConversation, publishTyping]);
 
   const markAsRead = useCallback(async () => {
     if (!activeConversation) return;
-    
-    if (socket && isConnected) {
-      socket.emit("messages:read", { conversationId: activeConversation.id });
-    } else {
-      await apiRequest("POST", `/api/conversations/${activeConversation.id}/read`, {});
-    }
+    await apiRequest("POST", `/api/conversations/${activeConversation.id}/read`, {});
     queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-  }, [socket, isConnected, activeConversation, queryClient]);
+  }, [activeConversation, queryClient]);
 
-  const startDirectConversation = useCallback(async (recipientId: string): Promise<ConversationWithDetails> => {
-    const res = await apiRequest("POST", "/api/conversations/direct", { recipientId });
-    const conversation = await res.json();
-    queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-    return conversation;
-  }, [queryClient]);
+  const startDirectConversation = useCallback(
+    async (recipientId: string): Promise<ConversationWithDetails> => {
+      const res = await apiRequest("POST", "/api/conversations/direct", { recipientId });
+      const conversation = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      return conversation;
+    },
+    [queryClient],
+  );
 
-  const addReaction = useCallback((messageId: string, emoji: string) => {
-    if (!socket || !isConnected || !activeConversation) return;
-    socket.emit("message:reaction:add", { conversationId: activeConversation.id, messageId, emoji });
-  }, [socket, isConnected, activeConversation]);
+  const addReaction = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!activeConversation) return;
+      try {
+        await apiRequest("POST", `/api/messages/${messageId}/reactions`, { emoji });
+      } catch (err) {
+        console.error("addReaction failed:", err);
+      }
+    },
+    [activeConversation],
+  );
 
-  const removeReaction = useCallback((messageId: string, emoji: string) => {
-    if (!socket || !isConnected || !activeConversation) return;
-    socket.emit("message:reaction:remove", { conversationId: activeConversation.id, messageId, emoji });
-  }, [socket, isConnected, activeConversation]);
+  const removeReaction = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!activeConversation) return;
+      try {
+        await apiRequest("DELETE", `/api/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`);
+      } catch (err) {
+        console.error("removeReaction failed:", err);
+      }
+    },
+    [activeConversation],
+  );
 
-  const editMessage = useCallback((messageId: string, content: string) => {
-    if (!socket || !isConnected || !activeConversation) return;
-    socket.emit("message:edit", { conversationId: activeConversation.id, messageId, content });
-  }, [socket, isConnected, activeConversation]);
+  const editMessage = useCallback(
+    async (messageId: string, content: string) => {
+      if (!activeConversation) return;
+      try {
+        await apiRequest("PATCH", `/api/messages/${messageId}`, { content });
+      } catch (err) {
+        console.error("editMessage failed:", err);
+      }
+    },
+    [activeConversation],
+  );
 
-  const deleteMessage = useCallback(async (messageId: string) => {
-    if (!activeConversation) return;
-    
-    if (socket && isConnected) {
-      socket.emit("message:delete", { conversationId: activeConversation.id, messageId });
-    } else {
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!activeConversation) return;
       try {
         await apiRequest("DELETE", `/api/conversations/${activeConversation.id}/messages/${messageId}`);
-        setMessages(prev => prev.filter(m => m.id !== messageId));
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
       } catch (error) {
         console.error("Failed to delete message:", error);
       }
-    }
-  }, [socket, isConnected, activeConversation]);
+    },
+    [activeConversation],
+  );
 
   return (
     <MessagingContext.Provider
       value={{
-        socket,
         isConnected,
         onlineUsers,
         typingUsers,

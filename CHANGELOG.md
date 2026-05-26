@@ -10,10 +10,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dat
 
 ### Pending (see [TODO.md](./TODO.md))
 
-- **Phase 2** — Replace socket.io with Ably for real-time messaging, presence, typing indicators, and live notification updates.
+- **Provision Ably account** and set `ABLY_API_KEY` on Vercel Production + Preview (Phase 2 code is in place but the key isn't yet).
 - **DNS cutover** — Repoint `mentorship.sonsiel.org` from Replit to Vercel.
 - **Confirm `BLOB_READ_WRITE_TOKEN` is set on Vercel Production + Preview env.** Locally added 2026-05-25; verify Vercel project env shows it with both environment checkmarks.
 - **Re-upload program guides through the admin UI** after deploy. The 10 legacy docs were deleted on 2026-05-25 as part of the "start fresh" cleanup (see 1.1.0).
+
+---
+
+## [1.2.0] — 2026-05-25 — Phase 2: Ably real-time
+
+Replaces the Phase 1 socket.io no-op stub with Ably. Live messaging, typing indicators, presence (online users), and live notification badges all work end-to-end on Vercel — pending an `ABLY_API_KEY` being provisioned.
+
+### Added
+
+- `server/realtime/ably.ts` — Ably wrapper around the REST client (for server publishes) and a token-request issuer for clients. Exposes `emitNotification`, `emitNotificationCountUpdate`, `emitMessageNew/Edited/Deleted/Reaction`, `emitMessagesRead`, and `issueClientToken`. No-ops gracefully when `ABLY_API_KEY` is missing so dev builds without a key still boot (logs a one-time warning).
+- `POST /api/ably/auth` — token endpoint. Client SDK calls it via `authUrl`; server mints a 1-hour TokenRequest with `clientId = user.id` and capability scoped to `user:<id>` (subscribe), `conversation:*` (subscribe + publish + presence), and `presence:online` (presence + subscribe).
+- `ably` v2.21 dependency.
+
+### Changed
+
+- **Channel layout:** `user:<userId>` for notifications (server publishes only), `conversation:<id>` for message events (server publishes state-changing ops; clients publish transient typing events directly), `presence:online` for online indicators via Ably presence.
+- **Server emits Ably events after persisting** in three routes: `POST /api/conversations/:id/messages`, `POST /api/conversations/:id/read`, `DELETE /api/conversations/:conversationId/messages/:messageId`. The send route emits the full sender-attached payload once; clients can de-duplicate against their optimistic temp row.
+- **`client/src/hooks/use-messaging.tsx`** rewritten with the Ably Realtime client. Drops the `socket` field from `MessagingContext`. State-changing ops (`sendMessage`, `markAsRead`, `editMessage`, `deleteMessage`, `addReaction`, `removeReaction`) now route through REST, then events arrive via Ably. Typing indicators publish client→Ably directly (transient — no DB write needed).
+- **`client/src/components/notification-bell.tsx`** subscribes to its user channel via Ably for live unread-count updates and notification invalidation. Runs its own Ably client because `MessagingProvider` only wraps `/messages`; can be hoisted later if needed.
+
+### Removed
+
+- `server/websocket.ts` — Phase 1 stub no longer needed.
+- `socket.io`, `socket.io-client`, `@types/socket.io-client` — uninstalled.
+- `bufferutil` — was an `optionalDependencies` entry to speed up socket.io frame parsing; irrelevant without socket.io.
+
+### Security
+
+- Per-user Ably tokens are auth-gated by `requireAuth` middleware. Token TTL is 1 hour; clients can refresh by re-hitting the auth URL.
+- `conversation:*` capability is wildcarded. Conversation IDs are unguessable UUIDs (same security model as our Blob URLs), so this is acceptable. Per-conversation capability would require re-minting tokens whenever conversation membership changes.
+- Server uses the master API key for publishes (`server/realtime/ably.ts` only); the key never reaches the client.
+
+### Migration / operational notes
+
+- **No data migration needed.** Phase 2 only swaps the realtime transport — DB schemas, REST endpoints, and message rows are untouched.
+- **`ABLY_API_KEY` must be set in production + preview before live updates work in deploys.** Without it, message events still flow over REST and the UI degrades to "send works, but other users won't see it until they refetch."
 
 ---
 

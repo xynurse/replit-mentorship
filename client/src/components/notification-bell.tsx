@@ -15,7 +15,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { io, Socket } from "socket.io-client";
+import * as Ably from "ably";
 import type { Notification } from "@shared/schema";
 
 function getNotificationIcon(type: string) {
@@ -147,7 +147,7 @@ function NotificationItem({
 
 export function NotificationBell() {
   const { user } = useAuth();
-  const socketRef = useRef<Socket | null>(null);
+  const ablyRef = useRef<Ably.Realtime | null>(null);
   const [realtimeCount, setRealtimeCount] = useState<number | null>(null);
 
   const { data: countData } = useQuery<{ count: number }>({
@@ -162,30 +162,26 @@ export function NotificationBell() {
   useEffect(() => {
     if (!user) return;
 
-    const socket = io({
-      path: "/socket.io",
-      withCredentials: true,
-      transports: ["websocket", "polling"],
+    const client = new Ably.Realtime({
+      authUrl: "/api/ably/auth",
+      authMethod: "POST",
     });
+    ablyRef.current = client;
 
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      console.log("Notification socket connected");
-    });
-
-    socket.on("notification:new", (notification: Notification) => {
+    const chan = client.channels.get(`user:${user.id}`);
+    chan.subscribe("notification:new", () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
     });
-
-    socket.on("notification:count", ({ count }: { count: number }) => {
+    chan.subscribe("notification:count", (msg) => {
+      const { count } = msg.data as { count: number };
       setRealtimeCount(count);
     });
 
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
+      chan.unsubscribe();
+      client.close();
+      ablyRef.current = null;
     };
   }, [user]);
 

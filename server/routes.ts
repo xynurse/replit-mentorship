@@ -5,7 +5,17 @@ import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./aut
 import { storage } from "./storage";
 import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema, insertReminderSchema } from "@shared/schema";
 import { z } from "zod";
-import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
+import {
+  setupWebSocket,
+  getOnlineUsers,
+  isUserOnline,
+  emitNotification,
+  emitNotificationCountUpdate,
+  emitMessageNew,
+  emitMessageDeleted,
+  emitMessagesRead,
+  issueClientToken,
+} from "./realtime/ably";
 import {
   streamRequestToBlob,
   streamBlobToResponse,
@@ -2838,16 +2848,18 @@ export async function registerRoutes(
         }
       }
       
-      res.status(201).json({
+      const messagePayload = {
         ...message,
-        sender: sender ? { 
-          id: sender.id, 
-          firstName: sender.firstName, 
-          lastName: sender.lastName, 
-          profileImage: sender.profileImage 
+        sender: sender ? {
+          id: sender.id,
+          firstName: sender.firstName,
+          lastName: sender.lastName,
+          profileImage: sender.profileImage
         } : null,
         attachments: []
-      });
+      };
+      emitMessageNew(id, messagePayload);
+      res.status(201).json(messagePayload);
     } catch (error) {
       next(error);
     }
@@ -2858,13 +2870,14 @@ export async function registerRoutes(
     try {
       const userId = (req.user as any).id;
       const { id } = req.params;
-      
+
       const participants = await storage.getConversationParticipants(id);
       if (!participants.some(p => p.userId === userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
-      
+
       await storage.markMessagesAsRead(id, userId);
+      emitMessagesRead(id, userId, new Date().toISOString());
       res.json({ success: true });
     } catch (error) {
       next(error);
@@ -2898,23 +2911,41 @@ export async function registerRoutes(
       }
       
       await storage.deleteMessage(messageId);
+      emitMessageDeleted(conversationId, messageId);
       res.json({ message: "Message deleted" });
     } catch (error) {
       next(error);
     }
   });
 
-  // Get online users
-  app.get("/api/users/online", requireAuth, async (req, res, next) => {
+  // Ably client token issuance. Client uses authUrl: '/api/ably/auth'
+  // when initializing the Realtime SDK; Ably calls this endpoint and
+  // passes the returned token request through to the SDK.
+  app.post("/api/ably/auth", requireAuth, async (req, res, next) => {
     try {
-      const onlineUserIds = getOnlineUsers();
-      res.json({ onlineUserIds });
+      const userId = (req.user as any).id;
+      const tokenRequest = await issueClientToken(userId);
+      if (!tokenRequest) {
+        return res.status(503).json({
+          message: "Real-time service unavailable (ABLY_API_KEY not configured)",
+        });
+      }
+      res.json(tokenRequest);
     } catch (error) {
       next(error);
     }
   });
 
-  // Check if specific user is online
+  // Online presence is read from Ably on the client (presence:online channel).
+  // These endpoints stay as no-ops so older clients keep getting a 200.
+  app.get("/api/users/online", requireAuth, async (_req, res, next) => {
+    try {
+      res.json({ onlineUserIds: getOnlineUsers() });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/users/:id/online", requireAuth, async (req, res, next) => {
     try {
       const { id } = req.params;
