@@ -37,6 +37,10 @@ interface DisplayEvent {
 export default function CalendarPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  // Calendar view mode — month grid (default) vs agenda list. Agenda
+  // mimics the Outlook/Google Calendar list view: events grouped by
+  // day, chronologically, with day headers.
+  const [viewMode, setViewMode] = useState<"month" | "agenda">("month");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showNewEventDialog, setShowNewEventDialog] = useState(false);
@@ -420,6 +424,126 @@ export default function CalendarPage() {
 
   const isLoading = isLoadingEvents;
 
+  // Agenda view: chronological list of events grouped by day. Outlook /
+  // Google Calendar style. Defaults to "upcoming + this month" — events
+  // for the current month plus anything in the future from today.
+  function renderAgendaView() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Show events from the start of the current month forward.
+    const fromDate = startOfMonth(currentMonth);
+    const visibleEvents = allEvents
+      .filter((e) => e.date >= fromDate)
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    if (isLoading) {
+      return (
+        <div className="space-y-3 py-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      );
+    }
+
+    if (visibleEvents.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <CalendarIcon className="h-12 w-12 text-muted-foreground/50 mb-3" />
+          <p className="text-sm font-medium">No events from {format(fromDate, "MMM d")} onward</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Schedule a meeting or block time to see it here.
+          </p>
+        </div>
+      );
+    }
+
+    // Group by date string (yyyy-MM-dd) preserving insertion order.
+    const grouped = new Map<string, typeof visibleEvents>();
+    for (const ev of visibleEvents) {
+      const key = format(ev.date, "yyyy-MM-dd");
+      const bucket = grouped.get(key);
+      if (bucket) bucket.push(ev);
+      else grouped.set(key, [ev]);
+    }
+
+    return (
+      <div className="space-y-6 py-2" data-testid="agenda-view">
+        {Array.from(grouped.entries()).map(([dateKey, dayEvents]) => {
+          const dayDate = dayEvents[0].date;
+          const isTodayDay = isSameDay(dayDate, today);
+          const isTomorrowDay = isSameDay(dayDate, tomorrow);
+          const label = isTodayDay
+            ? "Today"
+            : isTomorrowDay
+              ? "Tomorrow"
+              : format(dayDate, "EEEE");
+          return (
+            <div key={dateKey} data-testid={`agenda-day-${dateKey}`}>
+              <div className="flex items-baseline gap-3 mb-2 pb-2 border-b">
+                <span className={cn(
+                  "text-sm font-semibold",
+                  isTodayDay && "text-primary",
+                )}>
+                  {label}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {format(dayDate, "MMMM d, yyyy")}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {dayEvents.map((event) => (
+                  <button
+                    key={`${event.type}-${event.id}`}
+                    onClick={() => event.type === "goal" ? openGoalDetail(event) : openEventDetail(event.id)}
+                    className={cn(
+                      "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate text-left",
+                      event.type === "block" ? "bg-orange-100/60 dark:bg-orange-950/30" :
+                      event.type === "goal" ? "bg-purple-100/60 dark:bg-purple-950/30" : "bg-muted/40",
+                    )}
+                    data-testid={`agenda-${event.type}-${event.id}`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={cn(
+                        "w-2 h-2 rounded-full shrink-0",
+                        event.type === "meeting" ? "bg-blue-500" :
+                        event.type === "block" ? "bg-orange-500" : "bg-purple-500"
+                      )} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm truncate">{event.title}</span>
+                          <Badge variant="outline" className={cn("text-xs flex-shrink-0", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400")}>
+                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Blocked" : "Goal"}
+                          </Badge>
+                        </div>
+                        {event.type === "goal" && event.ownerName && (
+                          <span className="text-xs text-muted-foreground">({event.ownerName})</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
+                      {event.type === "goal" ? (
+                        <Target className="h-4 w-4" />
+                      ) : (
+                        <>
+                          <CalendarIcon className="h-4 w-4" />
+                          <span>{format(event.date, "h:mm a")}</span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="p-6">
@@ -480,19 +604,45 @@ export default function CalendarPage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setCurrentMonth(new Date());
-                  setSelectedDate(new Date());
-                }}
-                data-testid="button-today"
-              >
-                Today
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="flex border rounded-md overflow-hidden" data-testid="view-mode-toggle">
+                  <Button
+                    variant={viewMode === "month" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="rounded-none"
+                    onClick={() => setViewMode("month")}
+                    data-testid="button-view-month"
+                  >
+                    Month
+                  </Button>
+                  <Button
+                    variant={viewMode === "agenda" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="rounded-none"
+                    onClick={() => setViewMode("agenda")}
+                    data-testid="button-view-agenda"
+                  >
+                    Agenda
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setCurrentMonth(new Date());
+                    setSelectedDate(new Date());
+                  }}
+                  data-testid="button-today"
+                >
+                  Today
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
+              {viewMode === "agenda" ? (
+                renderAgendaView()
+              ) : (
+                <>
               <div className="grid grid-cols-7 gap-1 mb-2">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                   <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
@@ -500,7 +650,7 @@ export default function CalendarPage() {
                   </div>
                 ))}
               </div>
-              
+
               <div className="grid grid-cols-7 gap-1">
                 {paddingDays.map((_, index) => (
                   <div key={`pad-${index}`} className="aspect-square" />
@@ -574,6 +724,8 @@ export default function CalendarPage() {
                   <span>Goals</span>
                 </div>
               </div>
+              </>
+              )}
             </CardContent>
           </Card>
 
