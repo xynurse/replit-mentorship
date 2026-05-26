@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
@@ -117,7 +117,6 @@ function formatDate(date?: Date | string | null): string {
 export default function DocumentsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const pendingObjectPathRef = useRef<string | null>(null);
 
   const defaultTab = (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") ? "personal" : "system";
   const [activeTab, setActiveTab] = useState<"system" | "personal" | "shared">(defaultTab);
@@ -154,7 +153,7 @@ export default function DocumentsPage() {
   const [newFolderDescription, setNewFolderDescription] = useState("");
 
   const [uploadedFile, setUploadedFile] = useState<{
-    objectPath: string;
+    url: string;
     name: string;
     size: number;
     contentType: string;
@@ -521,35 +520,25 @@ export default function DocumentsPage() {
     setUploadShareEnabled(false);
   };
 
-  const handleUploadComplete = (result: any) => {
-    const files = result.successful || [];
-    if (files.length > 0) {
-      const file = files[0];
-      const objectPath = pendingObjectPathRef.current || file.response?.body?.objectPath;
-      if (!objectPath) {
-        toast({ title: "Upload failed - could not determine file path", variant: "destructive" });
-        return;
-      }
-      setUploadedFile({
-        objectPath,
-        name: file.name,
-        size: file.size,
-        contentType: file.type,
-      });
-      setDocumentName(file.name);
-      pendingObjectPathRef.current = null;
-    }
+  const handleUploadComplete = (result: { url: string; name: string; size: number; contentType: string }) => {
+    setUploadedFile({
+      url: result.url,
+      name: result.name,
+      size: result.size,
+      contentType: result.contentType,
+    });
+    setDocumentName(result.name);
   };
 
   const handleSaveDocument = () => {
     if (!uploadedFile) return;
-    
+
     const targetFolderId = currentFolderId || effectiveFolderId;
-    
+
     createDocumentMutation.mutate({
       name: documentName || uploadedFile.name,
       description: documentDescription,
-      fileUrl: uploadedFile.objectPath,
+      fileUrl: uploadedFile.url,
       fileType: uploadedFile.contentType.split("/")[1],
       fileSize: uploadedFile.size,
       mimeType: uploadedFile.contentType,
@@ -618,28 +607,8 @@ export default function DocumentsPage() {
                   {!uploadedFile ? (
                     <div className="flex justify-center">
                       <ObjectUploader
-                        maxNumberOfFiles={1}
+                        kind="document"
                         maxFileSize={52428800}
-                        onGetUploadParameters={async (file) => {
-                          const res = await fetch("/api/uploads/request-url", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            credentials: "include",
-                            body: JSON.stringify({
-                              name: file.name,
-                              size: file.size,
-                              contentType: file.type || "application/octet-stream",
-                            }),
-                          });
-                          if (!res.ok) throw new Error("Failed to get upload URL");
-                          const data = await res.json();
-                          pendingObjectPathRef.current = data.objectPath;
-                          return {
-                            method: "PUT" as const,
-                            url: data.uploadURL,
-                            headers: { "Content-Type": file.type || "application/octet-stream" },
-                          };
-                        }}
                         onComplete={handleUploadComplete}
                       >
                         <Upload className="h-4 w-4 mr-2" />

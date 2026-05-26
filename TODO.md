@@ -6,50 +6,31 @@ Items are ordered by **what should happen first**. Each section calls out the wh
 
 ---
 
-## P0 — Phase 3: Vercel Blob (file storage)
+## P0 — Phase 3 wrap-up: deploy and re-upload program guides
 
-**Why first.** Profile photos render on every page, and the document library is a flagship feature. Both are silently broken in Phase 1 because the Replit GCS sidecar (`http://127.0.0.1:1106`) is unreachable on Vercel. Fixing this clears the largest blast radius for end users.
+**Status.** Code changes landed (1.1.0), Blob store provisioned, legacy file references purged (start-fresh — see [CHANGELOG.md](./CHANGELOG.md)). What's left is deploy + content restoration.
 
-**Effort:** ~3 hours.
+**Effort:** ~30 minutes.
 
 ### Work
 
-- [ ] Provision Vercel Blob on the `replit-mentorship` project (Vercel dashboard → Storage → Create Blob store, or `vercel blob add`).
-- [ ] Confirm `BLOB_READ_WRITE_TOKEN` is auto-injected into production + preview env.
-- [ ] Add `@vercel/blob` to `dependencies`.
-- [ ] Replace `server/replit_integrations/object_storage/objectStorage.ts` with a thin wrapper around `@vercel/blob`:
-  - `getObjectEntityUploadURL()` → `put()` with `access: 'public'` or signed URLs depending on doc visibility
-  - `getObjectEntityFile(path)` → return Blob URL or stream
-  - `downloadObject(file, res)` → stream from Blob to response
-  - Preserve the existing `ObjectAclPolicy` model in our DB (Blob doesn't have ACLs; we enforce them in `accessValidator`).
-- [ ] Update the four call sites in `server/routes.ts`:
-  - line ~1597: profile photo download
-  - line ~3204: document view
-  - line ~3271: document download
-  - line ~3038: `registerObjectStorageRoutes(app, requireAuth, validateDocumentAccess)`
-- [ ] Decide on profile photo URL convention:
-  - **Recommended:** store full Blob public URLs in `users.profile_image`; fix the few client components that still expect a relative `/objects/...` path.
-  - Alternative: keep `/api/profile-photo/:id` as an indirection.
-- [ ] Update Uppy upload flow on the client (`client/src/components/ObjectUploader.tsx` and `client/src/hooks/use-upload.ts`) — Vercel Blob client uploads use a different presigned-URL flow than GCS.
-- [ ] Drop or repoint `/objects/(.*)` rewrite in `vercel.json`.
-- [ ] Delete `server/replit_integrations/` once everything compiles without it.
+- [x] Provision Vercel Blob on the `replit-mentorship` project. Store ID `store_yU2vqWCcTiKma2Tc`.
+- [x] Local `.env` updated with `BLOB_READ_WRITE_TOKEN`.
+- [x] Clean up 12 legacy file references (10 docs deleted, 2 profile photos nulled).
+- [ ] Confirm `BLOB_READ_WRITE_TOKEN` is set on Vercel Production + Preview env (Vercel dashboard → Project → Settings → Environment Variables).
+- [ ] Push Phase 3 commits to `main`; Vercel auto-deploys.
+- [ ] Smoke-test on the production deployment:
+  - Upload a new document as an admin and view + download as a mentee.
+  - Upload a profile photo and confirm the avatar renders from `*.public.blob.vercel-storage.com`.
+  - Confirm an unauthorized user gets a 403 on a private document.
+- [ ] Re-upload the 10 program guides through the admin UI:
+  - Innovator / Leader / Scientist / Intrapreneur / Entrepreneur Track Guides
+  - Mentor Handbook, Mentee Handbook
+  - Roles and Responsibilities Guide, Code of Conduct, Mentorship - Dos and Donts
 
-### Verification
+### Post-deploy
 
-- [ ] Upload a document as an admin, then view + download it as a mentee.
-- [ ] Set a profile photo on a test account; refresh the dashboard and confirm the avatar renders.
-- [ ] Confirm that a user without permission cannot download a private document (ACL still enforced).
-
-### Migrating existing files (one-time)
-
-If existing documents in production should carry over:
-
-- [ ] Inventory current Replit Object Storage entries (the Replit dashboard has a list).
-- [ ] Bulk-download to local disk via the Replit storage panel.
-- [ ] Bulk-upload to Vercel Blob via a small script (`scripts/migrate-blobs.ts` — TBD).
-- [ ] Update `documents.fileUrl` rows to the new Blob URLs.
-
-If the document library hasn't been heavily used yet, **skipping this and starting fresh is acceptable**; existing rows will fail to load but no data is lost.
+- [ ] Rotate `BLOB_READ_WRITE_TOKEN` (the current value was shared in chat during setup). Vercel dashboard → Blob store → Settings → Rotate token. Vercel auto-updates the project env.
 
 ---
 
@@ -112,13 +93,20 @@ If the document library hasn't been heavily used yet, **skipping this and starti
 
 ---
 
-## P2 — Cleanup after Phase 2 + 3
+## P2 — Cleanup after Phase 2
 
-Once both phases are live and verified:
+Done as part of Phase 3 (1.1.0):
 
-- [ ] Delete `server/replit_integrations/` (entire directory).
-- [ ] Delete the now-dead websocket stub (`server/websocket.ts` is replaced by the Ably module).
-- [ ] Drop unused dependencies: `socket.io`, `socket.io-client`, `@google-cloud/storage`, `@uppy/aws-s3` (if Uppy switched to a different transport for Blob uploads).
+- [x] Delete `server/replit_integrations/`.
+- [x] Drop `@google-cloud/storage`, `google-auth-library`, `@uppy/*`.
+
+Once Phase 2 lands:
+
+- [ ] Delete the now-dead websocket stub (`server/websocket.ts` replaced by the Ably module).
+- [ ] Drop `socket.io`, `socket.io-client` from `dependencies`.
+
+General hygiene (any time):
+
 - [ ] Drop the three `@replit/vite-plugin-*` from `devDependencies`.
 - [ ] Delete `cookies.txt` and `prod_cookies.txt` from the repo root (Replit-era debug artifacts).
 - [ ] Delete `production-migration.sql` (replaced by `npm run db:push` + `npm run seed`).

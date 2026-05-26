@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Button } from "@/components/ui/button";
@@ -115,12 +115,11 @@ export default function AdminDocuments() {
   const [viewError, setViewError] = useState<string | null>(null);
   const [viewBlobUrl, setViewBlobUrl] = useState<string | null>(null);
   const [uploadedFileInfo, setUploadedFileInfo] = useState<{
-    objectPath: string;
+    url: string;
     name: string;
     size: number;
     mimeType: string;
   } | null>(null);
-  const pendingObjectPathRef = useRef<string | null>(null);
   const [newDocument, setNewDocument] = useState({
     name: "",
     description: "",
@@ -203,7 +202,7 @@ export default function AdminDocuments() {
       category: newDocument.category,
       visibility: newDocument.visibility,
       isTemplate: newDocument.isTemplate,
-      fileUrl: uploadedFileInfo.objectPath,
+      fileUrl: uploadedFileInfo.url,
       fileSize: uploadedFileInfo.size,
       mimeType: uploadedFileInfo.mimeType,
     });
@@ -624,7 +623,6 @@ export default function AdminDocuments() {
         setShowUploadDialog(open);
         if (!open) {
           setUploadedFileInfo(null);
-          pendingObjectPathRef.current = null;
           setNewDocument({
             name: "",
             description: "",
@@ -664,50 +662,19 @@ export default function AdminDocuments() {
                 </div>
               ) : (
                 <ObjectUploader
-                  maxNumberOfFiles={1}
+                  kind="document"
                   maxFileSize={52428800}
-                  onGetUploadParameters={async (file) => {
-                    try {
-                      const res = await fetch("/api/uploads/request-url", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
-                        body: JSON.stringify({
-                          name: file.name,
-                          size: file.size,
-                          contentType: file.type,
-                        }),
-                      });
-                      if (!res.ok) {
-                        throw new Error("Failed to get upload URL");
-                      }
-                      const data = await res.json();
-                      pendingObjectPathRef.current = data.objectPath;
-                      return {
-                        method: "PUT" as const,
-                        url: data.uploadURL,
-                        headers: { "Content-Type": file.type || "application/octet-stream" },
-                      };
-                    } catch (error) {
-                      toast({ title: "Failed to prepare upload", variant: "destructive" });
-                      throw error;
-                    }
-                  }}
                   onComplete={(result) => {
-                    const file = result.successful?.[0];
-                    if (file && pendingObjectPathRef.current) {
-                      setUploadedFileInfo({
-                        objectPath: pendingObjectPathRef.current,
-                        name: file.name,
-                        size: file.size || 0,
-                        mimeType: file.type || "application/octet-stream",
-                      });
-                      if (!newDocument.name) {
-                        setNewDocument(prev => ({ ...prev, name: file.name.replace(/\.[^/.]+$/, "") }));
-                      }
-                      toast({ title: "File uploaded successfully" });
-                      pendingObjectPathRef.current = null;
+                    setUploadedFileInfo({
+                      url: result.url,
+                      name: result.name,
+                      size: result.size,
+                      mimeType: result.contentType,
+                    });
+                    if (!newDocument.name) {
+                      setNewDocument(prev => ({ ...prev, name: result.name.replace(/\.[^/.]+$/, "") }));
                     }
+                    toast({ title: "File uploaded successfully" });
                   }}
                   buttonClassName="w-full"
                 >

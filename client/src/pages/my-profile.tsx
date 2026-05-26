@@ -281,13 +281,21 @@ export default function MyProfilePage() {
 
     setUploading(true);
     try {
-      const urlResponse = await apiRequest("POST", "/api/uploads/request-url", {
-        name: file.name, size: file.size, contentType: file.type,
-      });
-      const { uploadURL, objectPath } = await urlResponse.json();
-      const uploadRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
-      if (!uploadRes.ok) throw new Error("Failed to upload image to storage");
-      await apiRequest("PATCH", "/api/profile", { profileImage: objectPath });
+      const uploadRes = await fetch(
+        `/api/uploads?kind=profile-photo&name=${encodeURIComponent(file.name)}`,
+        {
+          method: "POST",
+          body: file,
+          headers: { "Content-Type": file.type },
+          credentials: "include",
+        },
+      );
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to upload image to storage");
+      }
+      const { url } = await uploadRes.json();
+      await apiRequest("PATCH", "/api/profile", { profileImage: url });
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile/complete"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
@@ -628,7 +636,7 @@ export default function MyProfilePage() {
         <div className="mb-6 flex items-center gap-4">
           <div className="relative group">
             <Avatar className="h-16 w-16 border-2 border-border">
-              <AvatarImage src={user?.id ? `/api/profile-photo/${user.id}` : undefined} alt={`${user?.firstName} ${user?.lastName}`} />
+              <AvatarImage src={user?.profileImage || undefined} alt={`${user?.firstName} ${user?.lastName}`} />
               <AvatarFallback className="text-lg font-semibold bg-muted text-muted-foreground">
                 {`${user?.firstName?.charAt(0) || ""}${user?.lastName?.charAt(0) || ""}`.toUpperCase()}
               </AvatarFallback>

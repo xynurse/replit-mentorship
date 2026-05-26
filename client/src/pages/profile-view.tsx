@@ -196,23 +196,22 @@ export default function ProfileViewPage() {
 
     setUploading(true);
     try {
-      const urlResponse = await apiRequest("POST", "/api/uploads/request-url", {
-        name: file.name,
-        size: file.size,
-        contentType: file.type,
-      });
-      const { uploadURL, objectPath } = await urlResponse.json();
-
-      const uploadRes = await fetch(uploadURL, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      });
+      const uploadRes = await fetch(
+        `/api/uploads?kind=profile-photo&name=${encodeURIComponent(file.name)}`,
+        {
+          method: "POST",
+          body: file,
+          headers: { "Content-Type": file.type },
+          credentials: "include",
+        },
+      );
       if (!uploadRes.ok) {
-        throw new Error("Failed to upload image to storage");
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to upload image to storage");
       }
+      const { url } = await uploadRes.json();
 
-      await apiRequest("PATCH", "/api/profile", { profileImage: objectPath });
+      await apiRequest("PATCH", "/api/profile", { profileImage: url });
 
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
@@ -269,9 +268,7 @@ export default function ProfileViewPage() {
   const mentorProfile = profile.mentorProfileExtended;
   const showMentorSection = profile.role === "MENTOR" || profile.role === "SUPER_ADMIN" || profile.role === "ADMIN" || !!mentorProfile;
   const showMenteeSection = profile.role === "MENTEE" || !!menteeProfile;
-  const photoUrl = profile.profileImage
-    ? `/api/profile-photo/${profile.id}`
-    : undefined;
+  const photoUrl = profile.profileImage || undefined;
 
   return (
     <DashboardLayout>

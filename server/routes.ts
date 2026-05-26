@@ -6,7 +6,14 @@ import { storage } from "./storage";
 import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema, insertReminderSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupWebSocket, getOnlineUsers, isUserOnline, emitNotification, emitNotificationCountUpdate } from "./websocket";
-import { registerObjectStorageRoutes, ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage/index";
+import {
+  streamRequestToBlob,
+  streamBlobToResponse,
+  ObjectNotFoundError,
+  UploadValidationError,
+  isBlobUrl,
+  type UploadKind,
+} from "./storage/blob";
 import { AuditService, createAuditMiddleware } from "./audit";
 
 const generalApiLimiter = rateLimit({
@@ -1587,26 +1594,30 @@ export async function registerRoutes(
     }
   });
 
+  // Backwards-compat shim for old clients that constructed
+  // `/api/profile-photo/:userId` URLs before profileImage held a full Blob URL.
+  // New clients should read `user.profileImage` directly and render it as <img src>.
   app.get("/api/profile-photo/:userId", async (req, res, next) => {
     try {
       const targetUser = await storage.getUser(req.params.userId);
       if (!targetUser || !targetUser.profileImage) {
         return res.status(404).json({ message: "Photo not found" });
       }
-      
-      const objectStorageService = new ObjectStorageService();
-      const objectFile = await objectStorageService.getObjectEntityFile(targetUser.profileImage);
-      
-      res.set({
-        "Cache-Control": "public, max-age=3600",
-        "X-Frame-Options": "SAMEORIGIN",
-      });
-      
-      await objectStorageService.downloadObject(objectFile, res);
-    } catch (error: any) {
-      if (error.name === "ObjectNotFoundError") {
-        return res.status(404).json({ message: "Photo not found" });
+
+      if (isBlobUrl(targetUser.profileImage)) {
+        res.set({
+          "Cache-Control": "public, max-age=3600",
+          "X-Frame-Options": "SAMEORIGIN",
+        });
+        return res.redirect(302, targetUser.profileImage);
       }
+
+      // Legacy GCS path: data is unreachable on Vercel. 404 explicitly so
+      // the UI shows initials rather than a hanging request.
+      return res.status(404).json({
+        message: "Photo unavailable. Please re-upload your profile photo.",
+      });
+    } catch (error: any) {
       next(error);
     }
   });
@@ -2952,37 +2963,39 @@ export async function registerRoutes(
     }
   });
 
-  // Document access validator for file downloads
-  const validateDocumentAccess = async (req: ExpressRequest, canonicalKey: string): Promise<boolean> => {
-    const user = (req as any).user;
-    if (!user) return false;
-    
-    // canonicalKey is already normalized by the download handler
-    // Look up document by canonical key (storage handles dual-lookup for legacy formats)
-    const doc = await storage.getDocumentByFileUrl(canonicalKey);
-    
-    // If no document found for this path, deny access (could be orphaned file)
-    if (!doc) return false;
-    
-    // Check document access permission
-    const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
-    if (isAdmin) return true;
-    
-    const isOwner = doc.uploadedById === user.id;
-    if (isOwner) return true;
-    
-    const isPublic = doc.visibility === 'PUBLIC';
-    if (isPublic) return true;
-    
-    // Check for explicit share access
-    const accessRecord = await storage.getUserDocumentAccess(doc.id, user.id);
-    if (accessRecord) return true;
-    
-    return false;
-  };
+  // Direct upload route: client streams the raw file body and we proxy it
+  // straight to Vercel Blob via @vercel/blob's put(). Server enforces auth,
+  // per-kind size + content-type limits, and the storage path layout.
+  //
+  // Response: { url, pathname, contentType, size, name } — caller stores
+  // `url` in documents.fileUrl or users.profileImage.
+  app.post("/api/uploads", requireAuth, uploadRateLimiter, async (req, res, next) => {
+    try {
+      const kind = (req.query.kind as string | undefined) as UploadKind | undefined;
+      const name = req.query.name as string | undefined;
 
-  // Register object storage routes for file uploads with authentication and ACL
-  registerObjectStorageRoutes(app, requireAuth, validateDocumentAccess);
+      if (kind !== "document" && kind !== "profile-photo") {
+        return res.status(400).json({ message: "Invalid or missing 'kind' query param" });
+      }
+      if (!name) {
+        return res.status(400).json({ message: "Missing 'name' query param" });
+      }
+
+      const userId = (req.user as any).id as string;
+      const result = await streamRequestToBlob(req, {
+        kind,
+        userId,
+        originalName: name,
+      });
+
+      return res.json(result);
+    } catch (err) {
+      if (err instanceof UploadValidationError) {
+        return res.status(400).json({ message: err.message });
+      }
+      next(err);
+    }
+  });
 
   // ============ DOCUMENT MANAGEMENT ROUTES ============
 
@@ -3200,39 +3213,22 @@ export async function registerRoutes(
       if (!isAdmin && !isOwner && !isPublic && !hasShareAccess) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
-      const objectStorageService = new ObjectStorageService();
+
       try {
-        const objectFile = await objectStorageService.getObjectEntityFile(doc.fileUrl);
-        
         const fileName = doc.name + (doc.mimeType === 'application/pdf' ? '.pdf' : '');
-        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
         res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-        
-        // Stream file directly with correct Content-Type from document record
-        // (downloadObject can override Content-Type with GCS metadata which may be wrong for presigned uploads)
-        const correctContentType = doc.mimeType || 'application/octet-stream';
-        const [metadata] = await objectFile.getMetadata();
-        res.set({
-          'Content-Type': correctContentType,
-          'Content-Length': metadata.size?.toString() || '',
-          'Cache-Control': 'private, max-age=3600',
+
+        await streamBlobToResponse(doc.fileUrl, res, {
+          contentType: doc.mimeType || 'application/octet-stream',
+          cacheControl: 'private, max-age=3600',
+          contentDisposition: `inline; filename="${encodeURIComponent(fileName)}"`,
         });
-        
-        const stream = objectFile.createReadStream();
-        stream.on('error', (err) => {
-          console.error('[view] Stream error:', err);
-          if (!res.headersSent) {
-            res.status(500).json({ error: 'Error streaming file' });
-          }
-        });
-        stream.pipe(res);
       } catch (err) {
         console.error(`[view] Error viewing file: ${doc.fileUrl}`, err);
         if (err instanceof ObjectNotFoundError) {
-          return res.status(404).json({ 
-            message: "File not found in storage. This may happen if the file was uploaded in a different environment (development vs production). Please re-upload the file.",
-            fileUrl: doc.fileUrl
+          return res.status(404).json({
+            message: "File not found in storage. The file may pre-date the Vercel Blob migration; please re-upload.",
+            fileUrl: doc.fileUrl,
           });
         }
         throw err;
@@ -3250,35 +3246,32 @@ export async function registerRoutes(
       if (!doc) {
         return res.status(404).json({ message: "Document not found" });
       }
-      
+
       // Check document access permission
       const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
       const isOwner = doc.uploadedById === user.id;
       const isPublic = doc.visibility === 'PUBLIC';
-      
+
       // Check for explicit share access
       let hasShareAccess = false;
       if (!isAdmin && !isOwner && !isPublic) {
         const accessRecords = await storage.getDocumentAccess(req.params.id);
         hasShareAccess = accessRecords.some(a => a.userId === user.id);
       }
-      
+
       if (!isAdmin && !isOwner && !isPublic && !hasShareAccess) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
-      // Get the file from object storage and stream it
-      const objectStorageService = new ObjectStorageService();
+
       try {
-        console.log(`[download] Attempting to download file: ${doc.fileUrl} for document: ${doc.id}`);
-        const objectFile = await objectStorageService.getObjectEntityFile(doc.fileUrl);
-        
-        // Set content disposition for download
         const fileName = doc.name + (doc.mimeType === 'application/pdf' ? '.pdf' : '');
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
-        
         await storage.incrementDownloadCount(req.params.id);
-        await objectStorageService.downloadObject(objectFile, res);
+
+        await streamBlobToResponse(doc.fileUrl, res, {
+          contentType: doc.mimeType || 'application/octet-stream',
+          cacheControl: 'private, max-age=3600',
+          contentDisposition: `attachment; filename="${encodeURIComponent(fileName)}"`,
+        });
       } catch (err) {
         console.error(`[download] Error downloading file: ${doc.fileUrl}`, err);
         if (err instanceof ObjectNotFoundError) {

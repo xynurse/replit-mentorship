@@ -5,7 +5,6 @@
   "framework": null,
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/objects/(.*)", "destination": "/api" },
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],
   "functions": {
