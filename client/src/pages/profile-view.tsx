@@ -268,7 +268,7 @@ export default function ProfileViewPage() {
   const mentorProfile = profile.mentorProfileExtended;
   const showMentorSection = profile.role === "MENTOR" || profile.role === "SUPER_ADMIN" || profile.role === "ADMIN" || !!mentorProfile;
   const showMenteeSection = profile.role === "MENTEE" || !!menteeProfile;
-  const photoUrl = profile.profileImage || undefined;
+  const photoUrl = profile.profileImage ? `/api/profile-photo/${profile.id}` : undefined;
 
   return (
     <DashboardLayout>

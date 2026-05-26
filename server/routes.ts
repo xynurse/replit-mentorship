@@ -1604,9 +1604,9 @@ export async function registerRoutes(
     }
   });
 
-  // Backwards-compat shim for old clients that constructed
-  // `/api/profile-photo/:userId` URLs before profileImage held a full Blob URL.
-  // New clients should read `user.profileImage` directly and render it as <img src>.
+  // Server-mediated profile photo delivery. The Blob store is private,
+  // so direct <img src={blobUrl}> won't work — clients hit this route
+  // and we stream from Blob using the SDK (which adds the read token).
   app.get("/api/profile-photo/:userId", async (req, res, next) => {
     try {
       const targetUser = await storage.getUser(req.params.userId);
@@ -1614,20 +1614,22 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Photo not found" });
       }
 
-      if (isBlobUrl(targetUser.profileImage)) {
-        res.set({
-          "Cache-Control": "public, max-age=3600",
-          "X-Frame-Options": "SAMEORIGIN",
+      if (!isBlobUrl(targetUser.profileImage)) {
+        // Legacy GCS path: data is unreachable on Vercel. 404 explicitly so
+        // the UI shows initials rather than a hanging request.
+        return res.status(404).json({
+          message: "Photo unavailable. Please re-upload your profile photo.",
         });
-        return res.redirect(302, targetUser.profileImage);
       }
 
-      // Legacy GCS path: data is unreachable on Vercel. 404 explicitly so
-      // the UI shows initials rather than a hanging request.
-      return res.status(404).json({
-        message: "Photo unavailable. Please re-upload your profile photo.",
+      res.setHeader("X-Frame-Options", "SAMEORIGIN");
+      await streamBlobToResponse(targetUser.profileImage, res, {
+        cacheControl: "private, max-age=3600",
       });
     } catch (error: any) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ message: "Photo not found" });
+      }
       next(error);
     }
   });

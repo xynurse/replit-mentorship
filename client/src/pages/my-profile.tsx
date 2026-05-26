@@ -636,7 +636,7 @@ export default function MyProfilePage() {
         <div className="mb-6 flex items-center gap-4">
           <div className="relative group">
             <Avatar className="h-16 w-16 border-2 border-border">
-              <AvatarImage src={user?.profileImage || undefined} alt={`${user?.firstName} ${user?.lastName}`} />
+              <AvatarImage src={user?.id && user?.profileImage ? `/api/profile-photo/${user.id}` : undefined} alt={`${user?.firstName} ${user?.lastName}`} />
               <AvatarFallback className="text-lg font-semibold bg-muted text-muted-foreground">
                 {`${user?.firstName?.charAt(0) || ""}${user?.lastName?.charAt(0) || ""}`.toUpperCase()}
               </AvatarFallback>

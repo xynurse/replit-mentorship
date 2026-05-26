@@ -1,4 +1,4 @@
-import { put, del, head, BlobNotFoundError } from "@vercel/blob";
+import { put, del, head, get, BlobNotFoundError } from "@vercel/blob";
 import type { Request, Response } from "express";
 import { randomUUID } from "crypto";
 
@@ -101,7 +101,7 @@ export async function streamRequestToBlob(
   const pathname = buildPathname(kind, userId, originalName);
 
   const blob = await put(pathname, req, {
-    access: "public",
+    access: "private",
     contentType,
     addRandomSuffix: false,
   });
@@ -124,10 +124,11 @@ export class UploadValidationError extends Error {
 }
 
 /**
- * Server-mediated download. Fetches the blob URL and pipes it back to the
- * client with the supplied content disposition/type. Used by the document
- * view + download endpoints so we can enforce ACLs without exposing the
- * blob URL itself to the browser.
+ * Server-mediated download. The store is private, so we use the @vercel/blob
+ * SDK's get() (which adds the BLOB_READ_WRITE_TOKEN to the request) and pipe
+ * the resulting stream back to the client. Used by the document view +
+ * download endpoints and the profile photo route so we can enforce ACLs
+ * without ever exposing the blob URL to the browser.
  *
  * Accepts either a full blob URL or a stored legacy path like
  * `objects/uploads/<uuid>` (those throw ObjectNotFoundError — handled by
@@ -146,26 +147,25 @@ export async function streamBlobToResponse(
     throw new ObjectNotFoundError();
   }
 
-  let upstream: Response_;
+  let result;
   try {
-    upstream = (await fetch(blobUrl)) as unknown as Response_;
+    result = await get(blobUrl, { access: "private" });
   } catch (err) {
-    throw new ObjectNotFoundError();
+    if (err instanceof BlobNotFoundError) {
+      throw new ObjectNotFoundError();
+    }
+    throw err;
   }
 
-  if (upstream.status === 404) {
+  if (result.statusCode !== 200) {
     throw new ObjectNotFoundError();
-  }
-  if (!upstream.ok || !upstream.body) {
-    throw new Error(`Failed to fetch blob: ${upstream.status}`);
   }
 
   if (opts.contentType) res.setHeader("Content-Type", opts.contentType);
-  else if (upstream.headers.get("content-type"))
-    res.setHeader("Content-Type", upstream.headers.get("content-type")!);
+  else if (result.blob.contentType)
+    res.setHeader("Content-Type", result.blob.contentType);
 
-  const upstreamLength = upstream.headers.get("content-length");
-  if (upstreamLength) res.setHeader("Content-Length", upstreamLength);
+  if (result.blob.size) res.setHeader("Content-Length", String(result.blob.size));
 
   if (opts.cacheControl) res.setHeader("Cache-Control", opts.cacheControl);
   if (opts.contentDisposition)
@@ -173,13 +173,13 @@ export async function streamBlobToResponse(
 
   const { Readable } = await import("stream");
   // @ts-expect-error — Node 24 supports fromWeb; types may be slightly off
-  Readable.fromWeb(upstream.body).pipe(res);
+  Readable.fromWeb(result.stream).pipe(res);
 }
 
-type Response_ = Awaited<ReturnType<typeof fetch>>;
-
+// Private blob URLs have hostname `<store>.[a-z0-9]+.blob.vercel-storage.com`
+// (no `.public.` segment). Match either to detect a Vercel Blob URL.
 const BLOB_HOSTNAME_RE =
-  /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//i;
+  /^https:\/\/[a-z0-9-]+(\.[a-z0-9]+)?\.blob\.vercel-storage\.com\//i;
 
 export function isBlobUrl(value: string): boolean {
   return BLOB_HOSTNAME_RE.test(value);
