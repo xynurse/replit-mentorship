@@ -201,23 +201,38 @@ export default function AdminConnectionsPage() {
 
   const filteredMatches = useMemo(() => {
     let filtered = matches;
-    
+
     if (statusFilter !== "all") {
       filtered = filtered.filter(m => m.status === statusFilter);
     }
-    
+
     if (matchSearch) {
       const search = matchSearch.toLowerCase();
-      filtered = filtered.filter(m => 
+      filtered = filtered.filter(m =>
         `${m.mentor?.firstName} ${m.mentor?.lastName}`.toLowerCase().includes(search) ||
         `${m.mentee?.firstName} ${m.mentee?.lastName}`.toLowerCase().includes(search) ||
         m.mentor?.email?.toLowerCase().includes(search) ||
         m.mentee?.email?.toLowerCase().includes(search)
       );
     }
-    
+
     return filtered;
   }, [matches, statusFilter, matchSearch]);
+
+  // Anyone whose user id is the mentor or mentee of an ACTIVE match is
+  // "paired" — everyone else is unmatched. This is what the Unmatched
+  // tab surfaces so admins can quickly find people who still need a
+  // connection. Apply the same search filters as the main mentor/mentee
+  // lists so search works consistently.
+  const { unmatchedMentors, unmatchedMentees } = useMemo(() => {
+    const activeMatches = matches.filter(m => m.status === 'ACTIVE');
+    const pairedMentorIds = new Set(activeMatches.map(m => m.mentor?.id).filter(Boolean) as string[]);
+    const pairedMenteeIds = new Set(activeMatches.map(m => m.mentee?.id).filter(Boolean) as string[]);
+    return {
+      unmatchedMentors: filteredMentors.filter(u => !pairedMentorIds.has(u.id)),
+      unmatchedMentees: filteredMentees.filter(u => !pairedMenteeIds.has(u.id)),
+    };
+  }, [matches, filteredMentors, filteredMentees]);
 
   const handleCreateMatch = () => {
     if (!selectedMentor || !selectedMentee) return;
@@ -272,7 +287,9 @@ export default function AdminConnectionsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{mentors.length}</p>
-                <p className="text-xs text-muted-foreground">Available Mentors</p>
+                <p className="text-xs text-muted-foreground">
+                  Total Mentors · <span className="font-medium text-foreground">{unmatchedMentors.length} unmatched</span>
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -283,7 +300,9 @@ export default function AdminConnectionsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{mentees.length}</p>
-                <p className="text-xs text-muted-foreground">Available Mentees</p>
+                <p className="text-xs text-muted-foreground">
+                  Total Mentees · <span className="font-medium text-foreground">{unmatchedMentees.length} unmatched</span>
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -317,11 +336,122 @@ export default function AdminConnectionsPage() {
               <Users className="h-4 w-4 mr-2" />
               All Connections
             </TabsTrigger>
+            <TabsTrigger value="unmatched" data-testid="tab-unmatched">
+              <Eye className="h-4 w-4 mr-2" />
+              Unmatched
+              {(unmatchedMentors.length + unmatchedMentees.length) > 0 && (
+                <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                  {unmatchedMentors.length + unmatchedMentees.length}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="create" data-testid="tab-create">
               <Plus className="h-4 w-4 mr-2" />
               Create Connection
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="unmatched" className="mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span>Unmatched Mentors</span>
+                    <Badge variant="secondary">{unmatchedMentors.length}</Badge>
+                  </CardTitle>
+                  <CardDescription>Mentors not currently in an active connection.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {unmatchedMentors.length === 0 ? (
+                    <div className="text-sm text-muted-foreground py-6 text-center">
+                      Everyone's paired up.
+                    </div>
+                  ) : (
+                    <ScrollArea className="max-h-[400px] pr-2">
+                      <div className="space-y-2">
+                        {unmatchedMentors.map((u) => (
+                          <div
+                            key={u.id}
+                            className="flex items-center gap-3 p-2 border rounded-md hover-elevate"
+                            data-testid={`unmatched-mentor-${u.id}`}
+                          >
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={u.id ? `/api/profile-photo/${u.id}` : undefined} />
+                              <AvatarFallback className="bg-blue-500/10 text-blue-700 text-xs">
+                                {getInitials(u)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{u.firstName} {u.lastName}</p>
+                              <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => { setSelectedMentor(u); setActiveTab("create"); }}
+                              data-testid={`button-match-mentor-${u.id}`}
+                            >
+                              Match
+                              <ArrowRight className="h-4 w-4 ml-1" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span>Unmatched Mentees</span>
+                    <Badge variant="secondary">{unmatchedMentees.length}</Badge>
+                  </CardTitle>
+                  <CardDescription>Mentees not currently in an active connection.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {unmatchedMentees.length === 0 ? (
+                    <div className="text-sm text-muted-foreground py-6 text-center">
+                      Everyone's paired up.
+                    </div>
+                  ) : (
+                    <ScrollArea className="max-h-[400px] pr-2">
+                      <div className="space-y-2">
+                        {unmatchedMentees.map((u) => (
+                          <div
+                            key={u.id}
+                            className="flex items-center gap-3 p-2 border rounded-md hover-elevate"
+                            data-testid={`unmatched-mentee-${u.id}`}
+                          >
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={u.id ? `/api/profile-photo/${u.id}` : undefined} />
+                              <AvatarFallback className="bg-purple-500/10 text-purple-700 text-xs">
+                                {getInitials(u)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{u.firstName} {u.lastName}</p>
+                              <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => { setSelectedMentee(u); setActiveTab("create"); }}
+                              data-testid={`button-match-mentee-${u.id}`}
+                            >
+                              Match
+                              <ArrowRight className="h-4 w-4 ml-1" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           <TabsContent value="matches" className="mt-4">
             <Card>
