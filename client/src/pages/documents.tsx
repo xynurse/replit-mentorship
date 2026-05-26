@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
@@ -59,7 +59,10 @@ import {
   Eye,
   Folder as FolderIcon,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
+  PanelRightClose,
+  PanelRightOpen,
   Filter,
   FolderCog,
   FolderHeart,
@@ -118,21 +121,34 @@ export default function DocumentsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Respect ?tab=personal|system|shared from the URL so deep links from the
-  // dashboard quick actions (View My / View Platform Documents) land on the
-  // right tab.
+  // Sections are visible side-by-side now (My on top, System below, Shared
+  // in a right rail). `focusedSection` tracks which one the user last
+  // interacted with — drives the create-folder/create-document target and
+  // the ?tab= query param.
+  type Section = "personal" | "system";
   const tabFromUrl = (() => {
     if (typeof window === "undefined") return null;
     const t = new URLSearchParams(window.location.search).get("tab");
-    return t === "system" || t === "personal" || t === "shared" ? t : null;
+    return t === "system" || t === "personal" ? (t as Section) : null;
   })();
-  const defaultTab = tabFromUrl ?? ((user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") ? "personal" : "system");
-  const [activeTab, setActiveTab] = useState<"system" | "personal" | "shared">(defaultTab);
+  const [focusedSection, setFocusedSection] = useState<Section>(tabFromUrl ?? "personal");
+  const [showSharedRail, setShowSharedRail] = useState(true);
+
+  // Collapsible state — both sections default to open.
+  const [personalOpen, setPersonalOpen] = useState(true);
+  const [systemOpen, setSystemOpen] = useState(true);
+
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [folderPath, setFolderPath] = useState<Folder[]>([]);
+
+  // Per-section folder navigation state. Each section maintains its own
+  // current folder + breadcrumb path so users can navigate deep in My
+  // Documents without losing their place in System Resources.
+  const [personalFolderId, setPersonalFolderId] = useState<string | null>(null);
+  const [personalFolderPath, setPersonalFolderPath] = useState<Folder[]>([]);
+  const [systemFolderId, setSystemFolderId] = useState<string | null>(null);
+  const [systemFolderPath, setSystemFolderPath] = useState<Folder[]>([]);
   
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareDocumentId, setShareDocumentId] = useState<string | null>(null);
@@ -186,7 +202,6 @@ export default function DocumentsPage() {
 
   const { data: sharedDocuments, isLoading: sharedLoading } = useQuery<SharedDocument[]>({
     queryKey: ["/api/documents/shared-with-me"],
-    enabled: activeTab === "shared",
     refetchOnMount: "always",
   });
 
@@ -195,47 +210,55 @@ export default function DocumentsPage() {
     enabled: showShareDialog || (uploadShareEnabled && showUploadDialog),
   });
 
-  const effectiveFolderId = activeTab === "system" 
-    ? (currentFolderId || systemFolder?.id || null)
-    : activeTab === "personal"
-    ? (currentFolderId || personalFolder?.id || null)
-    : null;
+  // Per-section effective folder ids. Falls back to the section's root
+  // folder when no sub-folder is navigated into.
+  const personalEffectiveFolderId = personalFolderId || personalFolder?.id || null;
+  const systemEffectiveFolderId = systemFolderId || systemFolder?.id || null;
 
   const activeCategoryFilter = categoryFilter === "ALL" ? "" : categoryFilter;
 
-  const { data: documents, isLoading: docsLoading } = useQuery<Document[]>({
-    queryKey: ["/api/documents", effectiveFolderId, activeCategoryFilter, searchQuery, activeTab],
+  // Helper: build a docs query for one section. Memoized so React Query
+  // sees stable keys across re-renders.
+  const buildDocsQuery = (section: Section, folderId: string | null) => ({
+    queryKey: ["/api/documents", section, folderId, activeCategoryFilter, searchQuery] as const,
     queryFn: async () => {
-      if (activeTab === "shared") return [];
       const params = new URLSearchParams();
-      if (effectiveFolderId) {
-        params.set("folderId", effectiveFolderId);
-      }
+      if (folderId) params.set("folderId", folderId);
       if (activeCategoryFilter) params.set("category", activeCategoryFilter);
       if (searchQuery) params.set("search", searchQuery);
       const res = await fetch(`/api/documents?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch documents");
-      return res.json();
+      return res.json() as Promise<Document[]>;
     },
-    enabled: activeTab !== "shared" && !!effectiveFolderId,
-    refetchOnMount: "always",
+    enabled: !!folderId,
+    refetchOnMount: "always" as const,
   });
 
-  const { data: folders, isLoading: foldersLoading } = useQuery<Folder[]>({
-    queryKey: ["/api/folders", effectiveFolderId, activeTab],
+  const buildFoldersQuery = (section: Section, parentId: string | null) => ({
+    queryKey: ["/api/folders", section, parentId] as const,
     queryFn: async () => {
-      if (activeTab === "shared") return [];
       const params = new URLSearchParams();
-      if (effectiveFolderId) {
-        params.set("parentFolderId", effectiveFolderId);
-      }
+      if (parentId) params.set("parentFolderId", parentId);
       const res = await fetch(`/api/folders?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch folders");
-      return res.json();
+      return res.json() as Promise<Folder[]>;
     },
-    enabled: activeTab !== "shared" && !!effectiveFolderId,
-    refetchOnMount: "always",
+    enabled: !!parentId,
+    refetchOnMount: "always" as const,
   });
+
+  const { data: personalDocuments, isLoading: personalDocsLoading } = useQuery(
+    buildDocsQuery("personal", personalEffectiveFolderId),
+  );
+  const { data: personalFolders, isLoading: personalFoldersLoading } = useQuery(
+    buildFoldersQuery("personal", personalEffectiveFolderId),
+  );
+  const { data: systemDocuments, isLoading: systemDocsLoading } = useQuery(
+    buildDocsQuery("system", systemEffectiveFolderId),
+  );
+  const { data: systemFolders, isLoading: systemFoldersLoading } = useQuery(
+    buildFoldersQuery("system", systemEffectiveFolderId),
+  );
 
   const createDocumentMutation = useMutation({
     mutationFn: async (data: {
@@ -500,21 +523,43 @@ export default function DocumentsPage() {
     }
   };
 
-  const navigateToFolder = async (folder: Folder) => {
-    setFolderPath([...folderPath, folder]);
-    setCurrentFolderId(folder.id);
+  // Section-aware folder navigation. Each section has its own folder
+  // breadcrumb path; clicking into a folder updates only that section's
+  // state and also focuses it (so any subsequent create-folder /
+  // create-document operations target this section's current folder).
+  const navigateToFolder = async (section: Section, folder: Folder) => {
+    if (section === "personal") {
+      setPersonalFolderPath([...personalFolderPath, folder]);
+      setPersonalFolderId(folder.id);
+    } else {
+      setSystemFolderPath([...systemFolderPath, folder]);
+      setSystemFolderId(folder.id);
+    }
+    setFocusedSection(section);
   };
 
-  const navigateBack = () => {
-    const newPath = [...folderPath];
-    newPath.pop();
-    setFolderPath(newPath);
-    setCurrentFolderId(newPath.length > 0 ? newPath[newPath.length - 1].id : null);
+  const navigateToRoot = (section: Section) => {
+    if (section === "personal") {
+      setPersonalFolderPath([]);
+      setPersonalFolderId(null);
+    } else {
+      setSystemFolderPath([]);
+      setSystemFolderId(null);
+    }
+    setFocusedSection(section);
   };
 
-  const navigateToRoot = () => {
-    setFolderPath([]);
-    setCurrentFolderId(null);
+  const navigateToBreadcrumb = (section: Section, index: number) => {
+    const currentPath = section === "personal" ? personalFolderPath : systemFolderPath;
+    const newPath = currentPath.slice(0, index + 1);
+    if (section === "personal") {
+      setPersonalFolderPath(newPath);
+      setPersonalFolderId(newPath[newPath.length - 1].id);
+    } else {
+      setSystemFolderPath(newPath);
+      setSystemFolderId(newPath[newPath.length - 1].id);
+    }
+    setFocusedSection(section);
   };
 
   const resetUploadForm = () => {
@@ -538,11 +583,12 @@ export default function DocumentsPage() {
     setDocumentName(result.name);
   };
 
+  // Create/upload operations target the currently focused section's folder.
+  const focusedEffectiveFolderId =
+    focusedSection === "personal" ? personalEffectiveFolderId : systemEffectiveFolderId;
+
   const handleSaveDocument = () => {
     if (!uploadedFile) return;
-
-    const targetFolderId = currentFolderId || effectiveFolderId;
-
     createDocumentMutation.mutate({
       name: documentName || uploadedFile.name,
       description: documentDescription,
@@ -552,38 +598,31 @@ export default function DocumentsPage() {
       mimeType: uploadedFile.contentType,
       category: documentCategory,
       visibility: documentVisibility,
-      folderId: targetFolderId,
+      folderId: focusedEffectiveFolderId,
       shareWithUserIds: uploadShareEnabled ? uploadShareUserIds : undefined,
     });
   };
 
   const handleCreateFolder = () => {
     if (!newFolderName.trim()) return;
-    
-    // Use effectiveFolderId for folder creation
-    const targetParentId = currentFolderId || effectiveFolderId;
-    
     createFolderMutation.mutate({
       name: newFolderName,
       description: newFolderDescription,
-      parentFolderId: targetParentId,
+      parentFolderId: focusedEffectiveFolderId,
     });
   };
 
-  const isFolderLoading = activeTab === "system" ? !systemFolder : activeTab === "personal" ? !personalFolder : false;
-  const isLoading = activeTab === "shared" ? sharedLoading : (isFolderLoading || docsLoading || foldersLoading);
-  
-  // Check if folders are ready for upload operations
-  const isFolderReady = activeTab === "shared" ? true : 
-    (activeTab === "system" ? !!systemFolder : !!personalFolder);
+  const focusedFolderReady = focusedSection === "personal" ? !!personalFolder : !!systemFolder;
+  const initialLoading =
+    (focusedSection === "personal" && !personalFolder) ||
+    (focusedSection === "system" && !systemFolder);
 
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab as "system" | "personal" | "shared");
-    setFolderPath([]);
-    setCurrentFolderId(null);
-    setSearchQuery("");
-    setCategoryFilter("");
-  };
+  // Whether the focused section's permission rules allow uploading.
+  // System Resources are admin-only; My Documents is open to everyone.
+  const canUploadToFocused =
+    focusedSection === "personal" ||
+    (focusedSection === "system" && (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"));
+  const canCreateInFocused = canUploadToFocused;
 
   return (
     <DashboardLayout>
@@ -598,7 +637,7 @@ export default function DocumentsPage() {
               <DialogTrigger asChild>
                 <Button 
                   data-testid="button-upload-document"
-                  disabled={activeTab === "shared" || !isFolderReady || (activeTab === "system" && user?.role !== "ADMIN" && user?.role !== "SUPER_ADMIN")}
+                  disabled={!focusedFolderReady || !canUploadToFocused}
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   Upload
@@ -835,7 +874,7 @@ export default function DocumentsPage() {
                 <Button 
                   variant="outline" 
                   data-testid="button-new-folder"
-                  disabled={activeTab === "shared" || !isFolderReady || (activeTab === "system" && user?.role !== "ADMIN" && user?.role !== "SUPER_ADMIN")}
+                  disabled={!focusedFolderReady || !canUploadToFocused}
                 >
                   <FolderPlus className="h-4 w-4 mr-2" />
                   New Folder
@@ -890,34 +929,117 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col">
-          <TabsList className="w-fit mx-4 mt-4">
-            <TabsTrigger value="system" className="gap-2" data-testid="tab-system-resources">
-              <FolderCog className="h-4 w-4" />
-              System Resources
-            </TabsTrigger>
-            <TabsTrigger value="personal" className="gap-2" data-testid="tab-my-documents">
-              <FolderHeart className="h-4 w-4" />
-              My Documents
-            </TabsTrigger>
-            <TabsTrigger value="shared" className="gap-2" data-testid="tab-shared-with-me">
-              <Users className="h-4 w-4" />
-              Shared With Me
-            </TabsTrigger>
-          </TabsList>
+        {/* New layout (per user spec): My Documents on top + System
+            Resources below as stacked collapsibles in the main column,
+            Shared with me pinned to a right rail. Clicking anywhere in a
+            section focuses it for create-folder/create-document targeting. */}
+        <div className={`flex-1 overflow-auto px-4 pt-4 grid gap-4 ${showSharedRail ? "lg:grid-cols-[1fr_320px]" : "grid-cols-1"}`}>
+          <div className="space-y-4">
+            <Collapsible open={personalOpen} onOpenChange={setPersonalOpen}>
+              <Card
+                className={focusedSection === "personal" ? "border-primary/50" : ""}
+                onClick={() => setFocusedSection("personal")}
+                data-testid="section-my-documents"
+              >
+                <CardHeader className="pb-3">
+                  <CollapsibleTrigger asChild>
+                    <button
+                      className="flex items-center gap-2 w-full text-left"
+                      data-testid="toggle-my-documents"
+                    >
+                      <FolderHeart className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-base flex-1">My Documents</CardTitle>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${personalOpen ? "" : "-rotate-90"}`} />
+                    </button>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    {!personalFolder ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      renderFiltersAndContent("personal")
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
 
-          <TabsContent value="system" className="flex-1 flex flex-col mt-0 px-4">
-            {renderFiltersAndContent()}
-          </TabsContent>
+            <Collapsible open={systemOpen} onOpenChange={setSystemOpen}>
+              <Card
+                className={focusedSection === "system" ? "border-primary/50" : ""}
+                onClick={() => setFocusedSection("system")}
+                data-testid="section-system-resources"
+              >
+                <CardHeader className="pb-3">
+                  <CollapsibleTrigger asChild>
+                    <button
+                      className="flex items-center gap-2 w-full text-left"
+                      data-testid="toggle-system-resources"
+                    >
+                      <FolderCog className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-base flex-1">System Resources</CardTitle>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${systemOpen ? "" : "-rotate-90"}`} />
+                    </button>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    {!systemFolder ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      renderFiltersAndContent("system")
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          </div>
 
-          <TabsContent value="personal" className="flex-1 flex flex-col mt-0 px-4">
-            {renderFiltersAndContent()}
-          </TabsContent>
-
-          <TabsContent value="shared" className="flex-1 flex flex-col mt-0 px-4">
-            {renderSharedDocuments()}
-          </TabsContent>
-        </Tabs>
+          {showSharedRail && (
+            <aside className="space-y-2" data-testid="rail-shared-with-me">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-base">Shared with Me</CardTitle>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setShowSharedRail(false)}
+                      title="Hide shared with me"
+                      data-testid="button-hide-shared-rail"
+                    >
+                      <PanelRightClose className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {renderSharedRail()}
+                </CardContent>
+              </Card>
+            </aside>
+          )}
+        </div>
+        {!showSharedRail && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="fixed bottom-6 right-6 shadow-md"
+            onClick={() => setShowSharedRail(true)}
+            data-testid="button-show-shared-rail"
+          >
+            <PanelRightOpen className="h-4 w-4 mr-2" />
+            Shared with me
+          </Button>
+        )}
 
         {/* Share Document Dialog */}
         <Dialog open={showShareDialog} onOpenChange={(open) => {
@@ -1249,10 +1371,21 @@ export default function DocumentsPage() {
     </DashboardLayout>
   );
 
-  function renderFiltersAndContent() {
+  function renderFiltersAndContent(section: Section) {
+    const folderPath = section === "personal" ? personalFolderPath : systemFolderPath;
+    const folders = section === "personal" ? personalFolders : systemFolders;
+    const documents = section === "personal" ? personalDocuments : systemDocuments;
+    const isLoading =
+      section === "personal"
+        ? personalDocsLoading || personalFoldersLoading
+        : systemDocsLoading || systemFoldersLoading;
+    const canUploadHere =
+      section === "personal" ||
+      (section === "system" && (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"));
+
     return (
       <>
-        <div className="flex flex-wrap items-center gap-4 mt-4">
+        <div className="flex flex-wrap items-center gap-4 mt-2">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -1260,11 +1393,11 @@ export default function DocumentsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
-              data-testid="input-search-documents"
+              data-testid={`input-search-documents-${section}`}
             />
           </div>
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-[150px]" data-testid="select-category-filter">
+            <SelectTrigger className="w-[150px]" data-testid={`select-category-filter-${section}`}>
               <Filter className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Category" />
             </SelectTrigger>
@@ -1282,7 +1415,7 @@ export default function DocumentsPage() {
               variant={viewMode === "grid" ? "secondary" : "ghost"}
               size="icon"
               onClick={() => setViewMode("grid")}
-              data-testid="button-view-grid"
+              data-testid={`button-view-grid-${section}`}
             >
               <Grid3X3 className="h-4 w-4" />
             </Button>
@@ -1290,7 +1423,7 @@ export default function DocumentsPage() {
               variant={viewMode === "list" ? "secondary" : "ghost"}
               size="icon"
               onClick={() => setViewMode("list")}
-              data-testid="button-view-list"
+              data-testid={`button-view-list-${section}`}
             >
               <List className="h-4 w-4" />
             </Button>
@@ -1299,8 +1432,8 @@ export default function DocumentsPage() {
 
         {folderPath.length > 0 && (
           <div className="flex items-center gap-2 mt-4 text-sm">
-            <Button variant="ghost" size="sm" onClick={navigateToRoot} data-testid="button-nav-root">
-              Documents
+            <Button variant="ghost" size="sm" onClick={() => navigateToRoot(section)} data-testid={`button-nav-root-${section}`}>
+              {section === "personal" ? "My Documents" : "System Resources"}
             </Button>
             {folderPath.map((folder, index) => (
               <div key={folder.id} className="flex items-center gap-2">
@@ -1308,11 +1441,7 @@ export default function DocumentsPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    const newPath = folderPath.slice(0, index + 1);
-                    setFolderPath(newPath);
-                    setCurrentFolderId(folder.id);
-                  }}
+                  onClick={() => navigateToBreadcrumb(section, index)}
                   data-testid={`button-nav-folder-${folder.id}`}
                 >
                   {folder.name}
@@ -1343,7 +1472,7 @@ export default function DocumentsPage() {
                     <Card
                       key={folder.id}
                       className="cursor-pointer hover-elevate"
-                      onClick={() => navigateToFolder(folder)}
+                      onClick={() => navigateToFolder(section, folder)}
                       data-testid={`card-folder-${folder.id}`}
                     >
                       <CardContent className="p-4">
@@ -1399,8 +1528,8 @@ export default function DocumentsPage() {
                   <p className="text-muted-foreground mb-4">
                     Upload your first document to get started.
                   </p>
-                  {(activeTab !== "system" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") && (
-                    <Button onClick={() => setShowUploadDialog(true)} data-testid="button-empty-upload">
+                  {canUploadHere && (
+                    <Button onClick={() => { setFocusedSection(section); setShowUploadDialog(true); }} data-testid={`button-empty-upload-${section}`}>
                       <Upload className="h-4 w-4 mr-2" />
                       Upload Document
                     </Button>
@@ -1573,7 +1702,66 @@ export default function DocumentsPage() {
     );
   }
 
-  function renderSharedDocuments() {
+  // Compact right-rail list of documents shared with the current user.
+  // The full-page version below is unused now that Shared lives in the
+  // rail, but kept around in case we restore a dedicated route later.
+  function renderSharedRail() {
+    if (sharedLoading) {
+      return (
+        <div className="space-y-2">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
+        </div>
+      );
+    }
+    if (!sharedDocuments || sharedDocuments.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <Users className="h-8 w-8 text-muted-foreground/60 mb-2" />
+          <p className="text-sm font-medium">Nothing shared yet</p>
+          <p className="text-xs text-muted-foreground">
+            Documents others share with you appear here.
+          </p>
+        </div>
+      );
+    }
+    return (
+      <ScrollArea className="max-h-[70vh] pr-2">
+        <div className="space-y-2">
+          {sharedDocuments.map((doc) => (
+            <button
+              key={doc.id}
+              className="w-full text-left p-2 rounded-md border hover-elevate"
+              onClick={() => openDocumentViewer(doc)}
+              data-testid={`rail-shared-${doc.id}`}
+            >
+              <div className="flex items-start gap-2">
+                <div className="p-1.5 bg-muted rounded-md flex-shrink-0">
+                  {getFileIcon(doc.mimeType, doc.fileType)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{doc.name}</p>
+                  <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                    <Avatar className="h-4 w-4">
+                      <AvatarImage src={doc.sharedBy.id ? `/api/profile-photo/${doc.sharedBy.id}` : undefined} />
+                      <AvatarFallback className="text-[10px]">
+                        {doc.sharedBy.firstName?.[0]}{doc.sharedBy.lastName?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="truncate">{doc.sharedBy.firstName} {doc.sharedBy.lastName}</span>
+                  </div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </ScrollArea>
+    );
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function _renderSharedDocumentsFullPage() {
     if (sharedLoading) {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
