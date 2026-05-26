@@ -121,24 +121,28 @@ export default function HomePage() {
                 value={String(activeMatches.length)}
                 change={activeMatches.length > 0 ? "Active matches" : "No matches yet"}
                 icon={<Users className="h-5 w-5" />}
+                href="/connections"
               />
               <StatCard
                 title="Upcoming Meetings"
                 value={String(upcomingMeetings.length)}
                 change={upcomingMeetings.length > 0 ? "Sessions scheduled" : "No meetings scheduled"}
                 icon={<Calendar className="h-5 w-5" />}
+                href="/calendar"
               />
               <StatCard
                 title="Unread Messages"
                 value={String(unreadNotifications.length)}
                 change={unreadNotifications.length > 0 ? "New notifications" : "No new messages"}
                 icon={<MessageSquare className="h-5 w-5" />}
+                href="/messages"
               />
               <StatCard
                 title="Goals Progress"
                 value={`${completedGoals.length}/${goals.length}`}
                 change={inProgressGoals.length > 0 ? `${inProgressGoals.length} in progress` : "Set your goals"}
                 icon={<Target className="h-5 w-5" />}
+                href="/goals"
               />
             </>
           )}
@@ -177,7 +181,7 @@ export default function HomePage() {
                     ))}
                   </div>
                 ) : notifications.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-2">
                     {notifications.slice(0, 4).map((notification) => (
                       <ActivityItem
                         key={notification.id}
@@ -185,8 +189,16 @@ export default function HomePage() {
                         title={notification.title}
                         description={notification.message}
                         time={formatTimeAgo(new Date(notification.createdAt!))}
+                        href={notification.actionUrl}
                       />
                     ))}
+                    {notifications.length > 4 && (
+                      <Link href="/notifications">
+                        <Button variant="ghost" size="sm" className="w-full mt-2" data-testid="link-view-all-activity">
+                          View all {notifications.length} updates
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
@@ -213,28 +225,62 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <>
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">Goals Achieved</span>
-                        <span className="text-sm text-muted-foreground">
-                          {completedGoals.length}/{goals.length}
-                        </span>
+                    <Link href="/goals">
+                      <div className="hover-elevate -mx-2 px-2 py-1 rounded-md cursor-pointer" data-testid="link-goals-achieved">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Goals Achieved</span>
+                          <span className="text-sm text-muted-foreground">
+                            {completedGoals.length}/{goals.length}
+                          </span>
+                        </div>
+                        <Progress value={goals.length > 0 ? (completedGoals.length / goals.length) * 100 : 0} className="h-2" />
                       </div>
-                      <Progress value={goals.length > 0 ? (completedGoals.length / goals.length) * 100 : 0} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">Active Connections</span>
-                        <span className="text-sm text-muted-foreground">
-                          {activeMatches.length}
-                        </span>
+                    </Link>
+                    <Link href="/connections">
+                      <div className="hover-elevate -mx-2 px-2 py-1 rounded-md cursor-pointer" data-testid="link-active-connections">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Active Connections</span>
+                          <span className="text-sm text-muted-foreground">
+                            {activeMatches.length}
+                          </span>
+                        </div>
+                        <Progress value={activeMatches.length > 0 ? 100 : 0} className="h-2" />
                       </div>
-                      <Progress value={activeMatches.length > 0 ? 100 : 0} className="h-2" />
-                    </div>
+                    </Link>
                   </>
                 )}
               </CardContent>
             </Card>
+
+            {/* Current Goals brief widget — top 3 in-progress goals,
+                each linking to its detail in /goals. Hidden when there
+                are no in-progress goals (the empty state is handled by
+                the goals page itself). */}
+            {!isLoading && inProgressGoals.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg">Current Goals</CardTitle>
+                  <Link href="/goals">
+                    <Button variant="ghost" size="sm" data-testid="link-all-goals">
+                      View all
+                    </Button>
+                  </Link>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {inProgressGoals.slice(0, 3).map((goal) => (
+                    <Link key={goal.id} href="/goals">
+                      <div className="p-2 -mx-2 rounded-md hover-elevate cursor-pointer" data-testid={`brief-goal-${goal.id}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-medium truncate">{goal.title}</p>
+                          <span className="text-xs text-muted-foreground ml-2 shrink-0">{goal.progress || 0}%</span>
+                        </div>
+                        <Progress value={goal.progress || 0} className="h-1.5" />
+                      </div>
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader className="pb-2">
@@ -262,9 +308,10 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-primary/30 bg-primary/[0.02]" data-testid="card-mentor-assignment">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <UserPlus className="h-4 w-4 text-primary" />
                   {isMentor ? "Your Mentees" : "Your Mentor"}
                 </CardTitle>
               </CardHeader>
@@ -281,11 +328,11 @@ export default function HomePage() {
                       const connectedUser = isMentor ? match.mentee : match.mentor;
                       if (!connectedUser) return null;
                       const initials = `${connectedUser.firstName?.[0] || ""}${connectedUser.lastName?.[0] || ""}`.toUpperCase();
-                      
+
                       return (
-                        <div key={match.id} className="flex items-center gap-3">
+                        <div key={match.id} className="flex items-center gap-3 p-2 -mx-2 rounded-md hover-elevate" data-testid={`match-${match.id}`}>
                           <Avatar className="h-10 w-10">
-                            <AvatarImage src={connectedUser.profileImage || undefined} />
+                            <AvatarImage src={connectedUser.id ? `/api/profile-photo/${connectedUser.id}` : undefined} />
                             <AvatarFallback>{initials}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
@@ -296,9 +343,16 @@ export default function HomePage() {
                               {connectedUser.jobTitle || connectedUser.role}
                             </p>
                           </div>
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href="/connections">View</Link>
-                          </Button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild title="Message">
+                              <Link href="/messages">
+                                <MessageSquare className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href="/connections">View</Link>
+                            </Button>
+                          </div>
                         </div>
                       );
                     })}
@@ -328,14 +382,16 @@ function StatCard({
   value,
   change,
   icon,
+  href,
 }: {
   title: string;
   value: string;
   change: string;
   icon: React.ReactNode;
+  href?: string;
 }) {
-  return (
-    <Card>
+  const body = (
+    <Card className={href ? "hover-elevate cursor-pointer transition-shadow" : ""}>
       <CardContent className="pt-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -353,6 +409,7 @@ function StatCard({
       </CardContent>
     </Card>
   );
+  return href ? <Link href={href}>{body}</Link> : body;
 }
 
 function ActivityItem({
@@ -360,14 +417,16 @@ function ActivityItem({
   title,
   description,
   time,
+  href,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
   time: string;
+  href?: string | null;
 }) {
-  return (
-    <div className="flex items-start gap-3">
+  const body = (
+    <div className={`flex items-start gap-3 ${href ? "p-2 -mx-2 rounded-md hover-elevate cursor-pointer" : ""}`}>
       <div className="p-2 rounded-md bg-primary/10 shrink-0">
         {icon}
       </div>
@@ -378,6 +437,7 @@ function ActivityItem({
       <span className="text-xs text-muted-foreground shrink-0">{time}</span>
     </div>
   );
+  return href ? <Link href={href}>{body}</Link> : body;
 }
 
 function getNotificationIcon(type: string) {
