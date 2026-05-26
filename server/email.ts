@@ -594,3 +594,61 @@ export async function sendGoalUpdateEmail(data: GoalUpdateEmailData): Promise<{ 
     return { success: false, error: error.message || 'Failed to send email' };
   }
 }
+
+export interface AdminPingEmailData {
+  email: string;
+  recipientName: string;
+  senderName: string;
+  subject: string;
+  message: string;
+  dashboardUrl: string;
+}
+
+export async function sendAdminPingEmail(data: AdminPingEmailData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    const escapedMessage = data.message
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br/>');
+
+    const result = await client.emails.send({
+      from: fromEmail,
+      to: data.email,
+      subject: data.subject || `A message from ${data.senderName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 24px; border-radius: 10px 10px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 22px;">${data.subject || `Message from ${data.senderName}`}</h1>
+          </div>
+          <div style="background: #f9f9f9; padding: 28px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 10px 10px;">
+            <p>Hi ${data.recipientName},</p>
+            <p style="white-space: pre-wrap;">${escapedMessage}</p>
+            <p style="margin-top: 24px;">
+              <a href="${data.dashboardUrl}" style="display:inline-block; background:#667eea; color:white; padding:10px 20px; border-radius:6px; text-decoration:none;">Open the platform</a>
+            </p>
+            <p style="color:#666; font-size:12px; margin-top: 24px;">
+              Sent by ${data.senderName} via SONSIEL Mentorship Hub.
+            </p>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    if (result.error) {
+      return { success: false, error: result.error.message };
+    }
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to send admin ping email:', error);
+    return { success: false, error: error.message || 'Failed to send email' };
+  }
+}

@@ -60,18 +60,22 @@ interface MeetingWithDetails {
   cohort?: { id: string; name: string };
 }
 
-function KPICard({ 
-  title, 
-  value, 
-  icon: Icon, 
+function KPICard({
+  title,
+  value,
+  icon: Icon,
   description,
-  variant = "default" 
+  variant = "default",
+  onClick,
+  active,
 }: {
   title: string;
   value: number | string;
   icon: React.ComponentType<{ className?: string }>;
   description?: string;
   variant?: "default" | "success" | "warning" | "primary";
+  onClick?: () => void;
+  active?: boolean;
 }) {
   const variantClasses = {
     default: "",
@@ -81,7 +85,11 @@ function KPICard({
   };
 
   return (
-    <Card className={variantClasses[variant]}>
+    <Card
+      className={`${variantClasses[variant]} ${onClick ? "cursor-pointer hover-elevate" : ""} ${active ? "ring-2 ring-primary" : ""}`}
+      onClick={onClick}
+      data-testid={`kpi-card-${title.toLowerCase().replace(/\s/g, '-')}`}
+    >
       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         <Icon className="h-5 w-5 text-muted-foreground" />
@@ -132,7 +140,10 @@ function getStatusBadge(meeting: MeetingLog) {
 
 export default function AdminMeetingsPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  // Default to "upcoming" so admins land on what needs attention first.
+  // Click any KPI tile (Total / Completed / Upcoming / Today) to switch
+  // the filter — see the onClick handlers on the cards below.
+  const [statusFilter, setStatusFilter] = useState<string>("upcoming");
   const [formatFilter, setFormatFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("list");
 
@@ -232,6 +243,8 @@ export default function AdminMeetingsPage() {
             value={totalMeetings}
             icon={Calendar}
             description="All scheduled meetings"
+            onClick={() => setStatusFilter("all")}
+            active={statusFilter === "all"}
           />
           <KPICard
             title="Completed"
@@ -239,6 +252,8 @@ export default function AdminMeetingsPage() {
             icon={CheckCircle2}
             description={`${totalMeetings > 0 ? Math.round((completedMeetings / totalMeetings) * 100) : 0}% completion rate`}
             variant="success"
+            onClick={() => setStatusFilter("completed")}
+            active={statusFilter === "completed"}
           />
           <KPICard
             title="Upcoming"
@@ -246,6 +261,8 @@ export default function AdminMeetingsPage() {
             icon={CalendarClock}
             description="Scheduled future meetings"
             variant="primary"
+            onClick={() => setStatusFilter("upcoming")}
+            active={statusFilter === "upcoming"}
           />
           <KPICard
             title="Today"
@@ -253,6 +270,8 @@ export default function AdminMeetingsPage() {
             icon={CalendarCheck}
             description="Meetings scheduled today"
             variant="warning"
+            onClick={() => setStatusFilter("today")}
+            active={statusFilter === "today"}
           />
         </div>
 
