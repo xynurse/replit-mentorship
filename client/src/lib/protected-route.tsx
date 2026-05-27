@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useProgram } from "@/hooks/use-program";
 import { Loader2, ShieldX } from "lucide-react";
 import { Redirect, Route, Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ export function ProtectedRoute({
   component: React.ComponentType;
 }) {
   const { user, isLoading } = useAuth();
+  const { needsProgramSelection, isLoadingPrograms, isLoadingActiveProgram } = useProgram();
 
   if (isLoading) {
     return <Route path={path}><LoadingState /></Route>;
@@ -51,6 +53,21 @@ export function ProtectedRoute({
 
   if (user.mustChangePassword && path !== "/change-password") {
     return <Route path={path}><Redirect to="/change-password" /></Route>;
+  }
+
+  // Prevent flash: hold on loading spinner while we resolve program membership.
+  // isLoadingPrograms / isLoadingActiveProgram are only true when user is set (queries
+  // are enabled) but the response hasn't arrived yet. For returning users with cached
+  // data this is instantaneous; for fresh logins it avoids showing protected content
+  // before the program-selection redirect fires.
+  if (isLoadingPrograms || isLoadingActiveProgram) {
+    return <Route path={path}><LoadingState /></Route>;
+  }
+
+  // Gate: user must pick a program before accessing any protected page.
+  // Exempt /select-program itself to avoid an infinite redirect loop.
+  if (needsProgramSelection && path !== "/select-program") {
+    return <Route path={path}><Redirect to="/select-program" /></Route>;
   }
 
   return (
@@ -70,6 +87,7 @@ export function AdminRoute({
   component: React.ComponentType;
 }) {
   const { user, isLoading } = useAuth();
+  const { needsProgramSelection, isLoadingPrograms, isLoadingActiveProgram } = useProgram();
 
   if (isLoading) {
     return <Route path={path}><LoadingState /></Route>;
@@ -81,6 +99,16 @@ export function AdminRoute({
 
   if (user.mustChangePassword) {
     return <Route path={path}><Redirect to="/change-password" /></Route>;
+  }
+
+  // Hold on loading while program membership resolves (same as ProtectedRoute).
+  if (isLoadingPrograms || isLoadingActiveProgram) {
+    return <Route path={path}><LoadingState /></Route>;
+  }
+
+  // Gate: admins must also choose a program context before accessing the admin UI.
+  if (needsProgramSelection) {
+    return <Route path={path}><Redirect to="/select-program" /></Route>;
   }
 
   if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
