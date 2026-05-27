@@ -185,11 +185,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <Sidebar>
           <SidebarHeader className="p-4 space-y-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-primary/10">
-                <Heart className="h-5 w-5 text-primary" />
-              </div>
+              <Heart className="h-5 w-5 text-muted-foreground" />
               <div className="flex flex-col">
-                <span className="font-semibold text-sm">SONSIEL</span>
+                <span className="font-semibold text-sm tracking-tight">SONSIEL</span>
                 <span className="text-xs text-muted-foreground">Mentorship Hub</span>
               </div>
             </div>
@@ -198,7 +196,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>Navigation</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {navItems.map((item) => {
@@ -288,7 +285,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </Sidebar>
 
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="h-14 border-b bg-card flex items-center justify-between gap-4 px-4 sticky top-0 z-50">
+          <header className="h-14 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between gap-4 px-4 sticky top-0 z-50">
             <div className="flex items-center gap-4">
               <SidebarTrigger data-testid="button-sidebar-toggle">
                 <Menu className="h-5 w-5" />

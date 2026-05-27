@@ -114,17 +114,14 @@ function AdminSidebar() {
     <Sidebar className="border-r">
       <SidebarHeader className="border-b p-4 space-y-3">
         <Link href="/admin" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-            <Shield className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="font-semibold text-lg">SONSIEL Admin</span>
+          <Shield className="h-5 w-5 text-muted-foreground" />
+          <span className="font-semibold text-base tracking-tight">SONSIEL Admin</span>
         </Link>
         <ProgramSwitcher />
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {adminMenuItems.map((item) => {
@@ -230,7 +227,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </DropdownMenu>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-6 bg-muted/30">
+          <main className="flex-1 overflow-auto p-6 bg-background">
             {children}
           </main>
         </div>
