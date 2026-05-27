@@ -25,6 +25,11 @@ import {
   type UploadKind,
 } from "./storage/blob";
 import { AuditService, createAuditMiddleware } from "./audit";
+import ical from "ical-generator";
+import { randomUUID } from "crypto";
+import { db } from "./db";
+import { users as usersTable } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const generalApiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
@@ -4412,6 +4417,88 @@ export async function registerRoutes(
       
       await storage.deleteCalendarEvent(req.params.id);
       res.json({ message: "Event deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── ICS Calendar Feed (#30) ─────────────────────────────────────────────────
+  // Public (no session auth) — secured by a per-user opaque token.
+  // Calendar apps subscribe via webcal://… or https://… — they can't carry
+  // session cookies, so the token is the only security boundary here.
+
+  // GET /api/ics/:token  — returns an iCalendar (.ics) feed for the user
+  // whose icsToken matches. Only MEETING events are included; BLOCK events
+  // are personal internal markers and don't need to appear in external clients.
+  app.get("/api/ics/:token", async (req, res, next) => {
+    try {
+      const [targetUser] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.icsToken, req.params.token))
+        .limit(1);
+
+      if (!targetUser) {
+        return res.status(404).send("Calendar feed not found");
+      }
+
+      const events = await storage.getCalendarEventsForUser(targetUser.id);
+
+      const calendar = ical({
+        name: `SONSIEL – ${targetUser.firstName} ${targetUser.lastName}`,
+        prodId: { company: "SONSIEL", product: "Mentorship Platform" },
+      });
+
+      for (const ev of events) {
+        if (ev.type !== "MEETING") continue;
+        if (ev.status === "CANCELLED") continue;
+
+        const start = new Date(ev.startTime);
+        // Fall back to 1-hour duration when endTime is absent
+        const end = ev.endTime ? new Date(ev.endTime) : new Date(start.getTime() + 60 * 60 * 1000);
+
+        calendar.createEvent({
+          id: ev.id,
+          start,
+          end,
+          summary: ev.title,
+          description: ev.description ?? undefined,
+          location: ev.location ?? undefined,
+          url: ev.meetingUrl ?? undefined,
+          status: "CONFIRMED",
+        });
+      }
+
+      res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+      res.setHeader("Content-Disposition", 'inline; filename="sonsiel-calendar.ics"');
+      res.send(calendar.toString());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // POST /api/users/ics-token  — (re)generates the authenticated user's ICS token
+  app.post("/api/users/ics-token", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const token = randomUUID();
+      await storage.updateUser(user.id, { icsToken: token } as any);
+      res.json({ token });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // GET /api/users/ics-token  — returns the current token (null if not yet generated)
+  app.get("/api/users/ics-token", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const [row] = await db
+        .select({ icsToken: usersTable.icsToken })
+        .from(usersTable)
+        .where(eq(usersTable.id, user.id))
+        .limit(1);
+      res.json({ token: row?.icsToken ?? null });
     } catch (error) {
       next(error);
     }

@@ -150,6 +150,42 @@ function InfoRow({ icon: Icon, label, value, href, alwaysShow }: { icon: any; la
   );
 }
 
+// Renders a 0-2 scale rating (0 = none, 1 = moderate, 2 = high) as filled dots
+function RatingBar({ label, value }: { label: string; value: number | null | undefined }) {
+  const v = value ?? 0;
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <span className="text-xs text-muted-foreground flex-1 leading-tight">{label}</span>
+      <div className="flex items-center gap-0.5 shrink-0">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className={`h-2 w-2 rounded-full transition-colors ${i < v ? "bg-primary" : "bg-muted"}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RatingGrid({ title, areas }: { title: string; areas: { label: string; value: number | null | undefined }[] }) {
+  const hasAny = areas.some((a) => (a.value ?? 0) > 0);
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground font-medium">{title}</p>
+      {hasAny ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5 rounded-md border p-3">
+          {areas.map((a) => (
+            <RatingBar key={a.label} label={a.label} value={a.value} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground italic">Not provided</p>
+      )}
+    </div>
+  );
+}
+
 function TextBlock({ label, value, alwaysShow }: { label: string; value: string | null | undefined; alwaysShow?: boolean }) {
   if (!value && !alwaysShow) return null;
   return (
@@ -524,6 +560,23 @@ export default function ProfileViewPage() {
                   <p className="text-sm text-muted-foreground italic">Not provided</p>
                 )}
               </div>
+
+              <RatingGrid
+                title="Interest Areas (0 = None · 1 = Moderate · 2 = High)"
+                areas={[
+                  { label: "Science & Research", value: menteeProfile?.interestScienceResearch },
+                  { label: "Product Development", value: menteeProfile?.interestProductDevelopment },
+                  { label: "Innovation", value: menteeProfile?.interestInnovation },
+                  { label: "Business Strategy", value: menteeProfile?.interestBusinessStrategy },
+                  { label: "Entrepreneurship", value: menteeProfile?.interestEntrepreneurship },
+                  { label: "Intrapreneurship", value: menteeProfile?.interestIntrapreneurship },
+                  { label: "Leadership", value: menteeProfile?.interestLeadership },
+                  { label: "Networking", value: menteeProfile?.interestNetworking },
+                  { label: "Professional Development", value: menteeProfile?.interestProfessionalDevelopment },
+                  { label: "Digital Technology", value: menteeProfile?.interestDigitalTech },
+                  { label: "Ethical & Social", value: menteeProfile?.interestEthicalSocial },
+                ]}
+              />
             </CardContent>
           </Card>
         )}
@@ -637,6 +690,26 @@ export default function ProfileViewPage() {
                   <p className="text-sm text-muted-foreground italic">Not provided</p>
                 )}
               </div>
+
+              <TextBlock label="Best Days & Times" value={mentorProfile?.bestDaysTimes} />
+              <TextBlock label="Effective Structures" value={mentorProfile?.effectiveStructures} />
+
+              <RatingGrid
+                title="Comfort Areas (0 = Not Comfortable · 1 = Somewhat · 2 = Very Comfortable)"
+                areas={[
+                  { label: "Science & Research", value: mentorProfile?.comfortScienceResearch },
+                  { label: "Product Development", value: mentorProfile?.comfortProductDevelopment },
+                  { label: "Innovation", value: mentorProfile?.comfortInnovation },
+                  { label: "Business Strategy", value: mentorProfile?.comfortBusinessStrategy },
+                  { label: "Entrepreneurship", value: mentorProfile?.comfortEntrepreneurship },
+                  { label: "Intrapreneurship", value: mentorProfile?.comfortIntrapreneurship },
+                  { label: "Leadership", value: mentorProfile?.comfortLeadership },
+                  { label: "Networking", value: mentorProfile?.comfortNetworking },
+                  { label: "Professional Development", value: mentorProfile?.comfortProfessionalDevelopment },
+                  { label: "Digital Technology", value: mentorProfile?.comfortDigitalTech },
+                  { label: "Ethical & Social", value: mentorProfile?.comfortEthicalSocial },
+                ]}
+              />
             </CardContent>
           </Card>
         )}

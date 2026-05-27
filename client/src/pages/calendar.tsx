@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar as CalendarIcon, Clock, MapPin, Plus, ChevronLeft, ChevronRight, Ban, Users, Video, ExternalLink, Pencil, Trash2, X, Target } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, MapPin, Plus, ChevronLeft, ChevronRight, Ban, Users, Video, ExternalLink, Pencil, Trash2, X, Target, Copy, RefreshCw, Link as LinkIcon } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, addMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -96,6 +96,25 @@ export default function CalendarPage() {
 
   const { data: messageableUsers = [] } = useQuery<PublicUserInfo[]>({
     queryKey: ["/api/users/messageable"],
+  });
+
+  // ICS feed token for calendar subscription (#30)
+  const { data: icsTokenData, refetch: refetchIcsToken } = useQuery<{ token: string | null }>({
+    queryKey: ["/api/users/ics-token"],
+    enabled: !!user,
+  });
+  const icsToken = icsTokenData?.token ?? null;
+  const icsUrl = icsToken ? `${window.location.origin}/api/ics/${icsToken}` : null;
+
+  const generateIcsTokenMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/users/ics-token");
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchIcsToken();
+      toast({ title: "Calendar link generated", description: "Your calendar subscription link is ready." });
+    },
   });
 
   const createEventMutation = useMutation({
@@ -324,6 +343,19 @@ export default function CalendarPage() {
       ...prev,
       date: format(date, "yyyy-MM-dd"),
     }));
+    setEventType("meeting");
+    setShowNewEventDialog(true);
+  };
+
+  // Opens the create dialog pre-set to "block" type for the given date.
+  // Used by the "Mark Unavailable" shortcut in the day detail panel.
+  const openBlockWithDate = (date: Date) => {
+    setNewEvent(prev => ({
+      ...prev,
+      date: format(date, "yyyy-MM-dd"),
+      title: "Unavailable",
+    }));
+    setEventType("block");
     setShowNewEventDialog(true);
   };
 
@@ -501,7 +533,7 @@ export default function CalendarPage() {
                     onClick={() => event.type === "goal" ? openGoalDetail(event) : openEventDetail(event.id)}
                     className={cn(
                       "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate text-left",
-                      event.type === "block" ? "bg-orange-100/60 dark:bg-orange-950/30" :
+                      event.type === "block" ? "bg-red-50 dark:bg-red-950/20" :
                       event.type === "goal" ? "bg-purple-100/60 dark:bg-purple-950/30" : "bg-muted/40",
                     )}
                     data-testid={`agenda-${event.type}-${event.id}`}
@@ -510,13 +542,13 @@ export default function CalendarPage() {
                       <div className={cn(
                         "w-2 h-2 rounded-full shrink-0",
                         event.type === "meeting" ? "bg-blue-500" :
-                        event.type === "block" ? "bg-orange-500" : "bg-purple-500"
+                        event.type === "block" ? "bg-red-500" : "bg-purple-500"
                       )} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm truncate">{event.title}</span>
-                          <Badge variant="outline" className={cn("text-xs flex-shrink-0", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400")}>
-                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Blocked" : "Goal"}
+                          <Badge variant="outline" className={cn("text-xs flex-shrink-0", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400", event.type === "block" && "border-red-400 text-red-600 dark:text-red-400")}>
+                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Unavailable" : "Goal"}
                           </Badge>
                         </div>
                         {event.type === "goal" && event.ownerName && (
@@ -556,7 +588,7 @@ export default function CalendarPage() {
             <p className="text-muted-foreground">View your schedule and manage events</p>
           </div>
           <div className="flex gap-2">
-            <Button 
+            <Button
               variant="outline"
               onClick={() => {
                 setEventType("block");
@@ -565,7 +597,7 @@ export default function CalendarPage() {
               data-testid="button-block-time"
             >
               <Ban className="h-4 w-4 mr-2" />
-              Block Time
+              Mark Unavailable
             </Button>
             <Button 
               onClick={() => {
@@ -691,7 +723,7 @@ export default function CalendarPage() {
                             <div
                               className={cn(
                                 "w-1.5 h-1.5 rounded-full",
-                                isSelected ? "bg-primary-foreground" : "bg-orange-500"
+                                isSelected ? "bg-primary-foreground" : "bg-red-500"
                               )}
                             />
                           )}
@@ -716,8 +748,8 @@ export default function CalendarPage() {
                   <span>Meetings</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-orange-500" />
-                  <span>Blocked</span>
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <span>Unavailable</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-purple-500" />
@@ -745,14 +777,26 @@ export default function CalendarPage() {
                   </CardDescription>
                 </div>
                 {selectedDate && (
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => openNewEventWithDate(selectedDate)}
-                    data-testid="button-add-event-to-date"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openBlockWithDate(selectedDate)}
+                      title="Mark unavailable"
+                      data-testid="button-mark-unavailable-for-date"
+                    >
+                      <Ban className="h-4 w-4 text-red-500" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openNewEventWithDate(selectedDate)}
+                      title="Schedule meeting"
+                      data-testid="button-add-event-to-date"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -772,7 +816,7 @@ export default function CalendarPage() {
                         onClick={() => event.type === "goal" ? openGoalDetail(event) : openEventDetail(event.id)}
                         className={cn(
                           "w-full text-left p-3 rounded-md hover-elevate cursor-pointer",
-                          event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" :
+                          event.type === "block" ? "bg-red-50 dark:bg-red-950/20" :
                           event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
                         )}
                         data-testid={`event-${event.id}`}
@@ -812,11 +856,16 @@ export default function CalendarPage() {
                               </div>
                             )}
                           </div>
-                          <Badge 
-                            variant={event.type === "meeting" ? "default" : event.type === "block" ? "secondary" : "outline"}
-                            className={cn("text-xs shrink-0", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400")}
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs shrink-0",
+                              event.type === "meeting" && "bg-primary text-primary-foreground border-primary",
+                              event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400",
+                              event.type === "block" && "border-red-400 text-red-600 dark:text-red-400",
+                            )}
                           >
-                            {event.type === "block" ? "Blocked" : event.type === "goal" ? "Goal" : "Meeting"}
+                            {event.type === "block" ? "Unavailable" : event.type === "goal" ? "Goal" : "Meeting"}
                           </Badge>
                         </div>
                       </button>
@@ -871,7 +920,7 @@ export default function CalendarPage() {
                       onClick={() => event.type === "goal" ? openGoalDetail(event) : openEventDetail(event.id)}
                       className={cn(
                         "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate cursor-pointer",
-                        event.type === "block" ? "bg-orange-100 dark:bg-orange-950/30" :
+                        event.type === "block" ? "bg-red-50 dark:bg-red-950/20" :
                         event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
                       )}
                       data-testid={`upcoming-${event.type}-${event.id}`}
@@ -880,16 +929,16 @@ export default function CalendarPage() {
                         <div className={cn(
                           "w-2 h-2 rounded-full shrink-0",
                           event.type === "meeting" ? "bg-blue-500" : 
-                          event.type === "block" ? "bg-orange-500" :
+                          event.type === "block" ? "bg-red-500" :
                           "bg-purple-500"
                         )} />
                         <div className="text-left">
                           <span className="font-medium text-sm">{event.title}</span>
-                          <Badge 
-                            variant="outline" 
-                            className={cn("ml-2 text-xs", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400")}
+                          <Badge
+                            variant="outline"
+                            className={cn("ml-2 text-xs", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400", event.type === "block" && "border-red-400 text-red-600 dark:text-red-400")}
                           >
-                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Blocked" : "Goal"}
+                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Unavailable" : "Goal"}
                           </Badge>
                           {event.type === "goal" && event.ownerName && (
                             <span className="ml-2 text-xs text-muted-foreground">({event.ownerName})</span>
@@ -920,6 +969,94 @@ export default function CalendarPage() {
           </CardContent>
         </Card>
       </div>
+
+        {/* #30 — Calendar subscription (ICS feed) */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LinkIcon className="h-4 w-4" />
+              Calendar Subscription
+            </CardTitle>
+            <CardDescription>
+              Subscribe to your SONSIEL calendar in Google Calendar, Apple Calendar, Outlook, or any ICS-compatible app.
+              Your meetings will appear automatically as they're scheduled.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {icsUrl ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={icsUrl}
+                    className="font-mono text-xs"
+                    data-testid="input-ics-url"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      navigator.clipboard.writeText(icsUrl);
+                      toast({ title: "Copied!", description: "Calendar URL copied to clipboard." });
+                    }}
+                    data-testid="button-copy-ics-url"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title="Regenerate link (invalidates old link)"
+                    onClick={() => generateIcsTokenMutation.mutate()}
+                    disabled={generateIcsTokenMutation.isPending}
+                    data-testid="button-regenerate-ics-token"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", generateIcsTokenMutation.isPending && "animate-spin")} />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Copy this URL and add it as a calendar subscription. Clicking Regenerate creates a new link — your old link will stop working.
+                </p>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <a
+                    href={`https://calendar.google.com/calendar/u/0/r?cid=${encodeURIComponent(icsUrl)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-muted-foreground hover:text-foreground"
+                  >
+                    Add to Google Calendar
+                  </a>
+                  <span className="text-muted-foreground">·</span>
+                  <a
+                    href={icsUrl.replace("https://", "webcal://").replace("http://", "webcal://")}
+                    className="underline text-muted-foreground hover:text-foreground"
+                  >
+                    Open in Apple / Outlook Calendar
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Generate a private link to subscribe to your calendar from any calendar app.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => generateIcsTokenMutation.mutate()}
+                  disabled={generateIcsTokenMutation.isPending}
+                  data-testid="button-generate-ics-token"
+                >
+                  {generateIcsTokenMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                  )}
+                  Generate Calendar Link
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
       <Dialog open={showNewEventDialog} onOpenChange={(open) => {
         if (!open) resetNewEventForm();
@@ -1148,14 +1285,14 @@ export default function CalendarPage() {
                       {selectedEvent.type === "MEETING" ? (
                         <Video className="h-5 w-5 text-blue-500" />
                       ) : (
-                        <Ban className="h-5 w-5 text-orange-500" />
+                        <Ban className="h-5 w-5 text-red-500" />
                       )}
                       {isEditing ? "Edit Event" : selectedEvent.title}
                     </DialogTitle>
                     <DialogDescription>
                       {isEditing 
                         ? "Update the event details below" 
-                        : (selectedEvent.type === "MEETING" ? "Meeting details" : "Blocked time details")
+                        : (selectedEvent.type === "MEETING" ? "Meeting details" : "Unavailable time block")
                       }
                     </DialogDescription>
                   </div>
