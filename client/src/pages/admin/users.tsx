@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -72,6 +73,10 @@ export default function AdminUsers() {
   const [sendEmailResults, setSendEmailResults] = useState<any | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [userToDelete, setUserToDelete] = useState<SafeUser | null>(null);
+  const [showPingDialog, setShowPingDialog] = useState(false);
+  const [pingTargetUser, setPingTargetUser] = useState<SafeUser | null>(null);
+  const [pingSubject, setPingSubject] = useState("");
+  const [pingMessage, setPingMessage] = useState("");
   const [newUser, setNewUser] = useState({
     email: "",
     password: "",
@@ -250,6 +255,23 @@ export default function AdminUsers() {
     },
   });
 
+  const pingMutation = useMutation({
+    mutationFn: async ({ userId, subject, message }: { userId: string; subject?: string; message: string }) => {
+      const response = await apiRequest("POST", `/api/admin/users/${userId}/ping`, { subject, message });
+      return response.json();
+    },
+    onSuccess: () => {
+      setShowPingDialog(false);
+      setPingTargetUser(null);
+      setPingSubject("");
+      setPingMessage("");
+      toast({ title: "Message sent", description: "The user has been notified in-app and by email." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to send message", description: error.message, variant: "destructive" });
+    },
+  });
+
   const toggleSuperAdminMutation = useMutation({
     mutationFn: async ({ userId, makeSuperAdmin }: { userId: string; makeSuperAdmin: boolean }) => {
       return apiRequest("PATCH", `/api/admin/users/${userId}/role`, { 
@@ -408,9 +430,15 @@ export default function AdminUsers() {
                 Edit Profile
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                setPingTargetUser(user);
+                setShowPingDialog(true);
+              }}
+              data-testid={`button-ping-${user.id}`}
+            >
               <Mail className="mr-2 h-4 w-4" />
-              Send Email
+              Send Message
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -1056,6 +1084,73 @@ export default function AdminUsers() {
                 </DialogFooter>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Ping / Send Message dialog */}
+        <Dialog open={showPingDialog} onOpenChange={(open) => {
+          setShowPingDialog(open);
+          if (!open) {
+            setPingTargetUser(null);
+            setPingSubject("");
+            setPingMessage("");
+          }
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Send Message</DialogTitle>
+              <DialogDescription>
+                {pingTargetUser
+                  ? `Send an in-app notification and email to ${pingTargetUser.firstName} ${pingTargetUser.lastName}`
+                  : "Send a message to this user"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="pingSubject">Subject (optional)</Label>
+                <Input
+                  id="pingSubject"
+                  value={pingSubject}
+                  onChange={(e) => setPingSubject(e.target.value)}
+                  placeholder="Message from admin"
+                  data-testid="input-ping-subject"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pingMessage">Message *</Label>
+                <Textarea
+                  id="pingMessage"
+                  value={pingMessage}
+                  onChange={(e) => setPingMessage(e.target.value)}
+                  placeholder="Write your message here..."
+                  rows={5}
+                  data-testid="input-ping-message"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPingDialog(false)} data-testid="button-cancel-ping">
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!pingTargetUser) return;
+                  if (!pingMessage.trim()) {
+                    toast({ title: "Message is required", variant: "destructive" });
+                    return;
+                  }
+                  pingMutation.mutate({
+                    userId: pingTargetUser.id,
+                    subject: pingSubject.trim() || undefined,
+                    message: pingMessage.trim(),
+                  });
+                }}
+                disabled={pingMutation.isPending || !pingMessage.trim()}
+                data-testid="button-confirm-ping"
+              >
+                {pingMutation.isPending ? "Sending..." : "Send Message"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

@@ -837,8 +837,62 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: ping a user with a custom message — creates an in-app
+  // notification, pushes it live via Ably, and sends an email.
+  app.post("/api/admin/users/:id/ping", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const pingSchema = z.object({
+        subject: z.string().max(200).optional(),
+        message: z.string().min(1, "Message required").max(5000),
+      });
+      const parseResult = pingSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid request", errors: parseResult.error.flatten() });
+      }
+      const { subject, message } = parseResult.data;
+      const targetId = req.params.id;
+
+      const target = await storage.getUser(targetId);
+      if (!target) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const sender = req.user as any;
+      const senderName = `${sender.firstName} ${sender.lastName}`;
+      const title = subject || `Message from ${senderName}`;
+
+      const notification = await storage.createNotification({
+        userId: targetId,
+        type: "SYSTEM_ANNOUNCEMENT",
+        title,
+        message,
+        priority: "NORMAL",
+      });
+
+      // Push live + bump bell badge
+      emitNotification(targetId, notification);
+      const unreadCount = await storage.getUnreadNotificationCount(targetId);
+      emitNotificationCountUpdate(targetId, unreadCount);
+
+      // Send email — non-blocking; failure logged but doesn't fail the request
+      const { sendAdminPingEmail, getTrustedBaseUrl } = await import("./email");
+      sendAdminPingEmail({
+        email: target.email,
+        recipientName: `${target.firstName} ${target.lastName}`,
+        senderName,
+        subject: title,
+        message,
+        dashboardUrl: getTrustedBaseUrl(),
+      }).catch((err) => console.error("[ping] email send failed:", err));
+
+      res.json({ success: true, notificationId: notification.id });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // ============ MENTOR PROFILES ============
-  
+
   // Admin: Get all mentor profiles with filters
   app.get("/api/admin/mentor-profiles", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
