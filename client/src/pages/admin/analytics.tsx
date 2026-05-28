@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { cn } from "@/lib/utils";
 import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -147,14 +149,16 @@ const COLORS = [
   "hsl(217 91% 60%)", // blue
 ];
 
-function KPICard({ 
-  title, 
-  value, 
-  icon: Icon, 
-  description, 
-  trend, 
+function KPICard({
+  title,
+  value,
+  icon: Icon,
+  description,
+  trend,
   trendValue,
-  variant = "default" 
+  variant = "default",
+  href,
+  onClick,
 }: {
   title: string;
   value: number | string;
@@ -163,6 +167,8 @@ function KPICard({
   trend?: "up" | "down" | "neutral";
   trendValue?: string;
   variant?: "default" | "success" | "warning" | "danger";
+  href?: string;
+  onClick?: () => void;
 }) {
   const variantClasses = {
     default: "",
@@ -171,11 +177,13 @@ function KPICard({
     danger: "border-red-500/30 bg-red-50/50 dark:bg-red-950/20",
   };
 
-  return (
-    <Card className={variantClasses[variant]}>
+  const isClickable = !!href || !!onClick;
+
+  const inner = (
+    <Card className={cn(variantClasses[variant], isClickable && "cursor-pointer transition-all hover:shadow-md hover:border-border/80 hover:-translate-y-0.5")}>
       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="h-5 w-5 text-muted-foreground" />
+        <Icon className={cn("h-5 w-5", isClickable ? "text-muted-foreground/60 group-hover:text-primary transition-colors" : "text-muted-foreground")} />
       </CardHeader>
       <CardContent>
         <div className="flex items-baseline gap-2">
@@ -191,11 +199,22 @@ function KPICard({
       </CardContent>
     </Card>
   );
+
+  if (href) {
+    return <Link href={href} className="group block">{inner}</Link>;
+  }
+  if (onClick) {
+    return <div className="group cursor-pointer" onClick={onClick}>{inner}</div>;
+  }
+  return inner;
 }
 
-function MetricProgress({ label, value, max, percentage }: { label: string; value: number; max: number; percentage: number }) {
+function MetricProgress({ label, value, max, percentage, onClick }: { label: string; value: number; max: number; percentage: number; onClick?: () => void }) {
   return (
-    <div className="space-y-2">
+    <div
+      className={cn("space-y-2 rounded-md p-2 -mx-2 transition-colors", onClick && "cursor-pointer hover:bg-muted/50")}
+      onClick={onClick}
+    >
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">{label}</span>
         <span className="font-medium">{value} / {max}</span>
@@ -208,6 +227,7 @@ function MetricProgress({ label, value, max, percentage }: { label: string; valu
 
 export default function AnalyticsDashboard() {
   const [trendDays, setTrendDays] = useState("30");
+  const [activeTab, setActiveTab] = useState("overview");
 
   const { data: dashboard, isLoading: isDashboardLoading, refetch: refetchDashboard } = useQuery<DashboardMetrics>({
     queryKey: ["/api/analytics/dashboard"],
@@ -266,7 +286,7 @@ export default function AnalyticsDashboard() {
           </Button>
         </div>
 
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList>
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
@@ -299,12 +319,14 @@ export default function AnalyticsDashboard() {
                     description={`${dashboard.userMetrics.newUsersThisMonth} new this month`}
                     trend="up"
                     trendValue={`+${dashboard.userMetrics.newUsersThisMonth}`}
+                    href="/admin/users"
                   />
                   <KPICard
                     title="Active Matches"
                     value={dashboard.matchMetrics.activeMatches}
                     icon={Handshake}
                     description={`${dashboard.matchMetrics.totalMatches} total matches`}
+                    href="/admin/connections"
                   />
                   <KPICard
                     title="Task Completion"
@@ -312,12 +334,14 @@ export default function AnalyticsDashboard() {
                     icon={CheckSquare}
                     description={`${dashboard.taskMetrics.completedTasks} of ${dashboard.taskMetrics.totalTasks} tasks`}
                     variant={dashboard.taskMetrics.completionRate >= 70 ? "success" : dashboard.taskMetrics.completionRate >= 50 ? "default" : "warning"}
+                    onClick={() => setActiveTab("productivity")}
                   />
                   <KPICard
                     title="Goal Progress"
                     value={`${dashboard.goalMetrics.averageProgress}%`}
                     icon={Target}
                     description={`${dashboard.goalMetrics.completedGoals} goals completed`}
+                    onClick={() => setActiveTab("productivity")}
                   />
                 </div>
 
@@ -327,6 +351,7 @@ export default function AnalyticsDashboard() {
                     value={dashboard.cohortMetrics.activeCohorts}
                     icon={UserCheck}
                     description={`${dashboard.cohortMetrics.totalCohorts} total cohorts`}
+                    href="/admin/cohorts"
                   />
                   <KPICard
                     title="Pending Applications"
@@ -334,18 +359,21 @@ export default function AnalyticsDashboard() {
                     icon={Activity}
                     variant={dashboard.cohortMetrics.pendingApplications > 10 ? "warning" : "default"}
                     description="Awaiting review"
+                    href="/admin/applications"
                   />
                   <KPICard
                     title="Meetings This Month"
                     value={dashboard.meetingMetrics.meetingsThisMonth}
                     icon={Calendar}
                     description={`${dashboard.meetingMetrics.averageDuration} min avg duration`}
+                    href="/admin/meetings"
                   />
                   <KPICard
                     title="Messages Sent"
                     value={dashboard.engagementMetrics.totalMessages}
                     icon={MessageSquare}
                     description={`${dashboard.engagementMetrics.messagesThisMonth} this month`}
+                    onClick={() => setActiveTab("productivity")}
                   />
                 </div>
 
@@ -391,24 +419,27 @@ export default function AnalyticsDashboard() {
                       </CardTitle>
                       <CardDescription>Key metrics at a glance</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-2">
                       <MetricProgress
                         label="Tasks Completed"
                         value={dashboard.taskMetrics.completedTasks}
                         max={dashboard.taskMetrics.totalTasks}
                         percentage={dashboard.taskMetrics.completionRate}
+                        onClick={() => setActiveTab("productivity")}
                       />
                       <MetricProgress
                         label="Goals Achieved"
                         value={dashboard.goalMetrics.completedGoals}
                         max={dashboard.goalMetrics.totalGoals}
                         percentage={dashboard.goalMetrics.completionRate}
+                        onClick={() => setActiveTab("productivity")}
                       />
                       <MetricProgress
                         label="Matches Completed"
                         value={dashboard.matchMetrics.completedMatches}
                         max={dashboard.matchMetrics.totalMatches}
                         percentage={dashboard.matchMetrics.totalMatches > 0 ? Math.round((dashboard.matchMetrics.completedMatches / dashboard.matchMetrics.totalMatches) * 100) : 0}
+                        onClick={() => setActiveTab("mentorship")}
                       />
                     </CardContent>
                   </Card>
