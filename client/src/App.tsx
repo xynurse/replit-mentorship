@@ -47,6 +47,7 @@ const AdminPrograms = lazy(() => import("@/pages/admin/programs"));
 const AdminUserProfile = lazy(() => import("@/pages/admin/user-profile"));
 
 const ApplyPage = lazy(() => import("@/pages/apply"));
+const ApplyGeneralPage = lazy(() => import("@/pages/apply-general"));
 const CertificatesPage = lazy(() => import("@/pages/certificates"));
 const DocumentsPage = lazy(() => import("@/pages/documents"));
 const GoalsPage = lazy(() => import("@/pages/goals"));
@@ -123,6 +124,7 @@ function Router() {
       <AdminRoute path="/admin/programs" component={AdminPrograms} />
       <AdminRoute path="/admin/users/:userId/profile" component={AdminUserProfile} />
       <AdminRoute path="/admin" component={AdminDashboard} />
+      <LazyRoute path="/apply" component={ApplyGeneralPage} />
       <LazyRoute path="/apply/:cohortId" component={ApplyPage} />
       <ProtectedRoute path="/documents" component={DocumentsPage} />
       <ProtectedRoute path="/goals" component={GoalsPage} />

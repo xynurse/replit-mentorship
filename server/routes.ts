@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema, insertReminderSchema } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema, insertReminderSchema, programApplications as programApplicationsTable, programApplicationStatusEnum } from "@shared/schema";
 import { z } from "zod";
 import {
   setupWebSocket,
@@ -2064,6 +2064,95 @@ export async function registerRoutes(
       const { status } = req.query;
       const applications = await storage.getMembershipsByStatus(status as string || 'PENDING');
       res.json(applications);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Program Application Intake (public) ──────────────────────────────────
+  app.post("/api/apply", async (req, res, next) => {
+    try {
+      const {
+        firstName, lastName, email, preferredLanguage,
+        isSonsielMember, interestedInMembership,
+        currentTitle, institution, fieldsOfExpertise,
+        educationLevel, healthcareYearsExp, innovationYearsExp,
+        role, applicationData,
+      } = req.body;
+
+      if (!firstName || !lastName || !email || !role) {
+        return res.status(400).json({ message: "First name, last name, email, and role are required" });
+      }
+      if (!["MENTOR", "MENTEE"].includes(role)) {
+        return res.status(400).json({ message: "Role must be MENTOR or MENTEE" });
+      }
+
+      // Check for duplicate email
+      const existing = await db.select().from(programApplicationsTable)
+        .where(eq(programApplicationsTable.email, email.toLowerCase().trim()))
+        .limit(1);
+      if (existing.length > 0) {
+        return res.status(409).json({ message: "An application with this email already exists" });
+      }
+
+      const [application] = await db.insert(programApplicationsTable).values({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.toLowerCase().trim(),
+        preferredLanguage: preferredLanguage || "English",
+        isSonsielMember: !!isSonsielMember,
+        interestedInMembership: isSonsielMember ? null : (interestedInMembership ?? null),
+        currentTitle: currentTitle || null,
+        institution: institution || null,
+        fieldsOfExpertise: fieldsOfExpertise || [],
+        educationLevel: educationLevel || null,
+        healthcareYearsExp: healthcareYearsExp || null,
+        innovationYearsExp: innovationYearsExp || null,
+        role,
+        applicationData: applicationData || {},
+        status: "PENDING",
+      }).returning();
+
+      res.status(201).json({ id: application.id, message: "Application submitted successfully" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/program-applications", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { status } = req.query;
+      const query = db.select().from(programApplicationsTable);
+      const applications = status
+        ? await query.where(eq(programApplicationsTable.status, status as any))
+        : await query.orderBy(programApplicationsTable.submittedAt);
+      res.json(applications);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/admin/program-applications/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { status, adminNotes } = req.body;
+      const adminUser = (req as any).user;
+
+      const updates: Record<string, any> = { updatedAt: new Date() };
+      if (status) {
+        updates.status = status;
+        updates.reviewedAt = new Date();
+        updates.reviewedBy = adminUser?.id ?? null;
+      }
+      if (adminNotes !== undefined) updates.adminNotes = adminNotes;
+
+      const [updated] = await db.update(programApplicationsTable)
+        .set(updates)
+        .where(eq(programApplicationsTable.id, id))
+        .returning();
+
+      if (!updated) return res.status(404).json({ message: "Application not found" });
+      res.json(updated);
     } catch (error) {
       next(error);
     }

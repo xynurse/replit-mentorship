@@ -1732,3 +1732,47 @@ export const insertUserSubmissionSchema = createInsertSchema(userSubmissions).om
 
 export type UserSubmission = typeof userSubmissions.$inferSelect;
 export type InsertUserSubmission = z.infer<typeof insertUserSubmissionSchema>;
+
+// ─── Program Applications (public intake form) ──────────────────────────────
+
+export const programApplicationStatusEnum = pgEnum("program_application_status", [
+  "PENDING", "REVIEWING", "APPROVED", "REJECTED", "WAITLISTED",
+]);
+
+export const programApplications = pgTable("program_applications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  preferredLanguage: text("preferred_language").default("English"),
+  isSonsielMember: boolean("is_sonsiel_member").default(false),
+  interestedInMembership: boolean("interested_in_membership"),
+  currentTitle: text("current_title"),
+  institution: text("institution"),
+  fieldsOfExpertise: jsonb("fields_of_expertise").$type<string[]>(),
+  educationLevel: text("education_level"),
+  healthcareYearsExp: text("healthcare_years_exp"),
+  innovationYearsExp: text("innovation_years_exp"),
+  role: text("role").notNull(), // 'MENTOR' | 'MENTEE'
+  applicationData: jsonb("application_data"),
+  status: programApplicationStatusEnum("status").default("PENDING"),
+  adminNotes: text("admin_notes"),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProgramApplicationSchema = createInsertSchema(programApplications).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  submittedAt: true,
+  reviewedAt: true,
+  reviewedBy: true,
+  status: true,
+});
+
+export type ProgramApplication = typeof programApplications.$inferSelect;
+export type InsertProgramApplication = z.infer<typeof insertProgramApplicationSchema>;
