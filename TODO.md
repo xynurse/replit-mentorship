@@ -1,87 +1,83 @@
 # TODO — SONSIEL Mentorship Platform Roadmap
 
-What's left to ship and then evolve the platform. Migration (Phases 1–3) is done; the rest is the product roadmap requested 2026-05-25.
+What's left to ship and then evolve the platform. Migration (Phases 1–3) is done; the rest is the product roadmap.
 
 Items are grouped by phase. Within a phase they're ordered by what should happen first.
 
 ---
 
-## Phase 4 — Quick wins (P0, in flight)
+## Phase 4 — Quick wins ✅ Complete
 
-Small, low-ambiguity items being knocked out first.
-
-- [ ] **Change favicon** — needs source asset from user (logo / image file).
-- [ ] **Quick actions: split "View Documents"** into "View My Documents" + "View Platform Documents" on the dashboard.
-- [ ] **Analytics chart colors** — fix the mentee-gray contrast on user-distribution chart.
-- [ ] **Investigate missing mentor profiles in admin Connections** — only 2 mentees showing, no mentors. Could be a query bug or data state.
-- [ ] **Reactivate NurseHack4Health program** — Phase 1 migration soft-deleted it; user wants both programs active.
+- [x] **Quick actions: split "View Documents"** into "View My Documents" + "View Platform Documents" on the dashboard.
+- [x] **Analytics chart colors** — fixed mentee-gray contrast on user-distribution chart.
+- [x] **Investigate missing mentor profiles in admin Connections** — resolved.
+- [x] **Reactivate NurseHack4Health program** — `is_active = true`.
+- [ ] **Change favicon** — deferred; needs source asset (logo/image file) from project owner.
 
 ---
 
-## Phase 5 — Dashboard insights
+## Phase 5 — Dashboard insights ✅ Complete
 
-More signal for mentors and mentees about what's going on for them.
-
-- [ ] **Recent activity widget** — latest messages, meetings, doc interactions, goal updates.
-- [ ] **Progress widget** — % goals complete, meetings logged, milestones hit, cohort week.
-- [ ] **Goals brief widget** — compact list, click goal → `/goals?focus=<id>`, click header → `/goals`.
-- [ ] **Mentor/mentee assignment card** — prominent corner card showing pairing + quick message.
-- [ ] **Hyperlink all stat boxes** — every dashboard metric routes to its detail page.
-- [ ] **Multi-program selector on login** — if user is in both SONSIEL Mentorship + NurseHack4Health, prompt them which to enter.
+- [x] **Recent activity widget**
+- [x] **Progress widget**
+- [x] **Goals brief widget**
+- [x] **Mentor/mentee assignment card**
+- [x] **Hyperlink all stat boxes**
+- [x] **Multi-program selector on login**
 
 ---
 
-## Phase 6 — Profile, calendar, goals, docs
+## Phase 6 — Profile, calendar, goals, docs ✅ Complete
 
-User-facing pages that need depth.
-
-- [ ] **My Profile: render full onboarding survey** — every field from intake survey visible/editable.
-- [ ] **Calendar: agenda view toggle** — list-style alternative to month grid.
-- [ ] **Calendar: availability marking** — "I'm unavailable on…" blackout periods.
-- [ ] **Calendar: subscribed ICS feed** — per-user webcal:// URL for Google/Apple/Outlook sync.
-- [ ] **Goals page** — clear list, add, edit, progress UX.
-- [ ] **Documents page restructure** — My (collapsible) at top, System Resources below, Shared With Me right rail.
+- [x] **My Profile: render full onboarding survey**
+- [x] **Calendar: agenda view toggle**
+- [x] **Calendar: availability marking**
+- [x] **Calendar: subscribed ICS feed**
+- [x] **Goals page** — at-risk surfacing, split empty states
+- [x] **Documents page restructure** — My / System / Shared With Me layout
 
 ---
 
-## Phase 7 — Admin tooling
+## Phase 7 — Admin tooling ✅ Complete
 
-Admin views to manage the platform actively.
-
-- [ ] **Award certificates UI**.
-- [ ] **Upcoming meetings dashboard** (cross-match visibility).
-- [ ] **User list: click-through profile + Last Active column**.
-- [ ] **Dormant filters (14/30/60/90 days)**.
-- [ ] **Ping user** (in-app notification + email from admin profile view).
-- [ ] **Connections: unmatched toggle**.
-- [ ] **Productivity metrics overhaul** — drop tasks; track goals, conversations, documents, journals (count only).
-- [ ] **Analytics: clickable performance summary boxes**.
+- [x] **Award certificates UI**
+- [x] **Upcoming meetings dashboard**
+- [x] **User list: click-through profile + Last Active column**
+- [x] **Dormant filters (14/30/60/90 days)**
+- [x] **Ping user** (in-app + email)
+- [x] **Connections: unmatched toggle**
+- [x] **Productivity metrics overhaul**
+- [x] **Analytics: clickable performance summary boxes**
 
 ---
 
-## Phase 8 — Application intake + onboarding workflow
+## Phase 8 — Application intake + onboarding workflow (in progress)
 
-The biggest workstream. New users come in through this funnel end-to-end.
-
-- [ ] **External-facing application form** at `/apply` (public). Submission → admin queue + thank-you email with next steps.
-- [ ] **Application pipeline** — submitted → review → match → initial meeting → review status → admitted.
-- [ ] **Onboarding sign-off** — code of conduct + required docs.
-- [ ] **Admit flow** — provisions account, sends login email, pre-populates profile from intake data.
-
----
-
-## Phase 9 — Theme rework (Notion-style)
-
-Initial scope (default): clean typography (Inter), restrained palette, lighter borders, more whitespace — a CSS/token pass. Defer sidebar restructure + block-style content layout to a follow-up unless explicitly requested.
-
-- [ ] **Typography + whitespace + palette pass**.
+- [x] **External-facing application form** at `/apply` — 5-step wizard, full Fillout survey mapped, JSONB storage.
+- [x] **Application pipeline** — PENDING → REVIEWING → APPROVED/WAITLISTED/REJECTED status transitions in admin UI.
+- [x] **Admit/activate flow** — "Activate Account" button provisions user, pre-populates mentor/mentee profiles from application data, sends set-password email.
+- [ ] **Onboarding sign-off** — code of conduct acceptance + required doc signing before accessing the full platform. *(Next up)*
+- [ ] **Cohort assignment** — after activation, admin assigns users to a cohort from the applications queue.
 
 ---
 
-## Phase 10 — Meetings + Surveys
+## Phase 9 — Theme rework ✅ Complete
 
-- [ ] **Meeting integration** — Google Meet / Zoom. Start with a link field; later OAuth for auto-create.
-- [ ] **Survey builder** — native, writes to existing `surveys` schema.
+- [x] **Notion-style CSS token pass** — warm palette, neutral dark mode, hairline borders, real shadows, Inter typography.
+
+---
+
+## Phase 10 — Surveys
+
+- [ ] **Survey builder** — native survey creation UI, writes to existing `surveys` schema. *(Next after onboarding)*
+
+---
+
+## Phase 10 (revised) — Meeting logging
+
+**Decision (2026-05-28):** External calendar integration (Google Meet / Zoom OAuth) is descoped. It's a significant lift and unlikely to be fully utilized given the program structure. Members will **log meetings manually** within the platform using the existing meetings UI and `meeting_logs` table. No calendar auth, webhook infrastructure, or "invite the platform" mechanism needed.
+
+- [x] **Meeting integration** — ~~Google Meet / Zoom~~ → manual in-platform logging. Already built; no further work needed.
 
 ---
 

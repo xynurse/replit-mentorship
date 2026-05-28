@@ -2158,11 +2158,194 @@ export async function registerRoutes(
     }
   });
 
+  // Activate a program application: provision user account + profiles + send set-password email
+  app.post("/api/admin/program-applications/:id/activate", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      // 1. Fetch the application
+      const [application] = await db.select().from(programApplicationsTable).where(eq(programApplicationsTable.id, id));
+      if (!application) return res.status(404).json({ message: "Application not found" });
+      if (application.provisionedUserId) return res.status(400).json({ message: "Account already provisioned" });
+
+      // 2. Guard: application must be APPROVED
+      if (application.status !== "APPROVED") {
+        return res.status(400).json({ message: "Application must be in APPROVED status before activating" });
+      }
+
+      // 3. Check for duplicate email
+      const existingUser = await storage.getUserByEmail(application.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "A user account with this email already exists" });
+      }
+
+      // 4. Create user with a hashed placeholder password; user will set their own via token
+      const { hashPassword } = await import("./auth");
+      const { randomBytes } = await import("crypto");
+      const placeholderPassword = randomBytes(32).toString("hex");
+      const hashedPassword = await hashPassword(placeholderPassword);
+
+      const newUser = await storage.createUser({
+        email: application.email,
+        password: hashedPassword,
+        firstName: application.firstName,
+        lastName: application.lastName,
+        role: application.role as "MENTOR" | "MENTEE",
+        isActive: true,
+        isVerified: true,
+        isProfileComplete: false,
+        mustChangePassword: false,
+      });
+
+      // 5. Create professional profile from application fields
+      try {
+        await storage.createProfessionalProfile({
+          userId: newUser.id,
+          positionTitle: application.currentTitle || undefined,
+          organization: application.institution || undefined,
+          expertiseAreas: (application.fieldsOfExpertise as string[]) || [],
+          highestEducation: application.educationLevel ? [application.educationLevel] : [],
+          yearsInHealthcare: application.healthcareYearsExp || undefined,
+          yearsInInnovation: application.innovationYearsExp || undefined,
+        });
+      } catch (profileErr) {
+        console.warn("[ACTIVATE] Could not create professional profile:", profileErr);
+      }
+
+      // 6. Map applicationData → role-specific profile
+      const appData = (application.applicationData as Record<string, any>) ?? {};
+
+      if (application.role === "MENTEE") {
+        const ratings = (appData.interestRatings as Record<string, number>) ?? {};
+        const ratingVal = (v: unknown) => (typeof v === "number" ? Math.min(2, Math.max(0, v)) : 0);
+        try {
+          await storage.createMenteeProfile({
+            userId: newUser.id,
+            previouslyBeenMentored: appData.previouslyMentored ?? null,
+            pastSuccesses: appData.pastSuccesses || null,
+            pastChallenges: appData.pastChallenges || null,
+            hopingToGain: Array.isArray(appData.hopingToGain) ? appData.hopingToGain : [],
+            specificSkillsSeeking: appData.specificSkillsWanted || null,
+            primaryMotivations: appData.primaryMotivations || null,
+            preferredMethods: Array.isArray(appData.preferredMethods) ? appData.preferredMethods : [],
+            interestScienceResearch: ratingVal(ratings.scienceResearch),
+            interestProductDevelopment: ratingVal(ratings.productDevelopment),
+            interestInnovation: ratingVal(ratings.innovation),
+            interestBusinessStrategy: ratingVal(ratings.businessStrategy),
+            interestEntrepreneurship: ratingVal(ratings.entrepreneurship),
+            interestIntrapreneurship: ratingVal(ratings.intrapreneurship),
+            interestLeadership: ratingVal(ratings.leadershipTeamManagement),
+            interestNetworking: ratingVal(ratings.networking),
+            interestProfessionalDevelopment: ratingVal(ratings.professionalDevelopment),
+            interestDigitalTech: ratingVal(ratings.digitalTech),
+            interestEthicalSocial: ratingVal(ratings.ethicalSocial),
+            resourcesNeeded: appData.resourcesNeeded || null,
+            programSuggestions: appData.programStructureSuggestions || null,
+            effectiveStructures: appData.effectiveStructures || null,
+            willingToPay: (() => {
+              const v = (appData.willingToPay as string || "").toLowerCase();
+              if (v === "yes") return "yes" as const;
+              if (v === "no") return "no" as const;
+              return "maybe" as const;
+            })(),
+          });
+        } catch (profileErr) {
+          console.warn("[ACTIVATE] Could not create mentee profile:", profileErr);
+        }
+      } else if (application.role === "MENTOR") {
+        const ratings = (appData.comfortRatings as Record<string, number>) ?? {};
+        const ratingVal = (v: unknown) => (typeof v === "number" ? Math.min(2, Math.max(0, v)) : 0);
+        try {
+          await storage.createMentorProfileExtended({
+            userId: newUser.id,
+            previouslyServedAsMentor: appData.previouslyMentored ?? null,
+            mentorshipExperienceDescription: appData.mentorshipExperience || null,
+            certificationsTraining: appData.certifications || null,
+            skillsToShare: appData.specificSkillsToShare || null,
+            primaryMotivations: appData.primaryMotivations || null,
+            pastSuccesses: appData.pastSuccesses || null,
+            pastChallenges: appData.pastChallenges || null,
+            preferredMethods: Array.isArray(appData.preferredMethods) ? appData.preferredMethods : [],
+            comfortScienceResearch: ratingVal(ratings.scienceResearch),
+            comfortProductDevelopment: ratingVal(ratings.productDevelopment),
+            comfortInnovation: ratingVal(ratings.innovation),
+            comfortBusinessStrategy: ratingVal(ratings.businessStrategy),
+            comfortEntrepreneurship: ratingVal(ratings.entrepreneurship),
+            comfortIntrapreneurship: ratingVal(ratings.intrapreneurship),
+            comfortLeadership: ratingVal(ratings.leadershipTeamManagement),
+            comfortNetworking: ratingVal(ratings.networking),
+            comfortProfessionalDevelopment: ratingVal(ratings.professionalDevelopment),
+            comfortDigitalTech: ratingVal(ratings.digitalTech),
+            comfortEthicalSocial: ratingVal(ratings.ethicalSocial),
+            resourcesNeeded: appData.resourcesNeeded || null,
+            programSuggestions: appData.programStructureSuggestions || null,
+            effectiveStructures: appData.effectiveStructures || null,
+            bestDaysTimes: appData.bestDaysTimes || null,
+          });
+        } catch (profileErr) {
+          console.warn("[ACTIVATE] Could not create mentor profile:", profileErr);
+        }
+      }
+
+      // 7. Generate a 7-day password-set token
+      const resetToken = randomBytes(32).toString("hex");
+      const resetExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await storage.updateUser(newUser.id, {
+        passwordResetToken: resetToken,
+        passwordResetExpires: resetExpires,
+      });
+
+      // 8. Send activation email
+      const { sendAccountActivationEmail, getTrustedBaseUrl } = await import("./email");
+      const baseUrl = getTrustedBaseUrl();
+      const setPasswordUrl = `${baseUrl}/reset-password/${resetToken}`;
+      const emailResult = await sendAccountActivationEmail({
+        email: application.email,
+        firstName: application.firstName,
+        lastName: application.lastName,
+        setPasswordUrl,
+        role: application.role,
+      });
+      if (!emailResult.success) {
+        console.warn("[ACTIVATE] Activation email failed:", emailResult.error);
+      }
+
+      // 9. Update application record
+      const [updated] = await db.update(programApplicationsTable)
+        .set({
+          provisionedUserId: newUser.id,
+          provisionedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(programApplicationsTable.id, id))
+        .returning();
+
+      // 10. Audit log
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: 'USER_CREATED',
+        resourceType: 'USER',
+        resourceId: newUser.id,
+        resourceName: newUser.email,
+        metadata: {
+          role: application.role,
+          registrationMethod: 'application_activation',
+          applicationId: id,
+          emailSent: emailResult.success,
+        },
+      });
+
+      res.json({ success: true, userId: newUser.id, application: updated });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.patch("/api/applications/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
       const { applicationStatus, notes } = req.body;
-      const membership = await storage.updateMembership(req.params.id, { 
-        applicationStatus, 
+      const membership = await storage.updateMembership(req.params.id, {
+        applicationStatus,
         notes,
         joinedAt: applicationStatus === 'APPROVED' ? new Date() : undefined
       });

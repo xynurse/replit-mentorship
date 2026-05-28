@@ -17,6 +17,76 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dat
 
 ---
 
+## [1.3.0] — 2026-05-28 — Product features: UX, admin tooling, application workflow
+
+Large feature drop covering all product work since the Vercel migration (Phases 4–8 partial). Covers dashboard improvements, admin tooling, theme rework, analytics, the external application intake form, and the full applicant → user activation pipeline.
+
+### Added
+
+#### Application intake & activation workflow (Phase 8)
+
+- **`/apply` public intake form** (`client/src/pages/apply-general.tsx`) — 5-step multi-page wizard for Mentor and Mentor applicants. Maps directly to the SONSIEL Fillout survey: personal info, professional background, SONSIEL membership, role-specific questions (11-area interest/comfort ratings, preferred methods, hours, motivations, past experience), and a review step. Submissions create a `program_applications` row with `status: "PENDING"`.
+- **`POST /api/apply`** — public (no auth required) endpoint. Deduplicates by email, stores full `applicationData` JSONB.
+- **`GET /api/admin/program-applications`** — paginated admin list with optional `?status=` filter.
+- **`PATCH /api/admin/program-applications/:id`** — admin status transitions (PENDING → REVIEWING → APPROVED / WAITLISTED / REJECTED) with optional `adminNotes`.
+- **`POST /api/admin/program-applications/:id/activate`** — one-click account provisioning for approved applications. Creates the user account, professional profile, and full role-specific profile (mentee or mentor extended) from application data. Generates a 7-day password-set token and sends an activation email. Stamps `provisionedUserId` + `provisionedAt` on the application row.
+- **`sendAccountActivationEmail()`** in `server/email.ts` — activation email with a "Set Your Password & Sign In" CTA. Includes next-steps checklist and link fallback text.
+- **`program_applications` table** — new Drizzle table with `programApplicationStatusEnum` (`PENDING | REVIEWING | APPROVED | REJECTED | WAITLISTED`). Added `provisioned_user_id` and `provisioned_at` columns for tracking account activation.
+- **Admin applications page** (`/admin/applications`) — rewritten to query `program_applications` instead of cohort memberships. Shows applicant, role, institution, status (with ✓ provisioned indicator), submitted date. Full survey detail in a slide-out dialog. Inline status transitions. "Activate Account" button with confirmation dialog for APPROVED + unprovisioned rows. "Account Active" badge + provisioned-on date once activated. "All" filter option.
+
+#### Admin tooling (Phase 7)
+
+- **Admin user list** — Last Active column, click-through to user profile at `/admin/users/:userId/profile`.
+- **Dormant user filters** — 14/30/60/90-day inactive toggles on the users list.
+- **Ping user** — admin can send an in-app notification + email from any user's profile view. Uses `sendAdminPingEmail()`.
+- **Connections: unmatched toggle** — filter to show only unmatched mentors or mentees. Inline unmatched counts per cohort.
+- **Admin productivity metrics overhaul** — removed task-based metrics; now tracks goals, conversations, documents, journals, and meeting count only. Removes noise from the activity summary.
+- **Analytics: clickable KPI cards** — every summary box on the analytics overview routes to its relevant admin page or switches the active analytics tab. Implemented with `href` + `onClick` on the `KPICard` component.
+- **Admin certificates UI** — award certificates to users from the admin panel.
+- **Admin upcoming meetings dashboard** — cross-match meeting visibility with date/time context.
+
+#### Dashboard insights (Phase 5)
+
+- **Recent activity widget** — surfaces the latest messages, meetings, doc interactions, and goal updates.
+- **Progress widget** — percentage of goals complete, meetings logged, milestones hit, cohort week.
+- **Goals brief widget** — compact card linked to `/goals`, with per-goal click-through.
+- **Mentor/mentee assignment card** — prominent pairing card with quick-message shortcut.
+- **All stat boxes hyperlinked** — every dashboard metric routes to the corresponding detail page.
+- **Multi-program selector on login** — users enrolled in more than one program see a program picker after login rather than landing in an arbitrary context.
+
+#### User-facing pages (Phase 6)
+
+- **My Profile: full survey data** — all intake survey fields rendered and editable, including interest/comfort ratings, motivations, preferred methods, availability, and career context.
+- **Calendar: agenda view toggle** — list-style alternative to the month grid.
+- **Calendar: availability / unavailability marking** — blackout-period blocks with a visual indicator.
+- **Calendar: subscribed ICS feed** — per-user `webcal://` URL for Google / Apple / Outlook sync.
+- **Goals page** — complete list/add/edit UX with at-risk surfacing and split empty states.
+- **Documents page** — My Documents (collapsible) at top, System Resources below, Shared With Me in the right rail.
+
+#### Quick wins (Phase 4)
+
+- **Dashboard quick actions** — "View Documents" split into "View My Documents" and "View Platform Documents".
+- **Analytics chart colors** — fixed mentee-gray contrast on the user-distribution chart.
+- **NurseHack4Health reactivated** — program soft-deleted during Phase 1 migration is now `is_active = true`.
+
+### Changed
+
+- **`/admin/applications`** redirected from cohort-membership view to the new `program_applications` pipeline.
+- **`POST /api/reset-password`** now clears `mustChangePassword: false` so users who set a password via an activation or forgot-password link are not forced to the change-password screen on first login.
+- **Theme** (`client/src/index.css`, animated-background, dashboard-layout, admin-layout, card) — full Notion-style rework. Warm `#37352F`-family foreground, neutral `#1F1F1F` dark background (removes blue-navy tint), hairline borders, real box-shadows, `line-height: 1.6`, tightened heading tracking, thin 5px scrollbars. Animated background opacity reduced to ~30% of original; grid overlay removed. Layout labels and icon containers decluttered.
+- **Admin layout** — removed "Navigation" group label from sidebars; icon containers stripped of colored background boxes.
+
+### Fixed
+
+- **`mustChangePassword` loop for activated users** — the password-reset endpoint now sets `mustChangePassword: false`, preventing newly-activated users from being bounced to `/change-password` immediately after setting their own password via the activation email link.
+- **Missing mentor profiles in admin Connections** — query and data-state issue causing only 2 mentees and no mentors to appear.
+
+### Decisions / descoped
+
+- **Meeting calendar integration (#45)** — descoped. Google Meet / Zoom OAuth integration is a significant lift and unlikely to be fully utilized in the near term. Meetings will be **logged manually by members within the platform** using the existing `meeting_logs` table and meetings UI. No external calendar auth or webhook infrastructure needed.
+
+---
+
 ## [1.2.0] — 2026-05-25 — Phase 2: Ably real-time
 
 Replaces the Phase 1 socket.io no-op stub with Ably. Live messaging, typing indicators, presence (online users), and live notification badges all work end-to-end on Vercel — pending an `ABLY_API_KEY` being provisioned.

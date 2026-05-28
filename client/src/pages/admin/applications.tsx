@@ -22,7 +22,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle, XCircle, Clock, MoreHorizontal, Eye, FileText, Loader2, Users, GraduationCap } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  MoreHorizontal,
+  Eye,
+  FileText,
+  Loader2,
+  Users,
+  GraduationCap,
+  UserCheck,
+  Sparkles,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,7 +81,7 @@ const RATING_AREA_LABELS: Record<string, string> = {
   ethicalSocial: "Ethical & Social",
 };
 
-function RatingBadges({ ratings, label }: { ratings: RatingData; label: string }) {
+function RatingBadges({ ratings }: { ratings: RatingData }) {
   const nonZero = Object.entries(ratings).filter(([, v]) => v > 0);
   if (nonZero.length === 0) return <span className="text-muted-foreground text-xs">None rated</span>;
   return (
@@ -90,6 +112,15 @@ function ApplicationDetail({ app }: { app: ProgramApplication }) {
 
   return (
     <div className="space-y-4 text-sm">
+      {app.provisionedUserId && (
+        <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-800 dark:text-green-300 text-sm">
+          <UserCheck className="h-4 w-4 shrink-0" />
+          <span>
+            Account provisioned{app.provisionedAt ? ` on ${format(new Date(app.provisionedAt), "MMM d, yyyy")}` : ""}. Set-password email sent.
+          </span>
+        </div>
+      )}
+
       <div>
         <p className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">Contact</p>
         <AppDetailRow label="Name" value={`${app.firstName} ${app.lastName}`} />
@@ -131,7 +162,7 @@ function ApplicationDetail({ app }: { app: ProgramApplication }) {
             {d.pastSuccesses && <AppDetailRow label="Past Successes" value={d.pastSuccesses} />}
             {d.pastChallenges && <AppDetailRow label="Past Challenges" value={d.pastChallenges} />}
             {d.resourcesNeeded && <AppDetailRow label="Resources Needed" value={d.resourcesNeeded} />}
-            <AppDetailRow label="Willing to Pay" value={d.willingToPay === true ? "Yes" : d.willingToPay === false ? "No" : null} />
+            <AppDetailRow label="Willing to Pay" value={d.willingToPay} />
           </>
         ) : (
           <>
@@ -154,7 +185,7 @@ function ApplicationDetail({ app }: { app: ProgramApplication }) {
             <p className="text-muted-foreground font-medium mb-1.5">
               {isMentee ? "Interest Ratings" : "Comfort Ratings"}
             </p>
-            <RatingBadges ratings={ratings} label="" />
+            <RatingBadges ratings={ratings} />
           </div>
         )}
       </div>
@@ -167,11 +198,15 @@ export default function AdminApplications() {
   const [statusFilter, setStatusFilter] = useState<string>("PENDING");
   const [selectedApplication, setSelectedApplication] = useState<ProgramApplication | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
+  const [activateTarget, setActivateTarget] = useState<ProgramApplication | null>(null);
 
   const { data: applications = [], isLoading } = useQuery<ProgramApplication[]>({
     queryKey: ["/api/admin/program-applications", { status: statusFilter }],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/program-applications?status=${statusFilter}`, { credentials: "include" });
+      const url = statusFilter === "ALL"
+        ? `/api/admin/program-applications`
+        : `/api/admin/program-applications?status=${statusFilter}`;
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load");
       return res.json();
     },
@@ -189,6 +224,29 @@ export default function AdminApplications() {
     },
     onError: () => {
       toast({ title: "Failed to update", variant: "destructive" });
+    },
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("POST", `/api/admin/program-applications/${id}/activate`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications"] });
+      toast({
+        title: "Account activated",
+        description: "User account created and set-password email sent.",
+      });
+      setActivateTarget(null);
+      setSelectedApplication(null);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Activation failed",
+        description: err?.message || "Could not provision the account.",
+        variant: "destructive",
+      });
+      setActivateTarget(null);
     },
   });
 
@@ -213,7 +271,7 @@ export default function AdminApplications() {
           {app.role === "MENTEE"
             ? <GraduationCap className="h-3.5 w-3.5 text-muted-foreground" />
             : <Users className="h-3.5 w-3.5 text-muted-foreground" />}
-          <span className="text-sm capitalize">{app.role === "MENTEE" ? "Mentee" : "Mentor"}</span>
+          <span className="text-sm">{app.role === "MENTEE" ? "Mentee" : "Mentor"}</span>
         </div>
       ),
     },
@@ -228,9 +286,14 @@ export default function AdminApplications() {
       header: "Status",
       sortable: true,
       render: (app) => (
-        <Badge className={`${statusColors[app.status || "PENDING"]} no-default-hover-elevate no-default-active-elevate`}>
-          {app.status}
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge className={`${statusColors[app.status || "PENDING"]} no-default-hover-elevate no-default-active-elevate`}>
+            {app.status}
+          </Badge>
+          {app.provisionedUserId && (
+            <UserCheck className="h-3.5 w-3.5 text-green-600" aria-label="Account provisioned" />
+          )}
+        </div>
       ),
     },
     {
@@ -266,9 +329,7 @@ export default function AdminApplications() {
                 >
                   <CheckCircle className="mr-2 h-4 w-4" /> Approve
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => updateMutation.mutate({ id: app.id, status: "WAITLISTED" })}
-                >
+                <DropdownMenuItem onClick={() => updateMutation.mutate({ id: app.id, status: "WAITLISTED" })}>
                   <Clock className="mr-2 h-4 w-4" /> Waitlist
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -287,9 +348,7 @@ export default function AdminApplications() {
                 >
                   <CheckCircle className="mr-2 h-4 w-4" /> Approve
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => updateMutation.mutate({ id: app.id, status: "WAITLISTED" })}
-                >
+                <DropdownMenuItem onClick={() => updateMutation.mutate({ id: app.id, status: "WAITLISTED" })}>
                   <Clock className="mr-2 h-4 w-4" /> Waitlist
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -299,6 +358,23 @@ export default function AdminApplications() {
                   <XCircle className="mr-2 h-4 w-4" /> Reject
                 </DropdownMenuItem>
               </>
+            )}
+            {app.status === "APPROVED" && !app.provisionedUserId && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setActivateTarget(app)}
+                  className="text-primary font-medium"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" /> Activate Account
+                </DropdownMenuItem>
+              </>
+            )}
+            {app.provisionedUserId && (
+              <DropdownMenuItem disabled>
+                <UserCheck className="mr-2 h-4 w-4 text-green-600" />
+                <span className="text-green-600">Account Active</span>
+              </DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -319,13 +395,19 @@ export default function AdminApplications() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <CardTitle>Program Applications</CardTitle>
-                <CardDescription>{applications.length} {statusFilter.toLowerCase()} application{applications.length !== 1 ? "s" : ""}</CardDescription>
+                <CardDescription>
+                  {statusFilter === "ALL"
+                    ? `${applications.length} total application${applications.length !== 1 ? "s" : ""}`
+                    : `${applications.length} ${statusFilter.toLowerCase()} application${applications.length !== 1 ? "s" : ""}`
+                  }
+                </CardDescription>
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="ALL">All</SelectItem>
                   <SelectItem value="PENDING">Pending</SelectItem>
                   <SelectItem value="REVIEWING">Reviewing</SelectItem>
                   <SelectItem value="APPROVED">Approved</SelectItem>
@@ -339,7 +421,7 @@ export default function AdminApplications() {
             {applications.length === 0 && !isLoading ? (
               <div className="py-12 text-center">
                 <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No {statusFilter.toLowerCase()} applications</h3>
+                <h3 className="text-lg font-medium mb-2">No {statusFilter === "ALL" ? "" : statusFilter.toLowerCase()} applications</h3>
                 <p className="text-muted-foreground text-sm">
                   {statusFilter === "PENDING"
                     ? "New applications from /apply will appear here"
@@ -358,26 +440,33 @@ export default function AdminApplications() {
           </CardContent>
         </Card>
 
-        {/* Detail dialog */}
+        {/* Detail / review dialog */}
         <Dialog open={!!selectedApplication} onOpenChange={(open) => { if (!open) setSelectedApplication(null); }}>
           <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {selectedApplication && `${selectedApplication.firstName} ${selectedApplication.lastName}`}
               </DialogTitle>
-              <DialogDescription>
-                {selectedApplication && (
-                  <span className="flex items-center gap-2">
-                    <Badge className={`${statusColors[selectedApplication.status || "PENDING"]} no-default-hover-elevate no-default-active-elevate`}>
-                      {selectedApplication.status}
-                    </Badge>
-                    <span>·</span>
-                    <span>{selectedApplication.role === "MENTEE" ? "Mentee Applicant" : "Mentor Applicant"}</span>
-                    {selectedApplication.submittedAt && (
-                      <><span>·</span><span>Submitted {format(new Date(selectedApplication.submittedAt), "MMM d, yyyy")}</span></>
-                    )}
-                  </span>
-                )}
+              <DialogDescription asChild>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  {selectedApplication && (
+                    <>
+                      <Badge className={`${statusColors[selectedApplication.status || "PENDING"]} no-default-hover-elevate no-default-active-elevate`}>
+                        {selectedApplication.status}
+                      </Badge>
+                      {selectedApplication.provisionedUserId && (
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 no-default-hover-elevate no-default-active-elevate gap-1">
+                          <UserCheck className="h-3 w-3" /> Account Active
+                        </Badge>
+                      )}
+                      <span>·</span>
+                      <span>{selectedApplication.role === "MENTEE" ? "Mentee Applicant" : "Mentor Applicant"}</span>
+                      {selectedApplication.submittedAt && (
+                        <><span>·</span><span>Submitted {format(new Date(selectedApplication.submittedAt), "MMM d, yyyy")}</span></>
+                      )}
+                    </>
+                  )}
+                </div>
               </DialogDescription>
             </DialogHeader>
 
@@ -402,6 +491,7 @@ export default function AdminApplications() {
               >
                 Save Notes
               </Button>
+
               {(selectedApplication?.status === "PENDING" || selectedApplication?.status === "REVIEWING") && (
                 <>
                   <Button
@@ -428,9 +518,51 @@ export default function AdminApplications() {
                   </Button>
                 </>
               )}
+
+              {selectedApplication?.status === "APPROVED" && !selectedApplication.provisionedUserId && (
+                <Button
+                  className="bg-primary hover:bg-primary/90"
+                  onClick={() => setActivateTarget(selectedApplication)}
+                  disabled={activateMutation.isPending}
+                >
+                  {activateMutation.isPending
+                    ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    : <Sparkles className="h-4 w-4 mr-1.5" />}
+                  Activate Account
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Activate confirmation dialog */}
+        <AlertDialog open={!!activateTarget} onOpenChange={(open) => { if (!open) setActivateTarget(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Activate account for {activateTarget?.firstName} {activateTarget?.lastName}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will create a <strong>{activateTarget?.role === "MENTEE" ? "Mentee" : "Mentor"}</strong> user account
+                using the information from this application and send a <strong>set-password email</strong> to{" "}
+                <strong>{activateTarget?.email}</strong>. Their profile will be pre-populated from the application data.
+                <br /><br />
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={activateMutation.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => activateTarget && activateMutation.mutate(activateTarget.id)}
+                disabled={activateMutation.isPending}
+                className="bg-primary hover:bg-primary/90"
+              >
+                {activateMutation.isPending
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" /> Activating…</>
+                  : <><Sparkles className="h-4 w-4 mr-1.5" /> Yes, Activate Account</>
+                }
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );

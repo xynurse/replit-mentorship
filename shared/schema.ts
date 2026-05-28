@@ -1760,6 +1760,8 @@ export const programApplications = pgTable("program_applications", {
   submittedAt: timestamp("submitted_at").defaultNow(),
   reviewedAt: timestamp("reviewed_at"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),
+  provisionedUserId: varchar("provisioned_user_id").references(() => users.id),
+  provisionedAt: timestamp("provisioned_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

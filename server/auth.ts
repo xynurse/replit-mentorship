@@ -444,6 +444,7 @@ export function setupAuth(app: Express) {
         passwordResetExpires: null,
         failedLoginAttempts: 0,
         lockedUntil: null,
+        mustChangePassword: false,
       });
 
       const audit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role, ipAddress: req.headers['x-forwarded-for']?.toString()?.split(',')[0]?.trim() || req.socket?.remoteAddress || null, userAgent: req.headers['user-agent'] || null });
