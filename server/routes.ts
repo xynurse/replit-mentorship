@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import { setupAuth, requireAuth, requireRole, getSessionMiddleware } from "./auth";
 import { storage } from "./storage";
-import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema, insertReminderSchema, programApplications as programApplicationsTable, programApplicationStatusEnum } from "@shared/schema";
+import { insertCohortSchema, insertApplicationQuestionSchema, insertCohortMembershipSchema, insertMentorshipMatchSchema, insertMessageSchema, insertConversationSchema, insertDocumentSchema, insertFolderSchema, insertDocumentAccessSchema, insertGoalSchema, insertMilestoneSchema, insertGoalProgressSchema, insertNotificationSchema, insertNotificationPreferenceSchema, insertCertificateSchema, insertMeetingLogSchema, insertCommunityThreadSchema, insertThreadReplySchema, insertThreadCategorySchema, insertJournalEntrySchema, insertReminderSchema, programApplications as programApplicationsTable, programApplicationStatusEnum, cocAcceptances as cocAcceptancesTable } from "@shared/schema";
 import { z } from "zod";
 import {
   setupWebSocket,
@@ -5448,6 +5448,75 @@ export async function registerRoutes(
   // =====================
   // Onboarding Routes
   // =====================
+
+  // =====================
+  // Code of Conduct Routes
+  // =====================
+
+  // Check whether current user has signed the CoC
+  app.get("/api/onboarding/coc", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const [acceptance] = await db.select().from(cocAcceptancesTable)
+        .where(eq(cocAcceptancesTable.userId, user.id))
+        .limit(1);
+      res.json({ signed: !!acceptance, acceptance: acceptance ?? null });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Submit signed CoC
+  app.post("/api/onboarding/coc", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { firstName, lastName, email, signatureData, version } = req.body;
+
+      if (!firstName || !lastName || !email || !signatureData) {
+        return res.status(400).json({ message: "First name, last name, email, and signature are required" });
+      }
+
+      // Idempotent — don't create duplicates
+      const [existing] = await db.select().from(cocAcceptancesTable)
+        .where(eq(cocAcceptancesTable.userId, user.id))
+        .limit(1);
+      if (existing) {
+        return res.json({ success: true, alreadySigned: true, acceptance: existing });
+      }
+
+      const ipAddress = req.headers["x-forwarded-for"]?.toString()?.split(",")[0]?.trim()
+        ?? req.socket?.remoteAddress
+        ?? null;
+      const userAgent = req.headers["user-agent"] ?? null;
+
+      const [acceptance] = await db.insert(cocAcceptancesTable).values({
+        userId: user.id,
+        version: version ?? "2026",
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.toLowerCase().trim(),
+        signatureData,
+        ipAddress,
+        userAgent,
+      }).returning();
+
+      // Flip the gate flag on the user
+      await storage.updateUser(user.id, { hasSignedCoc: true } as any);
+
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: "COC_SIGNED",
+        resourceType: "USER",
+        resourceId: user.id,
+        resourceName: user.email,
+        metadata: { version: version ?? "2026", cocAcceptanceId: acceptance.id },
+      });
+
+      res.json({ success: true, acceptance });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   // Get onboarding progress
   app.get("/api/onboarding", requireAuth, async (req, res, next) => {

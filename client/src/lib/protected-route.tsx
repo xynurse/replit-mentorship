@@ -55,6 +55,11 @@ export function ProtectedRoute({
     return <Route path={path}><Redirect to="/change-password" /></Route>;
   }
 
+  // Gate: non-admin users must sign the Code of Conduct before accessing the platform.
+  if (!user.hasSignedCoc && path !== "/onboarding/coc" && user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
+    return <Route path={path}><Redirect to="/onboarding/coc" /></Route>;
+  }
+
   // Prevent flash: hold on loading spinner while we resolve program membership.
   // isLoadingPrograms / isLoadingActiveProgram are only true when user is set (queries
   // are enabled) but the response hasn't arrived yet. For returning users with cached

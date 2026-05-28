@@ -134,6 +134,7 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   icsToken: text("ics_token"),
+  hasSignedCoc: boolean("has_signed_coc").default(false),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -1108,7 +1109,7 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
-export type AuditAction = "LOGIN_SUCCESS" | "LOGIN_FAILED" | "LOGOUT" | "PASSWORD_RESET_REQUESTED" | "PASSWORD_RESET_COMPLETED" | "PASSWORD_CHANGED" | "EMAIL_VERIFICATION" | "EMAIL_CHANGE" | "ACCOUNT_LOCKED" | "ACCOUNT_UNLOCKED" | "SESSION_EXPIRED" | "SESSION_INVALIDATED" | "USER_CREATED" | "USER_UPDATED" | "USER_DELETED" | "USER_ROLE_CHANGED" | "USER_ACTIVATED" | "USER_DEACTIVATED" | "PROFILE_UPDATED" | "PREFERENCES_CHANGED" | "USER_IMPERSONATION_STARTED" | "USER_IMPERSONATION_ENDED" | "COHORT_CREATED" | "COHORT_UPDATED" | "COHORT_DELETED" | "COHORT_STATUS_CHANGED" | "APPLICATION_SUBMITTED" | "APPLICATION_REVIEWED" | "APPLICATION_APPROVED" | "APPLICATION_REJECTED" | "MATCH_CREATED" | "MATCH_UPDATED" | "MATCH_ACTIVATED" | "MATCH_TERMINATED" | "DOCUMENT_UPLOADED" | "DOCUMENT_UPDATED" | "DOCUMENT_DELETED" | "DOCUMENT_SHARED" | "DOCUMENT_ACCESS_REVOKED" | "DOCUMENT_DOWNLOADED" | "DOCUMENT_VIEWED" | "MESSAGE_SENT" | "MESSAGE_EDITED" | "MESSAGE_DELETED" | "TASK_CREATED" | "TASK_UPDATED" | "TASK_COMPLETED" | "GOAL_CREATED" | "GOAL_UPDATED" | "GOAL_COMPLETED" | "SETTINGS_CHANGED" | "BULK_OPERATION_PERFORMED" | "DATA_EXPORTED" | "REPORT_GENERATED" | "SCHEDULED_JOB_EXECUTED" | "NOTIFICATION_SENT" | "EMAIL_SENT" | "ERROR_OCCURRED";
+export type AuditAction = "LOGIN_SUCCESS" | "LOGIN_FAILED" | "LOGOUT" | "PASSWORD_RESET_REQUESTED" | "PASSWORD_RESET_COMPLETED" | "PASSWORD_CHANGED" | "EMAIL_VERIFICATION" | "EMAIL_CHANGE" | "ACCOUNT_LOCKED" | "ACCOUNT_UNLOCKED" | "SESSION_EXPIRED" | "SESSION_INVALIDATED" | "USER_CREATED" | "USER_UPDATED" | "USER_DELETED" | "USER_ROLE_CHANGED" | "USER_ACTIVATED" | "USER_DEACTIVATED" | "PROFILE_UPDATED" | "PREFERENCES_CHANGED" | "USER_IMPERSONATION_STARTED" | "USER_IMPERSONATION_ENDED" | "COHORT_CREATED" | "COHORT_UPDATED" | "COHORT_DELETED" | "COHORT_STATUS_CHANGED" | "APPLICATION_SUBMITTED" | "APPLICATION_REVIEWED" | "APPLICATION_APPROVED" | "APPLICATION_REJECTED" | "MATCH_CREATED" | "MATCH_UPDATED" | "MATCH_ACTIVATED" | "MATCH_TERMINATED" | "DOCUMENT_UPLOADED" | "DOCUMENT_UPDATED" | "DOCUMENT_DELETED" | "DOCUMENT_SHARED" | "DOCUMENT_ACCESS_REVOKED" | "DOCUMENT_DOWNLOADED" | "DOCUMENT_VIEWED" | "MESSAGE_SENT" | "MESSAGE_EDITED" | "MESSAGE_DELETED" | "TASK_CREATED" | "TASK_UPDATED" | "TASK_COMPLETED" | "GOAL_CREATED" | "GOAL_UPDATED" | "GOAL_COMPLETED" | "SETTINGS_CHANGED" | "BULK_OPERATION_PERFORMED" | "DATA_EXPORTED" | "REPORT_GENERATED" | "SCHEDULED_JOB_EXECUTED" | "NOTIFICATION_SENT" | "EMAIL_SENT" | "ERROR_OCCURRED" | "COC_SIGNED";
 export type AuditActorType = "USER" | "SYSTEM" | "API" | "SCHEDULED_JOB";
 export type AuditResourceType = "USER" | "SESSION" | "COHORT" | "TRACK" | "APPLICATION" | "MATCH" | "MEETING" | "DOCUMENT" | "FOLDER" | "MESSAGE" | "CONVERSATION" | "TASK" | "GOAL" | "MILESTONE" | "NOTIFICATION" | "SETTINGS" | "SYSTEM";
 
@@ -1732,6 +1733,31 @@ export const insertUserSubmissionSchema = createInsertSchema(userSubmissions).om
 
 export type UserSubmission = typeof userSubmissions.$inferSelect;
 export type InsertUserSubmission = z.infer<typeof insertUserSubmissionSchema>;
+
+// ─── Code of Conduct Acceptances ────────────────────────────────────────────
+
+export const cocAcceptances = pgTable("coc_acceptances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  version: text("version").notNull().default("2026"), // CoC version / cohort year
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  signatureData: text("signature_data").notNull(), // base64 PNG from canvas
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  signedAt: timestamp("signed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCocAcceptanceSchema = createInsertSchema(cocAcceptances).omit({
+  id: true,
+  createdAt: true,
+  signedAt: true,
+});
+
+export type CocAcceptance = typeof cocAcceptances.$inferSelect;
+export type InsertCocAcceptance = z.infer<typeof insertCocAcceptanceSchema>;
 
 // ─── Program Applications (public intake form) ──────────────────────────────
 
