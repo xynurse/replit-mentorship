@@ -10,10 +10,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dat
 
 ### Pending (see [TODO.md](./TODO.md))
 
-- **Provision Ably account** and set `ABLY_API_KEY` on Vercel Production + Preview (Phase 2 code is in place but the key isn't yet).
-- **DNS cutover** — Repoint `mentorship.sonsiel.org` from Replit to Vercel.
-- **Confirm `BLOB_READ_WRITE_TOKEN` is set on Vercel Production + Preview env.** Locally added 2026-05-25; verify Vercel project env shows it with both environment checkmarks.
-- **Re-upload program guides through the admin UI** after deploy. The 10 legacy docs were deleted on 2026-05-25 as part of the "start fresh" cleanup (see 1.1.0).
+- **DNS cutover** — Repoint `mentorship.sonsiel.org` from Replit to Vercel (`cname.vercel-dns.com`), then set `APP_URL` in Vercel env.
+- **Re-upload 10 program guides** through the admin UI after DNS cutover.
+- **Favicon** — deferred; needs source asset from project owner.
+
+---
+
+## [1.4.0] — 2026-06-01 — Phase 8 complete: CoC gate, cohort assignment, admin compliance view
+
+Completes the application intake → activation → onboarding pipeline. Newly-activated users must sign the Code of Conduct before accessing the platform. Admins can assign activated applicants to cohorts directly from the applications queue. The Users admin page now surfaces CoC compliance status.
+
+### Added
+
+#### Code of Conduct onboarding gate
+
+- **`/onboarding/coc` signing page** (`client/src/pages/onboarding/coc.tsx`) — full-page CoC acceptance wizard. Displays the complete SONSIEL Code of Conduct with scroll-to-bottom detection. Canvas-based signature pad (no third-party dependency; native pointer + touch events). Pre-fills name and email from the logged-in user. Form only becomes submittable once the user has scrolled to the bottom, drawn a signature, and filled all fields.
+- **`POST /api/onboarding/coc`** — validates the signing payload, inserts a row into `coc_acceptances` (deduplicates), sets `users.has_signed_coc = true`, and logs a `COC_SIGNED` audit event.
+- **`GET /api/onboarding/coc`** — returns the current user's acceptance record (or `null`) for status checks.
+- **`coc_acceptances` table** — stores `userId`, `version`, `firstName`, `lastName`, `email`, `signatureData` (base64 PNG), `ipAddress`, `userAgent`, `signedAt`.
+- **`has_signed_coc` column** on `users` — boolean, default `false`. Backfilled to `true` for all 34 pre-existing users at rollout.
+- **`COC_SIGNED` audit action** — added to `auditActionEnum` pgEnum (DB migration) and `AuditAction` TypeScript union.
+- **Gate in `ProtectedRoute`** — non-admin users with `hasSignedCoc = false` are redirected to `/onboarding/coc` on every protected route. ADMIN / SUPER_ADMIN roles are permanently exempt.
+
+#### Cohort assignment from applications queue
+
+- **`POST /api/admin/program-applications/:id/assign-cohort`** — accepts `{ cohortId }`, idempotently creates a `cohort_memberships` row for the provisioned user (role inferred from account), and stamps `assignedCohortId` + `assignedCohortAt` on the application record.
+- **`assigned_cohort_id` / `assigned_cohort_at` columns** on `program_applications` (DB migration + schema update).
+- **Applications page cohort assignment UI** — "Assign to Cohort" dropdown action for provisioned applications (blue, font-medium); "Change Cohort" for already-assigned ones. Cohort picker dialog lists all non-archived/non-completed cohorts with status badges. Cohort name displayed as a secondary `BookOpen` badge in the Status column and as a blue info banner in the detail panel.
+
+#### Admin CoC compliance view
+
+- **`GET /api/admin/users/:id/coc`** — returns the `coc_acceptances` record for any user (admin-only). Used by the detail dialog to surface the exact signature timestamp.
+- **CoC column** on the Users table — green `FileCheck` + "Signed" for compliant members; amber `AlertCircle` + "Pending" for unsigned non-admins; muted "N/A" for ADMIN / SUPER_ADMIN accounts (gate-exempt).
+- **CoC filter** dropdown (All / CoC Signed / CoC Pending) alongside the existing role, status, and dormancy filters. Card description updates to show e.g. *"3 CoC pending of 37 total"*.
+- **View Details dialog** — full-width CoC row shows status + signature timestamp (fetched from backend); unsigned users show amber warning with "Not yet signed".
+- **CSV export** — new "CoC Signed" column (Yes / No / N/A per user).
+
+### Changed
+
+- **`program_applications`** PATCH handler now also accepts `assignedCohortId` for direct override.
+- **Admin applications page** — dropdown for provisioned rows now shows a single conditional item ("Assign to Cohort" or "Change Cohort") plus a disabled "Account Active" indicator, removing the previous duplication.
 
 ---
 
