@@ -196,7 +196,12 @@ export default function AdminCohorts() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {cohorts.map((cohort) => (
-              <Card key={cohort.id} className="hover-elevate" data-testid={`card-cohort-${cohort.id}`}>
+              <Card
+                key={cohort.id}
+                className="hover-elevate cursor-pointer"
+                data-testid={`card-cohort-${cohort.id}`}
+                onClick={() => navigate(`/admin/cohorts/${cohort.id}`)}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -207,16 +212,21 @@ export default function AdminCohorts() {
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" data-testid={`button-actions-${cohort.id}`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          data-testid={`button-actions-${cohort.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate(`/admin/cohorts/${cohort.id}`)} data-testid={`button-view-${cohort.id}`}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/admin/cohorts/${cohort.id}`); }} data-testid={`button-view-${cohort.id}`}>
                           <Eye className="mr-2 h-4 w-4" />
                           View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate(`/admin/cohorts/${cohort.id}?edit=true`)} data-testid={`button-edit-${cohort.id}`}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/admin/cohorts/${cohort.id}?edit=true`); }} data-testid={`button-edit-${cohort.id}`}>
                           <Edit className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
