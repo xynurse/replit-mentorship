@@ -304,6 +304,21 @@ export async function registerRoutes(
   });
 
   // Admin get user profile with mentee/mentor extended info
+  // GET CoC acceptance record for a specific user (admin only)
+  app.get("/api/admin/users/:id/coc", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const [acceptance] = await db
+        .select()
+        .from(cocAcceptancesTable)
+        .where(eq(cocAcceptancesTable.userId, id))
+        .limit(1);
+      res.json(acceptance ?? null);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/admin/users/:id/profile", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
       const { id } = req.params;

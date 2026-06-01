@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield, Plus, Upload, KeyRound, Trash2, UserPen } from "lucide-react";
+import { MoreHorizontal, UserCheck, UserX, Eye, Mail, Shield, Plus, Upload, KeyRound, Trash2, UserPen, FileCheck, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -38,7 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import type { User } from "@shared/schema";
+import type { User, CocAcceptance } from "@shared/schema";
 
 type SafeUser = Omit<User, "password">;
 
@@ -57,6 +57,7 @@ export default function AdminUsers() {
   // Dormancy: filter to users who haven't logged in within N days (or
   // never have). Computed client-side against `users.lastLoginAt`.
   const [dormancyFilter, setDormancyFilter] = useState<"all" | "14" | "30" | "60" | "90">("all");
+  const [cocFilter, setCocFilter] = useState<"all" | "signed" | "unsigned">("all");
   const [selectedUser, setSelectedUser] = useState<SafeUser | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
@@ -98,6 +99,17 @@ export default function AdminUsers() {
 
   const { data: users = [], isLoading } = useQuery<SafeUser[]>({
     queryKey: [buildUsersUrl()],
+  });
+
+  // Fetch CoC acceptance detail when a user detail panel is open and they have signed
+  const { data: selectedUserCoc } = useQuery<CocAcceptance | null>({
+    queryKey: ["/api/admin/users", selectedUser?.id, "coc"],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/users/${selectedUser!.id}/coc`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!selectedUser && !!selectedUser.hasSignedCoc,
   });
 
   const createUserMutation = useMutation({
@@ -294,12 +306,21 @@ export default function AdminUsers() {
   const dormantThresholdMs =
     dormancyFilter === "all" ? null : parseInt(dormancyFilter, 10) * 24 * 60 * 60 * 1000;
 
-  const displayedUsers = dormantThresholdMs === null
+  const afterDormancyFilter = dormantThresholdMs === null
     ? users
     : users.filter((u) => {
         if (!u.lastLoginAt) return true; // never logged in
         const age = Date.now() - new Date(u.lastLoginAt).getTime();
         return age >= dormantThresholdMs;
+      });
+
+  // CoC filter — admins are exempt, so exclude them from "unsigned" counts
+  const displayedUsers = cocFilter === "all"
+    ? afterDormancyFilter
+    : afterDormancyFilter.filter((u) => {
+        const isExempt = u.role === "SUPER_ADMIN" || u.role === "ADMIN";
+        if (isExempt) return cocFilter === "signed"; // admins only appear under "signed"
+        return cocFilter === "signed" ? u.hasSignedCoc : !u.hasSignedCoc;
       });
 
   // Human-friendly "Last Active" formatter — relative time for recent,
@@ -383,6 +404,29 @@ export default function AdminUsers() {
           {user.isActive ? "Active" : "Inactive"}
         </Badge>
       ),
+    },
+    {
+      key: "hasSignedCoc",
+      header: "CoC",
+      sortable: true,
+      render: (user) => {
+        const isExempt = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+        if (isExempt) {
+          return <span className="text-xs text-muted-foreground">N/A</span>;
+        }
+        if (user.hasSignedCoc) {
+          return (
+            <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-medium">
+              <FileCheck className="h-3.5 w-3.5" /> Signed
+            </span>
+          );
+        }
+        return (
+          <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-medium">
+            <AlertCircle className="h-3.5 w-3.5" /> Pending
+          </span>
+        );
+      },
     },
     {
       key: "lastLoginAt",
@@ -489,17 +533,20 @@ export default function AdminUsers() {
 
   const handleExport = (data: SafeUser[]) => {
     const csv = [
-      ["Name", "Email", "Role", "Organization", "Status", "Joined"].join(","),
-      ...data.map((user) =>
-        [
+      ["Name", "Email", "Role", "Organization", "Status", "CoC Signed", "Joined"].join(","),
+      ...data.map((user) => {
+        const isExempt = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+        const cocStatus = isExempt ? "N/A" : user.hasSignedCoc ? "Yes" : "No";
+        return [
           `"${user.firstName} ${user.lastName}"`,
           user.email,
           user.role,
           user.organizationName || "",
           user.isActive ? "Active" : "Inactive",
+          cocStatus,
           user.createdAt ? format(new Date(user.createdAt), "yyyy-MM-dd") : "",
-        ].join(",")
-      ),
+        ].join(",");
+      }),
     ].join("\n");
 
     const blob = new Blob([csv], { type: "text/csv" });
@@ -525,9 +572,11 @@ export default function AdminUsers() {
               <div>
                 <CardTitle>All Users</CardTitle>
                 <CardDescription>
-                  {dormancyFilter === "all"
-                    ? `${users.length} users total`
-                    : `${displayedUsers.length} dormant ${dormancyFilter}+ days of ${users.length} total`}
+                  {dormancyFilter !== "all"
+                    ? `${displayedUsers.length} dormant ${dormancyFilter}+ days of ${users.length} total`
+                    : cocFilter !== "all"
+                      ? `${displayedUsers.length} ${cocFilter === "signed" ? "CoC signed" : "CoC pending"} of ${users.length} total`
+                      : `${users.length} users total`}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -563,6 +612,16 @@ export default function AdminUsers() {
                     <SelectItem value="30">Dormant 30+ days</SelectItem>
                     <SelectItem value="60">Dormant 60+ days</SelectItem>
                     <SelectItem value="90">Dormant 90+ days</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={cocFilter} onValueChange={(v) => setCocFilter(v as typeof cocFilter)}>
+                  <SelectTrigger className="w-36" data-testid="select-coc-filter">
+                    <SelectValue placeholder="CoC" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All CoC</SelectItem>
+                    <SelectItem value="signed">CoC Signed</SelectItem>
+                    <SelectItem value="unsigned">CoC Pending</SelectItem>
                   </SelectContent>
                 </Select>
                 {selectedUserIds.length > 0 && (
@@ -652,6 +711,27 @@ export default function AdminUsers() {
                     <Badge variant={selectedUser.isProfileComplete ? "default" : "secondary"}>
                       {selectedUser.isProfileComplete ? "Yes" : "No"}
                     </Badge>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground mb-1">Code of Conduct</p>
+                    {selectedUser.role === "SUPER_ADMIN" || selectedUser.role === "ADMIN" ? (
+                      <span className="text-sm text-muted-foreground">Exempt (admin account)</span>
+                    ) : selectedUser.hasSignedCoc ? (
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm font-medium">
+                          <FileCheck className="h-4 w-4" /> Signed
+                        </span>
+                        {selectedUserCoc?.signedAt && (
+                          <span className="text-xs text-muted-foreground">
+                            on {format(new Date(selectedUserCoc.signedAt), "MMM d, yyyy 'at' h:mm a")}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-sm font-medium">
+                        <AlertCircle className="h-4 w-4" /> Not yet signed
+                      </span>
+                    )}
                   </div>
                 </div>
                 {selectedUser.bio && (
