@@ -69,6 +69,7 @@ const SubmissionsPage = lazy(() => import("@/pages/submissions"));
 const MyProfilePage = lazy(() => import("@/pages/my-profile"));
 const ProfileViewPage = lazy(() => import("@/pages/profile-view"));
 const MenteeDetailPage = lazy(() => import("@/pages/mentee-detail"));
+const MessagesPage = lazy(() => import("@/pages/messages"));
 const ProgramSelectorPage = lazy(() => import("@/pages/program-selector"));
 
 function PageLoader() {
@@ -139,6 +140,7 @@ function Router() {
       <ProtectedRoute path="/connections" component={ConnectionsPage} />
       <ProtectedRoute path="/mentee/:id" component={MenteeDetailPage} />
       <ProtectedRoute path="/calendar" component={CalendarPage} />
+      <ProtectedRoute path="/messages" component={MessagesPage} />
       <ProtectedRoute path="/community" component={CommunityPage} />
       <ProtectedRoute path="/community/:id" component={CommunityThreadPage} />
       <ProtectedRoute path="/mentee-community" component={MenteeCommunityPage} />

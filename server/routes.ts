@@ -3466,6 +3466,18 @@ export async function registerRoutes(
     }
   });
 
+  // Get documents shared with current user — must be before /:id to avoid Express
+  // matching the literal string "shared-with-me" as a document ID.
+  app.get("/api/documents/shared-with-me", requireAuth, async (req, res, next) => {
+    try {
+      const userId = (req.user as any).id;
+      const sharedDocs = await storage.getSharedDocumentsForUser(userId);
+      res.json(sharedDocs);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Get single document
   app.get("/api/documents/:id", requireAuth, async (req, res, next) => {
     try {
@@ -4004,17 +4016,6 @@ export async function registerRoutes(
     try {
       const folderList = await storage.getFolders({});
       res.json(folderList);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Get documents shared with current user
-  app.get("/api/documents/shared-with-me", requireAuth, async (req, res, next) => {
-    try {
-      const userId = (req.user as any).id;
-      const sharedDocs = await storage.getSharedDocumentsForUser(userId);
-      res.json(sharedDocs);
     } catch (error) {
       next(error);
     }

@@ -79,8 +79,12 @@ export function getSessionMiddleware() {
 }
 
 export function setupAuth(app: Express) {
+  if (!process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET environment variable is required but not set");
+  }
+
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "sonsiel-mentorship-hub-secret-key",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
@@ -105,12 +109,9 @@ export function setupAuth(app: Express) {
       async (email, password, done) => {
         try {
           const normalizedEmail = email.toLowerCase().trim();
-          console.log(`[LOGIN DEBUG] Attempting login for email: "${normalizedEmail}" (original: "${email}")`);
-          
           const user = await storage.getUserByEmail(email);
-          
+
           if (!user) {
-            console.log(`[LOGIN DEBUG] FAILED - User not found for email: "${normalizedEmail}"`);
             const systemAudit = AuditService.system();
             await systemAudit.log({
               action: 'LOGIN_FAILED',
@@ -122,16 +123,11 @@ export function setupAuth(app: Express) {
             });
             return done(null, false, { message: "Invalid email or password" });
           }
-          
-          console.log(`[LOGIN DEBUG] User found: ${user.firstName} ${user.lastName} (ID: ${user.id})`);
-          console.log(`[LOGIN DEBUG] Account status - isActive: ${user.isActive}, lockedUntil: ${user.lockedUntil}, failedAttempts: ${user.failedLoginAttempts}`);
-          console.log(`[LOGIN DEBUG] Password hash exists: ${!!user.password}, hash length: ${user.password?.length || 0}`);
 
           if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
             const minutesRemaining = Math.ceil(
               (new Date(user.lockedUntil).getTime() - Date.now()) / 60000
             );
-            console.log(`[LOGIN DEBUG] FAILED - Account locked for ${minutesRemaining} more minutes`);
             const lockAudit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role });
             await lockAudit.log({
               action: 'LOGIN_FAILED',
@@ -147,7 +143,6 @@ export function setupAuth(app: Express) {
           }
 
           if (!user.isActive) {
-            console.log(`[LOGIN DEBUG] FAILED - Account is deactivated`);
             const inactiveAudit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role });
             await inactiveAudit.log({
               action: 'LOGIN_FAILED',
@@ -161,10 +156,8 @@ export function setupAuth(app: Express) {
           }
 
           const isValid = await comparePasswords(password, user.password);
-          console.log(`[LOGIN DEBUG] Password comparison result: ${isValid}`);
-          
+
           if (!isValid) {
-            console.log(`[LOGIN DEBUG] FAILED - Invalid password for user: ${user.email}`);
             await storage.incrementFailedLoginAttempts(user.id);
             
             const userAudit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role });
@@ -173,7 +166,6 @@ export function setupAuth(app: Express) {
             if (updatedUser && updatedUser.failedLoginAttempts && updatedUser.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
               const lockUntil = new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000);
               await storage.lockAccount(user.id, lockUntil);
-              console.log(`[LOGIN DEBUG] Account locked due to too many failed attempts`);
               await userAudit.log({
                 action: 'ACCOUNT_LOCKED',
                 resourceType: 'USER',
@@ -199,13 +191,11 @@ export function setupAuth(app: Express) {
             return done(null, false, { message: "Invalid email or password" });
           }
 
-          console.log(`[LOGIN DEBUG] SUCCESS - Login successful for: ${user.email}`);
           await storage.resetFailedLoginAttempts(user.id);
           await storage.updateUser(user.id, { lastLoginAt: new Date() });
 
           return done(null, user);
         } catch (error) {
-          console.error(`[LOGIN DEBUG] ERROR - Exception during login:`, error);
           return done(error);
         }
       }
@@ -338,19 +328,14 @@ export function setupAuth(app: Express) {
   app.post("/api/forgot-password", passwordResetRateLimiter, async (req, res, next) => {
     try {
       const { email } = req.body;
-      console.log(`[PASSWORD RESET DEBUG] Reset requested for email: "${email}"`);
-      
+
       if (!email) {
-        console.log(`[PASSWORD RESET DEBUG] FAILED - No email provided`);
         return res.status(400).json({ message: "Email is required" });
       }
 
       const user = await storage.getUserByEmail(email);
-      console.log(`[PASSWORD RESET DEBUG] User found: ${!!user}`);
-      
+
       if (user) {
-        console.log(`[PASSWORD RESET DEBUG] Processing reset for user: ${user.firstName} ${user.lastName} (${user.email})`);
-        
         const resetToken = generateToken();
         const resetExpires = new Date(Date.now() + 60 * 60 * 1000);
 
@@ -358,11 +343,8 @@ export function setupAuth(app: Express) {
           passwordResetToken: resetToken,
           passwordResetExpires: resetExpires,
         });
-        console.log(`[PASSWORD RESET DEBUG] Reset token saved to database, expires: ${resetExpires.toISOString()}`);
-
         const { getTrustedBaseUrl } = await import("./email");
         const resetUrl = `${getTrustedBaseUrl()}/reset-password/${resetToken}`;
-        console.log(`[PASSWORD RESET DEBUG] Reset URL generated: ${resetUrl}`);
 
         const audit = new AuditService({ actorId: user.id, actorType: 'USER', actorEmail: user.email, actorRole: user.role, ipAddress: req.headers['x-forwarded-for']?.toString()?.split(',')[0]?.trim() || req.socket?.remoteAddress || null, userAgent: req.headers['user-agent'] || null });
         await audit.log({
@@ -380,10 +362,10 @@ export function setupAuth(app: Express) {
           });
 
           if (!emailResult.success) {
-            console.error(`[PASSWORD RESET DEBUG] FAILED - Email send error for ${email}:`, emailResult.error);
+            console.error(`Password reset email failed for ${email}:`, emailResult.error);
             return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
           }
-          
+
           await audit.log({
             action: 'EMAIL_SENT',
             resourceType: 'USER',
@@ -391,21 +373,14 @@ export function setupAuth(app: Express) {
             resourceName: user.email,
             metadata: { emailType: 'password_reset', recipient: user.email },
           });
-          
-          console.log(`[PASSWORD RESET DEBUG] SUCCESS - Password reset email sent to ${email}`);
         } catch (emailError: any) {
-          console.error(`[PASSWORD RESET DEBUG] EXCEPTION - Email send error for ${email}:`, emailError.message);
+          console.error(`Password reset email exception for ${email}:`, emailError.message);
           return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
         }
-      } else {
-        console.log(`[PASSWORD RESET DEBUG] No user found for email: "${email}" - no email sent`);
       }
-      
-      // Always return success message to prevent email enumeration
-      // But we've already handled real errors above
+      // Always return the same message to prevent email enumeration
       res.json({ message: "If an account exists, a password reset email has been sent." });
     } catch (error) {
-      console.error(`[PASSWORD RESET DEBUG] ERROR - Exception:`, error);
       next(error);
     }
   });
@@ -413,28 +388,20 @@ export function setupAuth(app: Express) {
   app.post("/api/reset-password", passwordResetRateLimiter, async (req, res, next) => {
     try {
       const { token, password } = req.body;
-      console.log(`[RESET PASSWORD DEBUG] Attempting to reset password with token: ${token ? token.substring(0, 10) + '...' : 'missing'}`);
-      
+
       if (!token || !password) {
-        console.log(`[RESET PASSWORD DEBUG] FAILED - Token or password missing. Token: ${!!token}, Password: ${!!password}`);
         return res.status(400).json({ message: "Token and password are required" });
       }
 
       if (password.length < 8) {
-        console.log(`[RESET PASSWORD DEBUG] FAILED - Password too short (${password.length} chars)`);
         return res.status(400).json({ message: "Password must be at least 8 characters" });
       }
 
       const user = await storage.getUserByPasswordResetToken(token);
-      console.log(`[RESET PASSWORD DEBUG] User found by token: ${!!user}`);
-      
+
       if (!user) {
-        console.log(`[RESET PASSWORD DEBUG] FAILED - Invalid or expired reset token`);
         return res.status(400).json({ message: "Invalid or expired reset token" });
       }
-      
-      console.log(`[RESET PASSWORD DEBUG] Resetting password for user: ${user.firstName} ${user.lastName} (${user.email})`);
-      console.log(`[RESET PASSWORD DEBUG] Token expires: ${user.passwordResetExpires}, Current time: ${new Date().toISOString()}`);
 
       const hashedPassword = await hashPassword(password);
 
@@ -455,10 +422,8 @@ export function setupAuth(app: Express) {
         resourceName: user.email,
       });
 
-      console.log(`[RESET PASSWORD DEBUG] SUCCESS - Password reset completed for ${user.email}`);
       res.json({ message: "Password reset successful" });
     } catch (error) {
-      console.error(`[RESET PASSWORD DEBUG] ERROR - Exception:`, error);
       next(error);
     }
   });
@@ -502,17 +467,11 @@ export function setupAuth(app: Express) {
         metadata: { mustChangePassword: !!user.mustChangePassword },
       });
 
-      console.log(`[CHANGE PASSWORD] SUCCESS - Password changed for ${user.email}`);
-      
       // Log the user out so they can log in fresh with their new password
       req.logout((err) => {
-        if (err) {
-          console.error(`[CHANGE PASSWORD] Logout error:`, err);
-        }
+        if (err) console.error("Logout error after password change:", err);
         req.session.destroy((sessionErr) => {
-          if (sessionErr) {
-            console.error(`[CHANGE PASSWORD] Session destroy error:`, sessionErr);
-          }
+          if (sessionErr) console.error("Session destroy error after password change:", sessionErr);
           res.clearCookie("connect.sid");
           res.json({ message: "Password changed successfully. Please log in with your new password." });
         });

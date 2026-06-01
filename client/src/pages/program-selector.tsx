@@ -29,14 +29,13 @@ export default function ProgramSelectorPage() {
   // Redirect once an active program is confirmed
   useEffect(() => {
     if (activeProgram?.programId) {
-      const role = activeProgram.role;
-      if (role === "ADMIN" || user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") {
-        setLocation("/admin/dashboard");
+      if (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") {
+        setLocation("/admin");
       } else {
-        setLocation("/dashboard");
+        setLocation("/");
       }
     }
-  }, [activeProgram?.programId, activeProgram?.role, user?.role, setLocation]);
+  }, [activeProgram?.programId, user?.role, setLocation]);
 
   // Auto-select when there's exactly one program
   useEffect(() => {
