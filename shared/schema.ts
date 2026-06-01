@@ -1070,6 +1070,7 @@ export const auditActionEnum = pgEnum("audit_action", [
   "GOAL_CREATED", "GOAL_UPDATED", "GOAL_COMPLETED",
   "SETTINGS_CHANGED", "BULK_OPERATION_PERFORMED", "DATA_EXPORTED", "REPORT_GENERATED",
   "SCHEDULED_JOB_EXECUTED", "NOTIFICATION_SENT", "EMAIL_SENT", "ERROR_OCCURRED",
+  "COC_SIGNED",
 ]);
 
 export const auditResourceTypeEnum = pgEnum("audit_resource_type", [
@@ -1788,6 +1789,8 @@ export const programApplications = pgTable("program_applications", {
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   provisionedUserId: varchar("provisioned_user_id").references(() => users.id),
   provisionedAt: timestamp("provisioned_at"),
+  assignedCohortId: varchar("assigned_cohort_id").references(() => cohorts.id),
+  assignedCohortAt: timestamp("assigned_cohort_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

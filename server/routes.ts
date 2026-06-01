@@ -2145,6 +2145,7 @@ export async function registerRoutes(
         updates.reviewedBy = adminUser?.id ?? null;
       }
       if (adminNotes !== undefined) updates.adminNotes = adminNotes;
+      if ('assignedCohortId' in req.body) updates.assignedCohortId = req.body.assignedCohortId || null;
 
       const [updated] = await db.update(programApplicationsTable)
         .set(updates)
@@ -2153,6 +2154,48 @@ export async function registerRoutes(
 
       if (!updated) return res.status(404).json({ message: "Application not found" });
       res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Assign an activated applicant to a cohort
+  app.post("/api/admin/program-applications/:id/assign-cohort", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { cohortId } = req.body;
+
+      if (!cohortId) return res.status(400).json({ message: "cohortId is required" });
+
+      const [application] = await db.select().from(programApplicationsTable).where(eq(programApplicationsTable.id, id));
+      if (!application) return res.status(404).json({ message: "Application not found" });
+      if (!application.provisionedUserId) return res.status(400).json({ message: "Application must be activated before assigning a cohort" });
+
+      const cohort = await storage.getCohort(cohortId);
+      if (!cohort) return res.status(404).json({ message: "Cohort not found" });
+
+      // Create membership if not already a member
+      const existing = await storage.getMembershipByUserAndCohort(application.provisionedUserId, cohortId);
+      if (!existing) {
+        const provUser = await storage.getUser(application.provisionedUserId);
+        const memberRole = provUser?.role === "MENTOR" ? "MENTOR" : "MENTEE";
+        await storage.createMembership({
+          cohortId,
+          userId: application.provisionedUserId,
+          role: memberRole,
+          applicationStatus: "APPROVED",
+          matchStatus: "UNMATCHED",
+          joinedAt: new Date(),
+        });
+      }
+
+      // Stamp the application with the assigned cohort
+      const [updated] = await db.update(programApplicationsTable)
+        .set({ assignedCohortId: cohortId, assignedCohortAt: new Date(), updatedAt: new Date() })
+        .where(eq(programApplicationsTable.id, id))
+        .returning();
+
+      res.json({ application: updated, cohort, alreadyMember: !!existing });
     } catch (error) {
       next(error);
     }

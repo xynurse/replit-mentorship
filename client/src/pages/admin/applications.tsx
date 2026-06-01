@@ -44,6 +44,8 @@ import {
   GraduationCap,
   UserCheck,
   Sparkles,
+  BookOpen,
+  FolderOpen,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -55,7 +57,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import type { ProgramApplication } from "@shared/schema";
+import type { ProgramApplication, Cohort } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
   PENDING: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -105,10 +107,11 @@ function AppDetailRow({ label, value }: { label: string; value: React.ReactNode 
   );
 }
 
-function ApplicationDetail({ app }: { app: ProgramApplication }) {
+function ApplicationDetail({ app, cohorts }: { app: ProgramApplication; cohorts: Cohort[] }) {
   const isMentee = app.role === "MENTEE";
   const d = (app.applicationData || {}) as Record<string, any>;
   const ratings: RatingData = isMentee ? (d.interestRatings || {}) : (d.comfortRatings || {});
+  const assignedCohort = app.assignedCohortId ? cohorts.find(c => c.id === app.assignedCohortId) : null;
 
   return (
     <div className="space-y-4 text-sm">
@@ -117,6 +120,16 @@ function ApplicationDetail({ app }: { app: ProgramApplication }) {
           <UserCheck className="h-4 w-4 shrink-0" />
           <span>
             Account provisioned{app.provisionedAt ? ` on ${format(new Date(app.provisionedAt), "MMM d, yyyy")}` : ""}. Set-password email sent.
+          </span>
+        </div>
+      )}
+
+      {assignedCohort && (
+        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-blue-800 dark:text-blue-300 text-sm">
+          <BookOpen className="h-4 w-4 shrink-0" />
+          <span>
+            Assigned to cohort <strong>{assignedCohort.name}</strong>
+            {app.assignedCohortAt ? ` on ${format(new Date(app.assignedCohortAt), "MMM d, yyyy")}` : ""}.
           </span>
         </div>
       )}
@@ -199,6 +212,8 @@ export default function AdminApplications() {
   const [selectedApplication, setSelectedApplication] = useState<ProgramApplication | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [activateTarget, setActivateTarget] = useState<ProgramApplication | null>(null);
+  const [assignCohortTarget, setAssignCohortTarget] = useState<ProgramApplication | null>(null);
+  const [assignCohortId, setAssignCohortId] = useState<string>("");
 
   const { data: applications = [], isLoading } = useQuery<ProgramApplication[]>({
     queryKey: ["/api/admin/program-applications", { status: statusFilter }],
@@ -208,6 +223,15 @@ export default function AdminApplications() {
         : `/api/admin/program-applications?status=${statusFilter}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load");
+      return res.json();
+    },
+  });
+
+  const { data: cohorts = [] } = useQuery<Cohort[]>({
+    queryKey: ["/api/cohorts"],
+    queryFn: async () => {
+      const res = await fetch("/api/cohorts", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load cohorts");
       return res.json();
     },
   });
@@ -250,6 +274,39 @@ export default function AdminApplications() {
     },
   });
 
+  const assignCohortMutation = useMutation({
+    mutationFn: async ({ appId, cohortId }: { appId: string; cohortId: string }) => {
+      return apiRequest("POST", `/api/admin/program-applications/${appId}/assign-cohort`, { cohortId });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications"] });
+      const cohortName = data?.cohort?.name || "cohort";
+      const already = data?.alreadyMember;
+      toast({
+        title: already ? "Already a cohort member" : "Cohort assigned",
+        description: already
+          ? `${assignCohortTarget?.firstName} was already a member of ${cohortName}.`
+          : `${assignCohortTarget?.firstName} has been assigned to ${cohortName}.`,
+      });
+      setAssignCohortTarget(null);
+      setAssignCohortId("");
+      // Refresh selected application panel if open
+      if (selectedApplication?.id === assignCohortTarget?.id) {
+        setSelectedApplication(prev => prev ? { ...prev, assignedCohortId: data?.application?.assignedCohortId, assignedCohortAt: data?.application?.assignedCohortAt } as ProgramApplication : null);
+      }
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Assignment failed",
+        description: err?.message || "Could not assign cohort.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Cohorts eligible for assignment (exclude archived)
+  const activeCohorts = cohorts.filter(c => c.status !== "ARCHIVED" && c.status !== "COMPLETED");
+
   const columns: Column<ProgramApplication>[] = [
     {
       key: "firstName",
@@ -285,16 +342,26 @@ export default function AdminApplications() {
       key: "status",
       header: "Status",
       sortable: true,
-      render: (app) => (
-        <div className="flex items-center gap-1.5">
-          <Badge className={`${statusColors[app.status || "PENDING"]} no-default-hover-elevate no-default-active-elevate`}>
-            {app.status}
-          </Badge>
-          {app.provisionedUserId && (
-            <UserCheck className="h-3.5 w-3.5 text-green-600" aria-label="Account provisioned" />
-          )}
-        </div>
-      ),
+      render: (app) => {
+        const assignedCohort = app.assignedCohortId ? cohorts.find(c => c.id === app.assignedCohortId) : null;
+        return (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <Badge className={`${statusColors[app.status || "PENDING"]} no-default-hover-elevate no-default-active-elevate`}>
+                {app.status}
+              </Badge>
+              {app.provisionedUserId && (
+                <UserCheck className="h-3.5 w-3.5 text-green-600" aria-label="Account provisioned" />
+              )}
+            </div>
+            {assignedCohort && (
+              <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                <BookOpen className="h-3 w-3" />{assignedCohort.name}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "submittedAt",
@@ -371,10 +438,27 @@ export default function AdminApplications() {
               </>
             )}
             {app.provisionedUserId && (
-              <DropdownMenuItem disabled>
-                <UserCheck className="mr-2 h-4 w-4 text-green-600" />
-                <span className="text-green-600">Account Active</span>
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuSeparator />
+                {!app.assignedCohortId ? (
+                  <DropdownMenuItem
+                    onClick={() => { setAssignCohortTarget(app); setAssignCohortId(""); }}
+                    className="text-blue-600 font-medium"
+                  >
+                    <FolderOpen className="mr-2 h-4 w-4" /> Assign to Cohort
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    onClick={() => { setAssignCohortTarget(app); setAssignCohortId(app.assignedCohortId || ""); }}
+                  >
+                    <FolderOpen className="mr-2 h-4 w-4 text-blue-600" /> Change Cohort
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem disabled>
+                  <UserCheck className="mr-2 h-4 w-4 text-green-600" />
+                  <span className="text-green-600">Account Active</span>
+                </DropdownMenuItem>
+              </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -459,6 +543,14 @@ export default function AdminApplications() {
                           <UserCheck className="h-3 w-3" /> Account Active
                         </Badge>
                       )}
+                      {selectedApplication.assignedCohortId && (() => {
+                        const c = cohorts.find(x => x.id === selectedApplication.assignedCohortId);
+                        return c ? (
+                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 no-default-hover-elevate no-default-active-elevate gap-1">
+                            <BookOpen className="h-3 w-3" /> {c.name}
+                          </Badge>
+                        ) : null;
+                      })()}
                       <span>·</span>
                       <span>{selectedApplication.role === "MENTEE" ? "Mentee Applicant" : "Mentor Applicant"}</span>
                       {selectedApplication.submittedAt && (
@@ -470,7 +562,7 @@ export default function AdminApplications() {
               </DialogDescription>
             </DialogHeader>
 
-            {selectedApplication && <ApplicationDetail app={selectedApplication} />}
+            {selectedApplication && <ApplicationDetail app={selectedApplication} cohorts={cohorts} />}
 
             <div className="pt-2">
               <label className="text-sm font-medium">Admin Notes</label>
@@ -531,6 +623,20 @@ export default function AdminApplications() {
                   Activate Account
                 </Button>
               )}
+
+              {selectedApplication?.provisionedUserId && (
+                <Button
+                  variant="outline"
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                  onClick={() => {
+                    setAssignCohortTarget(selectedApplication);
+                    setAssignCohortId(selectedApplication.assignedCohortId || "");
+                  }}
+                >
+                  <FolderOpen className="h-4 w-4 mr-1.5" />
+                  {selectedApplication.assignedCohortId ? "Change Cohort" : "Assign to Cohort"}
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -563,6 +669,65 @@ export default function AdminApplications() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Assign cohort dialog */}
+        <Dialog
+          open={!!assignCohortTarget}
+          onOpenChange={(open) => { if (!open) { setAssignCohortTarget(null); setAssignCohortId(""); } }}
+        >
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Assign to Cohort</DialogTitle>
+              <DialogDescription>
+                Select a cohort for <strong>{assignCohortTarget?.firstName} {assignCohortTarget?.lastName}</strong>.
+                They will be added as a member and can be matched within that cohort.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-2">
+              {activeCohorts.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No active cohorts found. Create a cohort first from the Cohorts page.
+                </p>
+              ) : (
+                <Select value={assignCohortId} onValueChange={setAssignCohortId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a cohort…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeCohorts.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{c.name}</span>
+                          <Badge variant="outline" className="text-xs capitalize">{c.status?.toLowerCase()}</Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => { setAssignCohortTarget(null); setAssignCohortId(""); }}
+                disabled={assignCohortMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!assignCohortId || assignCohortMutation.isPending}
+                onClick={() => assignCohortTarget && assignCohortMutation.mutate({ appId: assignCohortTarget.id, cohortId: assignCohortId })}
+              >
+                {assignCohortMutation.isPending
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" /> Assigning…</>
+                  : <><FolderOpen className="h-4 w-4 mr-1.5" /> Assign</>
+                }
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );

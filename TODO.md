@@ -51,13 +51,13 @@ Items are grouped by phase. Within a phase they're ordered by what should happen
 
 ---
 
-## Phase 8 — Application intake + onboarding workflow (in progress)
+## Phase 8 — Application intake + onboarding workflow ✅ Complete
 
 - [x] **External-facing application form** at `/apply` — 5-step wizard, full Fillout survey mapped, JSONB storage.
 - [x] **Application pipeline** — PENDING → REVIEWING → APPROVED/WAITLISTED/REJECTED status transitions in admin UI.
 - [x] **Admit/activate flow** — "Activate Account" button provisions user, pre-populates mentor/mentee profiles from application data, sends set-password email.
-- [ ] **Onboarding sign-off** — code of conduct acceptance + required doc signing before accessing the full platform. *(Next up)*
-- [ ] **Cohort assignment** — after activation, admin assigns users to a cohort from the applications queue.
+- [x] **Onboarding sign-off** — Code of Conduct acceptance gate with canvas signature. Existing users backfilled.
+- [x] **Cohort assignment** — after activation, admin assigns users to a cohort from the applications queue.
 
 ---
 
@@ -87,46 +87,22 @@ See sections below — DNS cutover, token rotation, deploy/operational follow-up
 
 ---
 
-## P0 — Phase 3 wrap-up: deploy and re-upload program guides
+## P0 — Phase 3 wrap-up: deploy ✅ Complete
 
-**Status.** Code changes landed (1.1.0), Blob store provisioned, legacy file references purged (start-fresh — see [CHANGELOG.md](./CHANGELOG.md)). What's left is deploy + content restoration.
-
-**Effort:** ~30 minutes.
-
-### Work
-
-- [x] Provision Vercel Blob on the `replit-mentorship` project. Store ID `store_yU2vqWCcTiKma2Tc`.
-- [x] Local `.env` updated with `BLOB_READ_WRITE_TOKEN`.
-- [x] Clean up 12 legacy file references (10 docs deleted, 2 profile photos nulled).
-- [ ] Confirm `BLOB_READ_WRITE_TOKEN` is set on Vercel Production + Preview env (Vercel dashboard → Project → Settings → Environment Variables).
-- [ ] Push Phase 3 commits to `main`; Vercel auto-deploys.
-- [ ] Smoke-test on the production deployment:
-  - Upload a new document as an admin and view + download as a mentee.
-  - Upload a profile photo and confirm the avatar renders from `*.public.blob.vercel-storage.com`.
-  - Confirm an unauthorized user gets a 403 on a private document.
-- [ ] Re-upload the 10 program guides through the admin UI:
-  - Innovator / Leader / Scientist / Intrapreneur / Entrepreneur Track Guides
-  - Mentor Handbook, Mentee Handbook
-  - Roles and Responsibilities Guide, Code of Conduct, Mentorship - Dos and Donts
-
-### Post-deploy
-
-- [ ] Rotate `BLOB_READ_WRITE_TOKEN` (the current value was shared in chat during setup). Vercel dashboard → Blob store → Settings → Rotate token. Vercel auto-updates the project env.
+- [x] Provision Vercel Blob on the `replit-mentorship` project.
+- [x] `BLOB_READ_WRITE_TOKEN` confirmed set on Vercel Production + Preview.
+- [x] `ABLY_API_KEY` set on Vercel.
+- [x] Pushed to `main`; Vercel auto-deploying.
+- [ ] **DNS cutover** — point `mentorship.sonsiel.org` CNAME → `cname.vercel-dns.com`. *(Deferred — to be done later)*
+- [ ] **Re-upload 10 program guides** via admin UI after DNS cutover. *(Deferred)*
 
 ---
 
-## P0 — Phase 2 wrap-up: provision Ably + smoke-test live updates
+## P0 — Phase 2 wrap-up: Ably ✅ Complete
 
-**Status.** Code changes landed (1.2.0): `server/realtime/ably.ts`, `POST /api/ably/auth`, Ably emissions in 3 message routes, client hooks rewritten, socket.io fully removed. What's left is operational.
-
-**Effort:** ~30 minutes once the Ably account is set up.
-
-### Work
-
-- [x] Add `ably` v2 to dependencies; remove socket.io stack.
-- [x] Replace `server/websocket.ts` with `server/realtime/ably.ts`.
-- [x] Wire Ably emissions into the message routes; rewrite client hooks.
-- [ ] Sign up at https://ably.com (free tier: 6M messages/month).
+- [x] `ably` v2 installed; socket.io removed.
+- [x] `server/realtime/ably.ts` live.
+- [x] `ABLY_API_KEY` provisioned and set on Vercel.
 - [ ] Create an app for the mentorship platform; capture the API key.
 - [ ] Set `ABLY_API_KEY` in Vercel Production + Preview env. Also pull locally via `vercel env pull`.
 - [ ] Push Phase 2 to `main`; Vercel auto-deploys.
@@ -142,26 +118,13 @@ See sections below — DNS cutover, token rotation, deploy/operational follow-up
 
 ## P1 — DNS cutover
 
-**Why P1, not P0.** Don't repoint `mentorship.sonsiel.org` until P3 and P2 are done — otherwise real users will land on a broken document library and console-flooded UI on the live domain.
+**Deferred — to be done when ready.**
 
-**Effort:** ~15 minutes of work + DNS propagation time (5 min – 24 h).
-
-### Work
-
-- [x] Add `mentorship.sonsiel.org` as a domain on the Vercel project (already done on 2026-05-03).
-- [ ] At the DNS registrar (Google Cloud DNS, per current `ns-cloud-b*.googledomains.com` nameservers), add a CNAME:
-  - `mentorship` → `cname.vercel-dns.com.`
-  - TTL 3600
-  - **Or** an A record: `mentorship` → `76.76.21.21`
-- [ ] If a `mentorship` record already exists pointing at Replit (e.g., `*.replit.app`), update it in place rather than creating a duplicate.
-- [ ] Wait for Vercel's domain-verification check to flip to ✅ in the dashboard.
-- [ ] Vercel will auto-issue an SSL cert via Let's Encrypt.
-- [ ] Set `APP_URL=https://mentorship.sonsiel.org` in Vercel production env. This makes password-reset and notification email links use the canonical domain.
-- [ ] `curl https://mentorship.sonsiel.org/api/user` should return `Unauthorized` (HTTP 401) — same as the `.vercel.app` URL.
-
-### Communications
-
-- [ ] Notify users (mentors + mentees + admins) of any expected downtime during cutover. With CNAME-based DNS this should be near-zero, but Replit will stop responding the moment the record propagates.
+- [x] Add `mentorship.sonsiel.org` as a domain on the Vercel project.
+- [ ] At Google Cloud DNS, add CNAME: `mentorship` → `cname.vercel-dns.com.` (TTL 3600)
+- [ ] Set `APP_URL=https://mentorship.sonsiel.org` in Vercel production env.
+- [ ] Notify users of cutover timing.
+- [ ] Re-upload 10 program guides via admin UI after cutover.
 
 ---
 
