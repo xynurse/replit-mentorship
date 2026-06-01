@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { 
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import type { Cohort, User } from "@shared/schema";
 
 type ParticipantWithUser = {
@@ -68,14 +68,33 @@ export default function AdminMatchingPage() {
     enabled: !!cohortId,
   });
 
-  const { data: matchData, isLoading, refetch } = useQuery<AutoMatchResult>({
-    queryKey: ['/api/cohorts', cohortId, 'auto-match'],
-    queryFn: async () => {
+  // Auto-match results are computed server-side via POST. We keep them in local state
+  // and expose a manual "Refresh" action — this avoids TanStack Query re-firing the
+  // side-effectful POST on every cache invalidation or window focus event.
+  const [matchData, setMatchData] = useState<AutoMatchResult | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const autoMatchMutation = useMutation<AutoMatchResult>({
+    mutationFn: async () => {
       const res = await apiRequest('POST', `/api/cohorts/${cohortId}/auto-match`, {});
       return res.json();
     },
-    enabled: !!cohortId,
+    onSuccess: (data) => {
+      setMatchData(data);
+    },
+    onError: () => {
+      toast({ title: "Auto-match failed", description: "Could not compute compatibility matrix.", variant: "destructive" });
+    },
   });
+
+  // Run auto-match once when cohortId becomes available
+  useEffect(() => {
+    if (cohortId && !matchData && !autoMatchMutation.isPending) {
+      setIsLoading(true);
+      autoMatchMutation.mutate(undefined, { onSettled: () => setIsLoading(false) });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cohortId]);
 
   const createMatchMutation = useMutation({
     mutationFn: async (data: { mentorMembershipId: string; menteeMembershipId: string; matchScore: number; matchReason: string }) => {
@@ -87,7 +106,8 @@ export default function AdminMatchingPage() {
         title: "Match Created",
         description: "The mentorship match has been created successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/cohorts', cohortId, 'auto-match'] });
+      // Re-run auto-match to reflect the newly created match in the matrix
+      autoMatchMutation.mutate();
       setConfirmMatchDialog(false);
       setMatchToCreate(null);
       setSelectedMentor(null);
@@ -171,7 +191,7 @@ export default function AdminMatchingPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="button-refresh">
+            <Button variant="outline" size="sm" onClick={() => autoMatchMutation.mutate()} disabled={autoMatchMutation.isPending} data-testid="button-refresh">
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>

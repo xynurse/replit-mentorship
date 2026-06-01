@@ -1681,7 +1681,7 @@ export async function registerRoutes(
   // Server-mediated profile photo delivery. The Blob store is private,
   // so direct <img src={blobUrl}> won't work — clients hit this route
   // and we stream from Blob using the SDK (which adds the read token).
-  app.get("/api/profile-photo/:userId", async (req, res, next) => {
+  app.get("/api/profile-photo/:userId", requireAuth, async (req, res, next) => {
     try {
       const targetUser = await storage.getUser(req.params.userId);
       if (!targetUser || !targetUser.profileImage) {
