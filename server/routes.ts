@@ -4429,12 +4429,22 @@ export async function registerRoutes(
 
   app.patch("/api/milestones/:id", requireAuth, async (req, res, next) => {
     try {
-      const updatedMilestone = await storage.updateMilestone(req.params.id, req.body);
-      
-      if (!updatedMilestone) {
+      const user = req.user as any;
+      const milestone = await storage.getMilestone(req.params.id);
+      if (!milestone) {
         return res.status(404).json({ message: "Milestone not found" });
       }
-      
+
+      // Ownership check: only the goal owner/creator or an admin may update milestones
+      const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+      if (!isAdmin) {
+        const goal = await storage.getGoal(milestone.goalId);
+        if (!goal || (goal.ownerId !== user.id && goal.createdById !== user.id)) {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+      }
+
+      const updatedMilestone = await storage.updateMilestone(req.params.id, req.body);
       res.json(updatedMilestone);
     } catch (error) {
       next(error);
@@ -4443,6 +4453,21 @@ export async function registerRoutes(
 
   app.delete("/api/milestones/:id", requireAuth, async (req, res, next) => {
     try {
+      const user = req.user as any;
+      const milestone = await storage.getMilestone(req.params.id);
+      if (!milestone) {
+        return res.status(404).json({ message: "Milestone not found" });
+      }
+
+      // Ownership check: only the goal owner/creator or an admin may delete milestones
+      const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+      if (!isAdmin) {
+        const goal = await storage.getGoal(milestone.goalId);
+        if (!goal || (goal.ownerId !== user.id && goal.createdById !== user.id)) {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+      }
+
       await storage.deleteMilestone(req.params.id);
       res.json({ message: "Milestone deleted" });
     } catch (error) {
@@ -4510,10 +4535,28 @@ export async function registerRoutes(
 
   app.get("/api/meetings/:id", requireAuth, async (req, res, next) => {
     try {
+      const user = req.user as any;
       const meeting = await storage.getMeeting(req.params.id);
       if (!meeting) {
         return res.status(404).json({ message: "Meeting not found" });
       }
+
+      // Ownership check: only participants in the associated match or admins may view
+      const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+      if (!isAdmin) {
+        const match = await storage.getMatch(meeting.matchId);
+        if (match) {
+          const [mentorMembership, menteeMembership] = await Promise.all([
+            storage.getMembership(match.mentorMembershipId),
+            storage.getMembership(match.menteeMembershipId),
+          ]);
+          const isParticipant = mentorMembership?.userId === user.id || menteeMembership?.userId === user.id;
+          if (!isParticipant) {
+            return res.status(403).json({ message: "Forbidden" });
+          }
+        }
+      }
+
       res.json(meeting);
     } catch (error) {
       next(error);
@@ -4527,7 +4570,7 @@ export async function registerRoutes(
         ...req.body,
         createdById: user.id,
       });
-      
+
       const meeting = await storage.createMeeting(validatedData);
       res.status(201).json(meeting);
     } catch (error) {
@@ -4537,11 +4580,28 @@ export async function registerRoutes(
 
   app.patch("/api/meetings/:id", requireAuth, async (req, res, next) => {
     try {
+      const user = req.user as any;
       const meeting = await storage.getMeeting(req.params.id);
       if (!meeting) {
         return res.status(404).json({ message: "Meeting not found" });
       }
-      
+
+      // Ownership check: only participants in the associated match or admins may update
+      const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+      if (!isAdmin) {
+        const match = await storage.getMatch(meeting.matchId);
+        if (match) {
+          const [mentorMembership, menteeMembership] = await Promise.all([
+            storage.getMembership(match.mentorMembershipId),
+            storage.getMembership(match.menteeMembershipId),
+          ]);
+          const isParticipant = mentorMembership?.userId === user.id || menteeMembership?.userId === user.id;
+          if (!isParticipant) {
+            return res.status(403).json({ message: "Forbidden" });
+          }
+        }
+      }
+
       const updated = await storage.updateMeeting(req.params.id, req.body);
       res.json(updated);
     } catch (error) {
@@ -4551,11 +4611,28 @@ export async function registerRoutes(
 
   app.delete("/api/meetings/:id", requireAuth, async (req, res, next) => {
     try {
+      const user = req.user as any;
       const meeting = await storage.getMeeting(req.params.id);
       if (!meeting) {
         return res.status(404).json({ message: "Meeting not found" });
       }
-      
+
+      // Ownership check: only participants in the associated match or admins may delete
+      const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+      if (!isAdmin) {
+        const match = await storage.getMatch(meeting.matchId);
+        if (match) {
+          const [mentorMembership, menteeMembership] = await Promise.all([
+            storage.getMembership(match.mentorMembershipId),
+            storage.getMembership(match.menteeMembershipId),
+          ]);
+          const isParticipant = mentorMembership?.userId === user.id || menteeMembership?.userId === user.id;
+          if (!isParticipant) {
+            return res.status(403).json({ message: "Forbidden" });
+          }
+        }
+      }
+
       await storage.deleteMeeting(req.params.id);
       res.status(204).send();
     } catch (error) {

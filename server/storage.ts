@@ -223,6 +223,7 @@ export interface IStorage {
   createGoal(goal: InsertGoal): Promise<Goal>;
   updateGoal(id: string, data: Partial<Goal>): Promise<Goal | undefined>;
   deleteGoal(id: string): Promise<void>;
+  getMilestone(id: string): Promise<Milestone | undefined>;
   getMilestones(goalId: string): Promise<Milestone[]>;
   createMilestone(milestone: InsertMilestone): Promise<Milestone>;
   updateMilestone(id: string, data: Partial<Milestone>): Promise<Milestone | undefined>;
@@ -2023,6 +2024,11 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGoal(id: string): Promise<void> {
     await db.delete(goals).where(eq(goals.id, id));
+  }
+
+  async getMilestone(id: string): Promise<Milestone | undefined> {
+    const [milestone] = await db.select().from(milestones).where(eq(milestones.id, id));
+    return milestone || undefined;
   }
 
   async getMilestones(goalId: string): Promise<Milestone[]> {

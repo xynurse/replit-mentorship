@@ -335,6 +335,7 @@ export default function MenteeCommunityThreadPage() {
       toast({ title: "Reply updated" });
       setEditingReply(null);
       queryClient.invalidateQueries({ queryKey: ["/api/mentee-community/threads", threadId, "replies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/mentee-community/threads", threadId] });
     },
     onError: (error: any) => {
       toast({ title: "Failed to update reply", description: error.message, variant: "destructive" });
