@@ -790,7 +790,7 @@ export default function DocumentsPage() {
                                               checked={filtered.length > 0 && filtered.every(u => uploadShareUserIds.includes(u.id))}
                                               onChange={(e) => {
                                                 if (e.target.checked) {
-                                                  setUploadShareUserIds(prev => [...new Set([...prev, ...filtered.map(u => u.id)])]);
+                                                  setUploadShareUserIds(prev => Array.from(new Set([...prev, ...filtered.map(u => u.id)])));
                                                 } else {
                                                   const filteredIds = new Set(filtered.map(u => u.id));
                                                   setUploadShareUserIds(prev => prev.filter(id => !filteredIds.has(id)));
@@ -1098,7 +1098,7 @@ export default function DocumentsPage() {
                                 checked={filtered.length > 0 && filtered.every(u => shareUserIds.includes(u.id))}
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    setShareUserIds(prev => [...new Set([...prev, ...filtered.map(u => u.id)])]);
+                                    setShareUserIds(prev => Array.from(new Set([...prev, ...filtered.map(u => u.id)])));
                                   } else {
                                     const filteredIds = new Set(filtered.map(u => u.id));
                                     setShareUserIds(prev => prev.filter(id => !filteredIds.has(id)));

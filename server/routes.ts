@@ -25,7 +25,7 @@ import {
   type UploadKind,
 } from "./storage/blob";
 import { AuditService, createAuditMiddleware } from "./audit";
-import ical from "ical-generator";
+import ical, { ICalEventStatus } from "ical-generator";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -3875,8 +3875,8 @@ export async function registerRoutes(
       });
 
       // Restrict folder creation in system resource folders to admins only
-      if (validatedData.parentId) {
-        const parentFolder = await storage.getFolder(validatedData.parentId);
+      if (validatedData.parentFolderId) {
+        const parentFolder = await storage.getFolder(validatedData.parentFolderId);
         if (parentFolder && parentFolder.scope === 'SYSTEM' && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
           return res.status(403).json({ message: "Only administrators can create folders in system resource areas" });
         }
@@ -4873,7 +4873,7 @@ export async function registerRoutes(
           description: ev.description ?? undefined,
           location: ev.location ?? undefined,
           url: ev.meetingUrl ?? undefined,
-          status: "CONFIRMED",
+          status: ICalEventStatus.CONFIRMED,
         });
       }
 

@@ -1810,7 +1810,9 @@ export class DatabaseStorage implements IStorage {
       accessType: documentAccess.accessType,
       grantedById: documentAccess.grantedById,
       grantedAt: documentAccess.grantedAt,
+      sharedAt: documentAccess.sharedAt,
       expiresAt: documentAccess.expiresAt,
+      message: documentAccess.message,
       user: users,
     }).from(documentAccess)
       .innerJoin(users, eq(documentAccess.userId, users.id))
@@ -2712,7 +2714,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSurvey(survey: InsertSurvey): Promise<Survey> {
-    const [result] = await db.insert(surveys).values(survey).returning();
+    // drizzle-zod doesn't propagate .$type<>() inner types for jsonb columns,
+    // so the `questions` field is inferred as unknown[]. Cast it to satisfy the
+    // table's SurveyQuestion[] column type.
+    const [result] = await db.insert(surveys).values(survey as any).returning();
     return result;
   }
 
@@ -3829,7 +3834,8 @@ export class DatabaseStorage implements IStorage {
     const updateData: any = { ...data, lastUpdated: new Date() };
     if (data.status === 'RESOLVED') {
       updateData.resolvedAt = new Date();
-    } else if (data.status && data.status !== 'RESOLVED') {
+    } else if (data.status) {
+      // Any non-RESOLVED status clears the resolved timestamp
       updateData.resolvedAt = null;
     }
     const [updated] = await db.update(platformIssues)

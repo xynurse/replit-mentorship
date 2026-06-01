@@ -30,8 +30,8 @@ function calculateChangedFields(before?: Record<string, any>, after?: Record<str
   if (!before || !after) return [];
   
   const changedFields: string[] = [];
-  const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
-  
+  const allKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+
   for (const key of allKeys) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
       changedFields.push(key);

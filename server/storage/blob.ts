@@ -147,7 +147,7 @@ export async function streamBlobToResponse(
     throw new ObjectNotFoundError();
   }
 
-  let result;
+  let result: Awaited<ReturnType<typeof get>> | null = null;
   try {
     result = await get(blobUrl, { access: "private" });
   } catch (err) {
@@ -157,7 +157,7 @@ export async function streamBlobToResponse(
     throw err;
   }
 
-  if (result.statusCode !== 200) {
+  if (!result || result.statusCode !== 200) {
     throw new ObjectNotFoundError();
   }
 

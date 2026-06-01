@@ -213,9 +213,8 @@ export default function JournalPage() {
         scheduledDate: m.scheduledDate,
         format: m.format,
         agenda: m.agenda,
-        notes: m.notes,
-        durationMinutes: m.durationMinutes,
-        status: m.status,
+        notes: m.discussionNotes,
+        duration: m.duration,
       })),
       journalEntries: myEntries.map(j => ({
         title: j.title,
