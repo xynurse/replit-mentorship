@@ -18,4 +18,7 @@ cookies.txt
 prod_cookies.txt
 *.cookies.txt
 production-migration.sql
-*-migration-prod.sql.claude/
+*-migration-prod.sql
+
+# Claude Code session data (worktrees, transcripts)
+.claude/
