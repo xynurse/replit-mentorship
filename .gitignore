@@ -18,4 +18,4 @@ cookies.txt
 prod_cookies.txt
 *.cookies.txt
 production-migration.sql
-*-migration-prod.sql
+*-migration-prod.sql.claude/
