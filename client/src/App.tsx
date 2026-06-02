@@ -71,6 +71,7 @@ const ProfileViewPage = lazy(() => import("@/pages/profile-view"));
 const MenteeDetailPage = lazy(() => import("@/pages/mentee-detail"));
 const MessagesPage = lazy(() => import("@/pages/messages"));
 const ProgramSelectorPage = lazy(() => import("@/pages/program-selector"));
+const SurveyPage = lazy(() => import("@/pages/survey"));
 
 function PageLoader() {
   return (
@@ -148,6 +149,7 @@ function Router() {
       <ProtectedRoute path="/journal" component={JournalPage} />
       <ProtectedRoute path="/reminders" component={RemindersPage} />
       <ProtectedRoute path="/feedback" component={SubmissionsPage} />
+      <ProtectedRoute path="/survey/:id" component={SurveyPage} />
       <ProtectedRoute path="/profile/:userId" component={ProfileViewPage} />
       <ProtectedRoute path="/profile" component={ProfileViewPage} />
       <ProtectedRoute path="/my-profile" component={MyProfilePage} />

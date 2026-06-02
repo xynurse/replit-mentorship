@@ -214,6 +214,7 @@ export default function AdminApplications() {
   const [activateTarget, setActivateTarget] = useState<ProgramApplication | null>(null);
   const [assignCohortTarget, setAssignCohortTarget] = useState<ProgramApplication | null>(null);
   const [assignCohortId, setAssignCohortId] = useState<string>("");
+  const [selectedApps, setSelectedApps] = useState<ProgramApplication[]>([]);
 
   const { data: applications = [], isLoading } = useQuery<ProgramApplication[]>({
     queryKey: ["/api/admin/program-applications", { status: statusFilter }],
@@ -236,12 +237,22 @@ export default function AdminApplications() {
     },
   });
 
+  const { data: stats } = useQuery<{ total: number; byStatus: Record<string, number> }>({
+    queryKey: ["/api/admin/program-applications/stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/program-applications/stats", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load stats");
+      return res.json();
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, status, adminNotes }: { id: string; status?: string; adminNotes?: string }) => {
       return apiRequest("PATCH", `/api/admin/program-applications/${id}`, { status, adminNotes });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications/stats"] });
       toast({ title: "Application updated" });
       setSelectedApplication(null);
       setReviewNotes("");
@@ -257,6 +268,7 @@ export default function AdminApplications() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications/stats"] });
       toast({
         title: "Account activated",
         description: "User account created and set-password email sent.",
@@ -280,6 +292,7 @@ export default function AdminApplications() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications/stats"] });
       const cohortName = data?.cohort?.name || "cohort";
       const already = data?.alreadyMember;
       toast({
@@ -302,6 +315,19 @@ export default function AdminApplications() {
         variant: "destructive",
       });
     },
+  });
+
+  const bulkStatusMutation = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
+      return apiRequest("POST", "/api/admin/program-applications/bulk-status", { ids, status });
+    },
+    onSuccess: (_, { ids }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/program-applications/stats"] });
+      toast({ title: `${ids.length} application${ids.length !== 1 ? "s" : ""} updated` });
+      setSelectedApps([]);
+    },
+    onError: () => toast({ title: "Bulk update failed", variant: "destructive" }),
   });
 
   // Cohorts eligible for assignment (exclude archived)
@@ -474,6 +500,54 @@ export default function AdminApplications() {
           <p className="text-muted-foreground">Review and process mentorship program applications from <code className="text-xs">/apply</code></p>
         </div>
 
+        {stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {[
+              { key: "PENDING", label: "Pending", color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-900/20" },
+              { key: "REVIEWING", label: "Reviewing", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20" },
+              { key: "APPROVED", label: "Approved", color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20" },
+              { key: "WAITLISTED", label: "Waitlisted", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-900/20" },
+              { key: "REJECTED", label: "Rejected", color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/20" },
+            ].map(({ key, label, color, bg }) => (
+              <button
+                key={key}
+                onClick={() => setStatusFilter(key)}
+                className={`rounded-lg p-3 text-left transition-all hover:opacity-90 active:scale-95 ${bg} ${statusFilter === key ? "ring-2 ring-offset-1 ring-current" : ""}`}
+              >
+                <p className={`text-2xl font-bold ${color}`}>{stats.byStatus[key] ?? 0}</p>
+                <p className={`text-xs font-medium ${color} opacity-80`}>{label}</p>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {selectedApps.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 p-3 bg-muted rounded-lg border">
+            <span className="text-sm font-medium mr-1">{selectedApps.length} selected:</span>
+            <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50"
+              disabled={bulkStatusMutation.isPending}
+              onClick={() => bulkStatusMutation.mutate({ ids: selectedApps.map(a => a.id), status: "REVIEWING" })}>
+              <Clock className="h-3.5 w-3.5 mr-1.5" /> Mark Reviewing
+            </Button>
+            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={bulkStatusMutation.isPending}
+              onClick={() => bulkStatusMutation.mutate({ ids: selectedApps.map(a => a.id), status: "APPROVED" })}>
+              <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Approve All
+            </Button>
+            <Button size="sm" variant="outline" className="text-purple-600 border-purple-200 hover:bg-purple-50"
+              disabled={bulkStatusMutation.isPending}
+              onClick={() => bulkStatusMutation.mutate({ ids: selectedApps.map(a => a.id), status: "WAITLISTED" })}>
+              Waitlist All
+            </Button>
+            <Button size="sm" variant="destructive"
+              disabled={bulkStatusMutation.isPending}
+              onClick={() => bulkStatusMutation.mutate({ ids: selectedApps.map(a => a.id), status: "REJECTED" })}>
+              <XCircle className="h-3.5 w-3.5 mr-1.5" /> Reject All
+            </Button>
+            {bulkStatusMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -519,6 +593,7 @@ export default function AdminApplications() {
                 searchPlaceholder="Search by name, email, or institution…"
                 isLoading={isLoading}
                 emptyMessage="No applications found"
+                onSelectionChange={setSelectedApps}
               />
             )}
           </CardContent>

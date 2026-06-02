@@ -1210,13 +1210,52 @@ export default function CalendarPage() {
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="meetingUrl">Video Call Link</Label>
-                    <Input
-                      id="meetingUrl"
-                      placeholder="https://zoom.us/j/..."
-                      value={newEvent.meetingUrl}
-                      onChange={(e) => setNewEvent(prev => ({ ...prev, meetingUrl: e.target.value }))}
-                      data-testid="input-meeting-url"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="meetingUrl"
+                        placeholder="https://meet.google.com/... or https://zoom.us/j/..."
+                        value={newEvent.meetingUrl}
+                        onChange={(e) => setNewEvent(prev => ({ ...prev, meetingUrl: e.target.value }))}
+                        data-testid="input-meeting-url"
+                        className="flex-1"
+                      />
+                      {!newEvent.meetingUrl && (
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 text-xs px-2"
+                            onClick={() => window.open("https://meet.google.com/new", "_blank")}
+                            title="Open Google Meet to create a new meeting — copy the link back here"
+                          >
+                            Meet
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 text-xs px-2"
+                            onClick={() => window.open("https://zoom.us/start/videomeeting", "_blank")}
+                            title="Open Zoom to start a meeting — copy the link back here"
+                          >
+                            Zoom
+                          </Button>
+                        </div>
+                      )}
+                      {newEvent.meetingUrl && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => window.open(newEvent.meetingUrl, "_blank")}
+                          title="Test the link"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -1406,13 +1445,52 @@ export default function CalendarPage() {
                     <>
                       <div className="space-y-2">
                         <Label htmlFor="edit-meetingUrl">Video Call Link</Label>
-                        <Input
-                          id="edit-meetingUrl"
-                          placeholder="https://zoom.us/j/..."
-                          value={editEvent.meetingUrl}
-                          onChange={(e) => setEditEvent(prev => ({ ...prev, meetingUrl: e.target.value }))}
-                          data-testid="input-edit-meeting-url"
-                        />
+                        <div className="flex gap-2">
+                          <Input
+                            id="edit-meetingUrl"
+                            placeholder="https://meet.google.com/... or https://zoom.us/j/..."
+                            value={editEvent.meetingUrl}
+                            onChange={(e) => setEditEvent(prev => ({ ...prev, meetingUrl: e.target.value }))}
+                            data-testid="input-edit-meeting-url"
+                            className="flex-1"
+                          />
+                          {!editEvent.meetingUrl && (
+                            <div className="flex gap-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="shrink-0 text-xs px-2"
+                                onClick={() => window.open("https://meet.google.com/new", "_blank")}
+                                title="Open Google Meet to create a new meeting — copy the link back here"
+                              >
+                                Meet
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="shrink-0 text-xs px-2"
+                                onClick={() => window.open("https://zoom.us/start/videomeeting", "_blank")}
+                                title="Open Zoom to start a meeting — copy the link back here"
+                              >
+                                Zoom
+                              </Button>
+                            </div>
+                          )}
+                          {editEvent.meetingUrl && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0"
+                              onClick={() => window.open(editEvent.meetingUrl, "_blank")}
+                              title="Test the link"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-2">
@@ -1474,19 +1552,27 @@ export default function CalendarPage() {
                       })()}
 
                       {selectedEvent.meetingUrl && (
-                        <div className="space-y-2">
-                          <Label className="text-muted-foreground">Video Call Link</Label>
-                          <a
-                            href={selectedEvent.meetingUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md text-blue-600 dark:text-blue-400 hover:underline"
-                            data-testid="link-meeting-url"
-                          >
-                            <Video className="h-4 w-4" />
-                            <span className="flex-1 truncate">{selectedEvent.meetingUrl}</span>
-                            <ExternalLink className="h-4 w-4 shrink-0" />
-                          </a>
+                        <div className="space-y-1.5">
+                          <Label className="text-muted-foreground">Video Call</Label>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={selectedEvent.meetingUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-sm text-primary hover:underline truncate"
+                              data-testid="link-meeting-url"
+                            >
+                              {selectedEvent.meetingUrl}
+                            </a>
+                            <Button
+                              size="sm"
+                              onClick={() => window.open(selectedEvent.meetingUrl!, "_blank")}
+                              className="shrink-0"
+                            >
+                              <Video className="h-3.5 w-3.5 mr-1.5" />
+                              Join
+                            </Button>
+                          </div>
                         </div>
                       )}
 
