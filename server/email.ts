@@ -727,3 +727,84 @@ export async function sendAdminPingEmail(data: AdminPingEmailData): Promise<{ su
     return { success: false, error: error.message || 'Failed to send email' };
   }
 }
+
+export interface MatchNotificationEmailData {
+  /** Email address of the recipient (mentor OR mentee) */
+  email: string;
+  recipientName: string;
+  /** Role of the recipient in this match */
+  recipientRole: 'MENTOR' | 'MENTEE';
+  /** Name of the person they've been paired with */
+  partnerName: string;
+  partnerTitle?: string;
+  partnerInstitution?: string;
+  cohortName: string;
+  dashboardUrl: string;
+}
+
+export async function sendMatchNotificationEmail(
+  data: MatchNotificationEmailData,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+
+    const isMentor = data.recipientRole === 'MENTOR';
+    const roleLabel = isMentor ? 'mentee' : 'mentor';
+    const partnerDesc = [data.partnerTitle, data.partnerInstitution].filter(Boolean).join(' · ');
+
+    const result = await client.emails.send({
+      from: fromEmail || 'SONSIEL Mentorship Hub <noreply@sonsiel.org>',
+      to: data.email,
+      subject: `[SONSIEL Mentorship] You've been matched with ${data.partnerName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">🎉 You've been matched!</h1>
+          </div>
+
+          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <p style="font-size: 16px;">Hello ${data.recipientName},</p>
+
+            <p>Great news! You have been paired with your ${roleLabel} for the <strong>${data.cohortName}</strong> program.</p>
+
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin: 20px 0;">
+              <p style="margin: 0 0 6px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Your ${roleLabel}</p>
+              <p style="margin: 0; font-size: 20px; font-weight: 700; color: #111827;">${data.partnerName}</p>
+              ${partnerDesc ? `<p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">${partnerDesc}</p>` : ''}
+            </div>
+
+            <p>Log in to view your ${roleLabel}'s full profile, send your first message, and schedule your initial meeting.</p>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.dashboardUrl}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">View My Match</a>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">
+              If you have any questions, please contact your program administrator.
+            </p>
+          </div>
+
+          <p style="text-align: center; font-size: 12px; color: #9ca3af; margin-top: 20px;">
+            SONSIEL Mentorship Hub — Empowering Healthcare Professionals
+          </p>
+        </body>
+        </html>
+      `,
+    });
+
+    if (result.error) {
+      return { success: false, error: result.error.message };
+    }
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to send match notification email:', error);
+    return { success: false, error: error.message || 'Failed to send email' };
+  }
+}

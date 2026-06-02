@@ -28,8 +28,8 @@ import { AuditService, createAuditMiddleware } from "./audit";
 import ical, { ICalEventStatus } from "ical-generator";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { users as usersTable } from "@shared/schema";
-import { eq, inArray } from "drizzle-orm";
+import { users as usersTable, cohortMemberships as cohortMembershipsTable } from "@shared/schema";
+import { eq, inArray, and } from "drizzle-orm";
 
 const generalApiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
@@ -2712,6 +2712,46 @@ export async function registerRoutes(
       await storage.updateMembership(mentorMembershipId, { matchStatus: 'MATCHED' });
       await storage.updateMembership(menteeMembershipId, { matchStatus: 'MATCHED' });
 
+      // Send match notification emails to both participants (fire-and-forget)
+      try {
+        const [mentorMembership, menteeMembership, cohort] = await Promise.all([
+          storage.getMembership(mentorMembershipId),
+          storage.getMembership(menteeMembershipId),
+          storage.getCohort(cohortId),
+        ]);
+        if (mentorMembership && menteeMembership && cohort) {
+          const [mentorUser, menteeUser] = await Promise.all([
+            storage.getUser(mentorMembership.userId),
+            storage.getUser(menteeMembership.userId),
+          ]);
+          const { sendMatchNotificationEmail, getTrustedBaseUrl } = await import("./email");
+          const baseUrl = getTrustedBaseUrl();
+          if (mentorUser) {
+            await sendMatchNotificationEmail({
+              email: mentorUser.email,
+              recipientName: `${mentorUser.firstName} ${mentorUser.lastName}`,
+              recipientRole: 'MENTOR',
+              partnerName: menteeUser ? `${menteeUser.firstName} ${menteeUser.lastName}` : 'your mentee',
+              cohortName: cohort.name,
+              dashboardUrl: baseUrl,
+            });
+          }
+          if (menteeUser) {
+            await sendMatchNotificationEmail({
+              email: menteeUser.email,
+              recipientName: `${menteeUser.firstName} ${menteeUser.lastName}`,
+              recipientRole: 'MENTEE',
+              partnerName: mentorUser ? `${mentorUser.firstName} ${mentorUser.lastName}` : 'your mentor',
+              cohortName: cohort.name,
+              dashboardUrl: baseUrl,
+            });
+          }
+        }
+      } catch (emailErr) {
+        console.error('[MATCH] Failed to send match notification emails:', emailErr);
+        // Non-fatal: match was created successfully
+      }
+
       res.status(201).json(match);
     } catch (error) {
       next(error);
@@ -3481,11 +3521,22 @@ export async function registerRoutes(
       
       // Filter documents based on user visibility permissions
       const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
-      
-      // Get all documents user has explicit access to
-      const userAccessDocs = await storage.getDocumentAccessByUser(user.id);
+
+      // Fetch user context once (parallel) to avoid N+1 in the filter below
+      const [userAccessDocs, userMemberships, userMatches] = await Promise.all([
+        storage.getDocumentAccessByUser(user.id),
+        isAdmin ? Promise.resolve([]) : db
+          .select({ cohortId: cohortMembershipsTable.cohortId, trackId: cohortMembershipsTable.trackId })
+          .from(cohortMembershipsTable)
+          .where(eq(cohortMembershipsTable.userId, user.id)),
+        isAdmin ? Promise.resolve([]) : storage.getMatchesForUser(user.id),
+      ]);
+
       const accessibleDocIds = new Set(userAccessDocs.map(a => a.documentId));
-      
+      const memberCohortIds = new Set(userMemberships.map(m => m.cohortId));
+      const memberTrackIds = new Set(userMemberships.map(m => m.trackId).filter(Boolean) as string[]);
+      const memberMatchIds = new Set(userMatches.map(m => m.id));
+
       const filteredDocs = allDocs.filter(doc => {
         // Admins can see all documents
         if (isAdmin) return true;
@@ -3495,10 +3546,14 @@ export async function registerRoutes(
         if (doc.visibility === 'PUBLIC') return true;
         // Check if user has explicit share access
         if (accessibleDocIds.has(doc.id)) return true;
-        // PRIVATE only visible to owner (already handled)
+        // PRIVATE only visible to owner (already handled above)
         if (doc.visibility === 'PRIVATE') return false;
-        // COHORT/TRACK/MATCH visibility requires checking user's context
-        // TODO: Implement full cohort/track/match membership checking
+        // COHORT-scoped: user must be a member of the document's cohort
+        if (doc.visibility === 'COHORT') return doc.cohortId ? memberCohortIds.has(doc.cohortId) : false;
+        // TRACK-scoped: user must be a member of the document's track
+        if (doc.visibility === 'TRACK') return doc.trackId ? memberTrackIds.has(doc.trackId) : false;
+        // MATCH-scoped: user must be a participant in the document's match
+        if (doc.visibility === 'MATCH') return doc.matchId ? memberMatchIds.has(doc.matchId) : false;
         return false;
       });
       
@@ -6936,7 +6991,25 @@ export async function registerRoutes(
         if (user.role !== 'MENTOR' && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
           return res.status(403).json({ message: "Only mentors can create mentor-assigned reminders" });
         }
-        // TODO: Verify the recipient is actually a mentee of this mentor
+        // Verify the recipient is actually an active mentee of this mentor
+        // (admins bypass this check so they can create mentor-assigned reminders on behalf)
+        if (recipientId && user.role === 'MENTOR') {
+          const mentorMatches = await storage.getMatchesForUser(user.id);
+          const menteeUserIds = await Promise.all(
+            mentorMatches.map(async (m) => {
+              const [mentorMembership, menteeMembership] = await Promise.all([
+                storage.getMembership(m.mentorMembershipId),
+                storage.getMembership(m.menteeMembershipId),
+              ]);
+              // Only include matches where this user is the mentor
+              return mentorMembership?.userId === user.id ? menteeMembership?.userId : null;
+            })
+          );
+          const isValidMentee = menteeUserIds.filter(Boolean).includes(recipientId);
+          if (!isValidMentee) {
+            return res.status(403).json({ message: "You can only create reminders for your own mentees" });
+          }
+        }
       } else if (reminderType === 'ADMIN_ASSIGNED') {
         if (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
           return res.status(403).json({ message: "Only admins can create admin-assigned reminders" });

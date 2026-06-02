@@ -565,33 +565,81 @@ export default function AdminSurveys() {
       <Dialog open={!!viewingResponses} onOpenChange={() => setViewingResponses(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Survey Responses: {viewingResponses?.title}</DialogTitle>
+            <DialogTitle>
+              Responses — {viewingResponses?.title}
+              {Array.isArray(responses) && responses.length > 0 && (
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  ({responses.length} {responses.length === 1 ? "response" : "responses"})
+                </span>
+              )}
+            </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[60vh]">
+          <ScrollArea className="max-h-[65vh] pr-1">
             {!responses || (responses as any[]).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <ClipboardList className="w-12 h-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No responses yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Share the survey link so participants can respond.
+                </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {(responses as any[]).map((response, index) => (
-                  <Card key={response.id}>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <CardTitle className="text-base">Response #{index + 1}</CardTitle>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(response.submittedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <pre className="text-sm whitespace-pre-wrap">
-                        {JSON.stringify(response.answers, null, 2)}
-                      </pre>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="space-y-4 pb-2">
+                {(responses as any[]).map((response, index) => {
+                  const questions = (viewingResponses?.questions as SurveyQuestion[] | null) ?? [];
+                  const answers = (response.responses ?? {}) as Record<string, unknown>;
+                  return (
+                    <Card key={response.id}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <CardTitle className="text-sm font-semibold">Response #{index + 1}</CardTitle>
+                          <span className="text-xs text-muted-foreground">
+                            {response.submittedAt
+                              ? new Date(response.submittedAt).toLocaleString()
+                              : "Unknown date"}
+                            {!viewingResponses?.isAnonymous && response.userId && (
+                              <span className="ml-2 text-primary/70">· Identified</span>
+                            )}
+                            {viewingResponses?.isAnonymous && (
+                              <span className="ml-2">· Anonymous</span>
+                            )}
+                          </span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {questions.length > 0 ? (
+                          questions.map((q) => {
+                            const raw = answers[q.id];
+                            const formatted = (() => {
+                              if (raw === undefined || raw === null || raw === "") return <span className="text-muted-foreground italic">No answer</span>;
+                              if (Array.isArray(raw)) return raw.join(", ") || <span className="text-muted-foreground italic">None selected</span>;
+                              if (typeof raw === "boolean") return raw ? "Yes" : "No";
+                              if (q.type === "RATING") return `${"★".repeat(Number(raw))}${"☆".repeat(5 - Number(raw))} (${raw}/5)`;
+                              return String(raw);
+                            })();
+                            return (
+                              <div key={q.id} className="grid grid-cols-[1fr_2fr] gap-x-4 gap-y-0.5 text-sm border-b last:border-0 pb-2 last:pb-0">
+                                <span className="text-muted-foreground font-medium pt-0.5 leading-snug">
+                                  {q.text}
+                                  {q.required && <span className="text-destructive ml-0.5">*</span>}
+                                </span>
+                                <span className="leading-snug">{formatted}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          // Fallback: no question metadata, show raw key→value
+                          Object.entries(answers).map(([key, val]) => (
+                            <div key={key} className="grid grid-cols-[1fr_2fr] gap-x-4 text-sm border-b last:border-0 pb-2">
+                              <span className="text-muted-foreground font-mono text-xs">{key}</span>
+                              <span>{Array.isArray(val) ? val.join(", ") : String(val ?? "")}</span>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
