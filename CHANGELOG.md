@@ -8,11 +8,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dat
 
 ## [Unreleased]
 
+### Deploy wrap-up — 2026-06-12
+
+- **DNS cutover confirmed complete** — `mentorship.sonsiel.org` resolves to Vercel and serves the production deployment.
+- **`APP_URL=https://mentorship.sonsiel.org`** set in Vercel production env; production redeployed so email links and ICS feeds use the custom domain.
+- **Replit-era artifacts removed from disk** — `cookies.txt`, `prod_cookies.txt`, `production-migration.sql`, `.replit`, `replit.md` (all were untracked).
+- **`DEPLOYMENT_GUIDE.md` rewritten** for Vercel as the primary host.
+
 ### Pending (see [TODO.md](./TODO.md))
 
-- **DNS cutover** — Repoint `mentorship.sonsiel.org` from Replit to Vercel (`cname.vercel-dns.com`), then set `APP_URL` in Vercel env.
-- **Re-upload 10 program guides** through the admin UI after DNS cutover.
+- **Re-upload 10 program guides** through the admin UI.
+- **Ably realtime verification** — two-browser smoke test (typing indicators, live messages, notification badges).
 - **Favicon** — deferred; needs source asset from project owner.
+- **Observability** — client error reporting (e.g. Sentry) and a log drain for Vercel logs.
 
 ---
 

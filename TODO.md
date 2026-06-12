@@ -83,7 +83,7 @@ Items are grouped by phase. Within a phase they're ordered by what should happen
 
 ## Carried over from migration
 
-See sections below — DNS cutover, token rotation, deploy/operational follow-ups still apply.
+See sections below. DNS cutover and deploy wrap-up are complete (2026-06-12); remaining items are operational follow-ups (guide re-upload, Ably verification, observability).
 
 ---
 
@@ -93,8 +93,8 @@ See sections below — DNS cutover, token rotation, deploy/operational follow-up
 - [x] `BLOB_READ_WRITE_TOKEN` confirmed set on Vercel Production + Preview.
 - [x] `ABLY_API_KEY` set on Vercel.
 - [x] Pushed to `main`; Vercel auto-deploying.
-- [ ] **DNS cutover** — point `mentorship.sonsiel.org` CNAME → `cname.vercel-dns.com`. *(Deferred — to be done later)*
-- [ ] **Re-upload 10 program guides** via admin UI after DNS cutover. *(Deferred)*
+- [x] **DNS cutover** — `mentorship.sonsiel.org` resolves to Vercel (76.76.21.21) and serves the production deployment. Verified 2026-06-12.
+- [ ] **Re-upload 10 program guides** via admin UI. *(Unblocked — cutover is done.)*
 
 ---
 
@@ -102,10 +102,8 @@ See sections below — DNS cutover, token rotation, deploy/operational follow-up
 
 - [x] `ably` v2 installed; socket.io removed.
 - [x] `server/realtime/ably.ts` live.
-- [x] `ABLY_API_KEY` provisioned and set on Vercel.
-- [ ] Create an app for the mentorship platform; capture the API key.
-- [ ] Set `ABLY_API_KEY` in Vercel Production + Preview env. Also pull locally via `vercel env pull`.
-- [ ] Push Phase 2 to `main`; Vercel auto-deploys.
+- [x] `ABLY_API_KEY` provisioned and set on Vercel (Production + Preview).
+- [x] Phase 2 pushed to `main`; deployed.
 
 ### Verification
 
@@ -116,15 +114,12 @@ See sections below — DNS cutover, token rotation, deploy/operational follow-up
 
 ---
 
-## P1 — DNS cutover
-
-**Deferred — to be done when ready.**
+## P1 — DNS cutover ✅ Complete (verified 2026-06-12)
 
 - [x] Add `mentorship.sonsiel.org` as a domain on the Vercel project.
-- [ ] At Google Cloud DNS, add CNAME: `mentorship` → `cname.vercel-dns.com.` (TTL 3600)
-- [ ] Set `APP_URL=https://mentorship.sonsiel.org` in Vercel production env.
-- [ ] Notify users of cutover timing.
-- [ ] Re-upload 10 program guides via admin UI after cutover.
+- [x] DNS points at Vercel — `mentorship.sonsiel.org` resolves to 76.76.21.21 and serves the production deployment (same ETag as `replit-mentorship.vercel.app`).
+- [x] Set `APP_URL=https://mentorship.sonsiel.org` in Vercel production env (2026-06-12) and redeployed production to pick it up.
+- [ ] Re-upload 10 program guides via admin UI.
 
 ---
 
@@ -140,16 +135,17 @@ Done as part of Phase 2 (1.2.0):
 - [x] Delete `server/websocket.ts` (replaced by `server/realtime/ably.ts`).
 - [x] Drop `socket.io`, `socket.io-client`, `@types/socket.io-client`, `bufferutil`.
 
-General hygiene (any time):
+General hygiene:
 
-- [ ] Drop the three `@replit/vite-plugin-*` from `devDependencies`.
-- [ ] Delete `cookies.txt` and `prod_cookies.txt` from the repo root (Replit-era debug artifacts).
-- [ ] Delete `production-migration.sql` (replaced by `npm run db:push` + `npm run seed`).
-- [ ] Delete `.replit` and `replit.md` (no longer the canonical home).
-- [ ] Delete the `script/build.ts` (legacy esbuild bundle for self-hosted Node) and the `build:legacy` npm script if not needed.
-- [ ] Delete `/tmp/mentorship-source.dump` (one-time migration safety net).
+- [x] Drop the three `@replit/vite-plugin-*` from `devDependencies` (commit `cbb2f12`).
+- [x] Delete `cookies.txt` and `prod_cookies.txt` from the repo root (2026-06-12).
+- [x] Delete `production-migration.sql` (2026-06-12).
+- [x] Delete `.replit` and `replit.md` (2026-06-12).
+- [x] Delete the legacy `script/build.ts` and `build:legacy` npm script (already gone).
+- [x] `/tmp/mentorship-source.dump` no longer present.
 - [ ] Drop the Replit-managed Neon project from Neon dashboard (no longer in use).
-- [ ] Update `DEPLOYMENT_GUIDE.md` to reflect Vercel as the primary host (or replace it entirely with this `FEATURES.md` + `CHANGELOG.md` pair).
+- [x] Update `DEPLOYMENT_GUIDE.md` to reflect Vercel as the primary host (2026-06-12).
+- [ ] Decommission the old Replit project (read-only fallback period at owner's discretion).
 
 ---
 
@@ -157,28 +153,19 @@ General hygiene (any time):
 
 The migration surfaced several pre-existing issues. Not blocking, but worth addressing.
 
-### Pre-existing TypeScript errors
+### Pre-existing TypeScript errors ✅ Fixed
 
-These existed before the migration and survive only because `tsx` and Vercel's @vercel/node build skip strict type-checking:
-
-- [ ] `client/src/pages/admin/applications.tsx:233` — `Type 'unknown' is not assignable to type 'ReactNode'`.
-- [ ] `client/src/pages/documents.tsx:777, 1002` — `Set<string>` iteration without `--downlevelIteration`.
-- [ ] `client/src/pages/journal.tsx:216–218` — referencing `notes`, `durationMinutes`, `status` on a meeting type that doesn't have those fields.
-- [ ] `server/audit.ts:35` — same `Set` iteration issue.
-- [ ] `server/routes.ts:3451–3452` — `parentId` not in folder insert schema.
-- [ ] `server/storage.ts:1805, 2709, 3826` — multiple type mismatches in survey insert and platform-issue status comparison.
-
-Run `npm run check` to see the current list. Fix one batch at a time; each fix is small.
+All 14 pre-existing errors were fixed in commit `13ddd03`. `npm run check` passes clean (verified 2026-06-12).
 
 ### Bundle size
 
 - [ ] `pdf-export-Bik-HkE3.js` is 596 KB minified. Consider lazy-loading the PDF flow rather than including jspdf in the main bundle.
 - [ ] `BarChart-BMNgOxqN.js` is 390 KB. Recharts is heavy; route-level code-splitting helps.
 
-### Dependencies
+### Dependencies ✅ Resolved
 
-- [ ] `npm audit` reports 27 vulnerabilities (3 low, 10 moderate, 12 high, 2 critical) — most are transitive. Review and patch what's reachable.
-- [ ] `bufferutil` is in `optionalDependencies`; verify it's still needed (it speeds up websocket frame parsing — irrelevant once socket.io is removed).
+- [x] `npm audit` reports **0 vulnerabilities** (cleared in commit `26d2413`; verified 2026-06-12).
+- [x] `bufferutil` removed along with socket.io.
 
 ### Observability
 

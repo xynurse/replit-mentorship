@@ -1,133 +1,115 @@
 # Mentorship Platform Deployment Guide
 
-This guide explains how to set up a new instance of this mentorship platform for a different program.
+How to deploy and operate this platform on **Vercel**, and how to stand up a new instance for a different program.
 
-## Step 1: Create Your Copy
+> The production instance lives at **https://mentorship.sonsiel.org** (Vercel project `replit-mentorship`). For feature documentation see [FEATURES.md](./FEATURES.md); for release history see [CHANGELOG.md](./CHANGELOG.md); for open work see [TODO.md](./TODO.md).
 
-1. Fork or remix this project in Replit
-2. Give it a new name that reflects your program
+## Architecture
 
-## Step 2: Database Setup
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18 + Vite, served as static assets from `dist/public` |
+| Backend | Express app bundled into a single Vercel serverless function (`api/index.ts`) |
+| Database | PostgreSQL (Neon) via Drizzle ORM |
+| Realtime | Ably (typing indicators, live messages, notification badges) |
+| File storage | Vercel Blob |
+| Email | Resend |
+| Sessions | `express-session` + `connect-pg-simple` (Postgres-backed) |
 
-After creating your copy:
+All `/api/*` requests are rewritten to the serverless function; everything else falls through to the SPA (`vercel.json`).
 
-1. **Create a new PostgreSQL database** using Replit's database tool
-2. The database will be empty - this is expected
-3. When you first run the app, it will automatically create the necessary tables and a default super admin account
+## Environment Variables
 
-### Default Super Admin Credentials
-- Email: `superadmin@yourprogram.org` (update in `server/seed.ts`)
-- Password: `SuperAdmin123!`
+Set these on the Vercel project (Production, plus Preview where noted):
 
-**Important:** Change these credentials immediately after first login.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | Postgres connection string (Neon pooled URL) |
+| `SESSION_SECRET` | Yes | Random 32+ character string |
+| `APP_URL` | Yes (Production) | Canonical origin, e.g. `https://mentorship.sonsiel.org`. Used for links in emails and ICS feeds |
+| `RESEND_API_KEY` | Yes | Resend email API key |
+| `RESEND_FROM_EMAIL` | Recommended | From address, e.g. `SONSIEL Mentorship Hub <noreply@sonsiel.org>` |
+| `ABLY_API_KEY` | Yes | Ably app API key (Production + Preview) |
+| `BLOB_READ_WRITE_TOKEN` | Yes | Vercel Blob token (auto-provisioned when the Blob store is connected) |
+| `BLOB_STORE_ID` / `BLOB_WEBHOOK_PUBLIC_KEY` | Auto | Set automatically by the Blob integration |
 
-## Step 3: Environment Secrets
+Manage them with the CLI: `vercel env ls production`, `vercel env add <NAME> production`, and pull locally with `vercel env pull`.
 
-Set up the following secrets in your new project:
+**After adding or changing a production env var, redeploy** (`vercel redeploy <deployment-url>` or push to `main`) — running functions don't pick up changes.
 
-| Secret Name | Description | How to Get It |
-|-------------|-------------|---------------|
-| `SESSION_SECRET` | Random string for session security | Generate a random 32+ character string |
-| `RESEND_API_KEY` | Email service API key | Sign up at resend.com |
+## Deploying
 
-### Optional Secrets (if using object storage)
-| Secret Name | Description |
-|-------------|-------------|
-| `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | Auto-generated when you set up object storage |
-| `PUBLIC_OBJECT_SEARCH_PATHS` | Auto-generated |
-| `PRIVATE_OBJECT_DIR` | Auto-generated |
+- **Normal flow:** push to `main` on GitHub → Vercel auto-builds and deploys to production.
+- **Manual:** `vercel deploy` for a preview, `vercel deploy --prod` for production.
+- Build = `npm run build` (`scripts/build-server.ts` bundles the server, Vite builds the client into `dist/public`).
+- Type-check before pushing: `npm run check` (must pass clean).
 
-## Step 4: Branding Customization
+## Standing Up a New Instance
 
-Update these files to match your new program:
+### 1. Create the Vercel project
 
-### Program Name & Branding
-- `client/src/components/layouts/dashboard-layout.tsx` - Update "SONSIEL" references
-- `client/src/components/layouts/admin-layout.tsx` - Update admin panel branding
-- `client/src/pages/login.tsx` - Update login page branding
-- `client/src/pages/register.tsx` - Update registration page branding
+1. Fork/clone this repo to a new GitHub repository.
+2. Import it into Vercel (`vercel link` or the dashboard). `vercel.json` carries the build config — no framework preset needed.
 
-### Email Templates
-- `server/routes.ts` - Search for "SONSIEL" and update email content
+### 2. Provision services
 
-### PDF Exports
-- `client/src/lib/pdf-generator.ts` - Update headers and branding in exports
+1. **Postgres** — create a Neon database (Vercel Marketplace or neon.com); set `DATABASE_URL`.
+2. **Blob storage** — add a Vercel Blob store to the project; the token env vars are auto-provisioned.
+3. **Resend** — create an account, verify your sending domain, set `RESEND_API_KEY` and `RESEND_FROM_EMAIL`.
+4. **Ably** — create an app, set `ABLY_API_KEY` (Production + Preview).
+5. Set `SESSION_SECRET` and `APP_URL`.
 
-## Step 5: Customize Program-Specific Options
+### 3. Initialize the database
 
-Edit `shared/schema.ts` for:
-- Fields of expertise options
-- Education level options
-- Any program-specific dropdown values
+```bash
+vercel env pull            # writes .env.local with DATABASE_URL etc.
+npm run db:push            # create schema via drizzle-kit
+npm run seed               # idempotent production seed (scripts/seed-prod.ts)
+```
 
-Edit these frontend files for displayed options:
-- `client/src/pages/my-profile.tsx`
-- `client/src/pages/admin/user-profile.tsx`
+The seed creates required users, community categories, programs, and the system document folder. Update the seed account details in `server/auto-seed.ts` for your program, and change any seeded credentials immediately after first login.
 
-## Step 6: Email Configuration
+### 4. Custom domain
 
-1. Set up a Resend account at resend.com
-2. Add your domain and verify it
-3. Add the `RESEND_API_KEY` secret
-4. Update the "from" email addresses in `server/routes.ts`
+1. Add the domain to the Vercel project (`vercel domains` or dashboard).
+2. At your DNS provider, point the hostname at Vercel (CNAME `cname.vercel-dns.com`, or A record `76.76.21.21` for an apex).
+3. Set `APP_URL` to the final origin and redeploy.
 
-## Step 7: Object Storage (for file uploads)
+### 5. Branding customization
 
-1. Use Replit's Object Storage feature
-2. Configure it through the Replit tools panel
-3. The necessary secrets will be auto-generated
+- `client/src/components/layouts/dashboard-layout.tsx` and `admin-layout.tsx` — program name in the shell.
+- `client/src/pages/login.tsx`, `register.tsx` — auth page branding.
+- `server/routes.ts` — search for "SONSIEL" in email content.
+- `client/src/lib/pdf-generator.ts` — PDF export headers.
+- `shared/schema.ts` — fields of expertise, education levels, and other program-specific dropdown options (mirrored in `client/src/pages/my-profile.tsx` and `client/src/pages/admin/user-profile.tsx`).
 
-## Step 8: First Run Checklist
+### 6. First-run checklist
 
-After completing setup:
+- [ ] Site loads on the production URL; `/api/user` returns 401 when logged out.
+- [ ] Log in with the seeded admin; change the password.
+- [ ] Send a test email (e.g. ping a user) — verify links use `APP_URL`.
+- [ ] Upload a document — verify Vercel Blob storage works.
+- [ ] Two browsers, two users: typing indicators and live messages appear (Ably WebSocket to `realtime.ably.io` in devtools).
+- [ ] Subscribe to the ICS calendar feed and verify event URLs.
 
-- [ ] Run the application
-- [ ] Verify database tables are created
-- [ ] Log in with default super admin credentials
-- [ ] Change the super admin password immediately
-- [ ] Create additional admin accounts as needed
-- [ ] Test email notifications
-- [ ] Test file uploads (if using object storage)
-- [ ] Publish to production
+## Local Development
 
-## Step 9: Publish to Production
+```bash
+vercel env pull        # sync env from Vercel into .env.local
+npm install
+npm run dev            # Express + Vite dev server on :5000
+```
 
-1. Click the "Publish" button in Replit
-2. Configure your custom domain (optional)
-3. Enable autoscaling if needed for your user base
+## Operations
 
-## Data Migration (Optional)
-
-If you need to migrate users from an existing system:
-
-1. Export user data from your source system
-2. Create a migration script in `server/migrations/`
-3. Map fields to the platform's user schema
-4. Import data before going live
-
-## Support & Maintenance
-
-### Regular Tasks
-- Monitor error logs
-- Review user registrations
-- Backup database regularly (Replit provides automatic snapshots)
+- **Logs:** `vercel logs <deployment-url>` or the Vercel dashboard. (Long-term log retention and client error reporting are open items — see TODO.md.)
+- **Rollback:** promote a previous deployment from the Vercel dashboard, or `vercel rollback`.
+- **Database:** Neon provides point-in-time restore; schema changes go through `npm run db:push`.
 
 ### Common Issues
-- **Email not sending**: Check RESEND_API_KEY and domain verification
-- **File uploads failing**: Verify object storage is set up correctly
-- **Login issues**: Check SESSION_SECRET is set
 
-## Platform Features Reference
-
-This platform includes:
-- User roles: Super Admin, Admin, Mentor, Mentee
-- Profile management with mentee/mentor-specific fields
-- Document management with sharing
-- Calendar and meeting scheduling
-- Goal tracking (SMART goals)
-- Mentorship journaling
-- Reminders system
-- Impact report PDF exports
-- Multi-language support (English, Spanish, Portuguese)
-- Email notifications
-- Admin dashboard with analytics
+- **Email not sending** — check `RESEND_API_KEY` and that the sending domain is verified in Resend.
+- **Email links point to the wrong host** — `APP_URL` missing or stale in production; set it and redeploy.
+- **File uploads failing** — verify the Blob store is connected and `BLOB_READ_WRITE_TOKEN` is present.
+- **Login issues / sessions dropping** — check `SESSION_SECRET` is set and `DATABASE_URL` is reachable (sessions are stored in Postgres).
+- **Realtime not updating** — check `ABLY_API_KEY` and the WebSocket connection in browser devtools.
