@@ -30,6 +30,12 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import type { Cohort, User } from "@shared/schema";
+import {
+  toneBadgeClass,
+  toneDotClass,
+  type StatusTone,
+} from "@/components/shared/status-badge";
+import { PageHeader } from "@/components/shared/page-header";
 
 type ParticipantWithUser = {
   id: string;
@@ -122,18 +128,10 @@ export default function AdminMatchingPage() {
     },
   });
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'bg-green-500';
-    if (score >= 60) return 'bg-yellow-500';
-    if (score >= 40) return 'bg-orange-500';
-    return 'bg-red-500';
-  };
-
-  const getScoreBgColor = (score: number) => {
-    if (score >= 80) return 'bg-green-500/10';
-    if (score >= 60) return 'bg-yellow-500/10';
-    if (score >= 40) return 'bg-orange-500/10';
-    return 'bg-red-500/10';
+  const getScoreTone = (score: number): StatusTone => {
+    if (score >= 80) return 'success';
+    if (score >= 60) return 'warning';
+    return 'danger';
   };
 
   const selectedCompatibility = useMemo(() => {
@@ -183,24 +181,22 @@ export default function AdminMatchingPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Matching</h1>
-            <p className="text-muted-foreground mt-1">
-              {cohort?.name ? `Match mentors and mentees for ${cohort.name}` : 'Match mentors and mentees'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => autoMatchMutation.mutate()} disabled={autoMatchMutation.isPending} data-testid="button-refresh">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowConfigPanel(!showConfigPanel)} data-testid="button-config">
-              <Settings2 className="h-4 w-4 mr-2" />
-              Config
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Matching"
+          description={cohort?.name ? `Match mentors and mentees for ${cohort.name}` : 'Match mentors and mentees'}
+          actions={
+            <>
+              <Button variant="outline" size="sm" onClick={() => autoMatchMutation.mutate()} disabled={autoMatchMutation.isPending} data-testid="button-refresh">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowConfigPanel(!showConfigPanel)} data-testid="button-config">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Config
+              </Button>
+            </>
+          }
+        />
 
         <Collapsible open={showConfigPanel} onOpenChange={setShowConfigPanel}>
           <CollapsibleContent>
@@ -282,7 +278,7 @@ export default function AdminMatchingPage() {
                           </div>
                         </div>
                         {bestScore > 0 && (
-                          <Badge variant="secondary" className={cn("text-xs", getScoreBgColor(bestScore))}>
+                          <Badge variant="secondary" className={cn("text-xs", toneBadgeClass(getScoreTone(bestScore)))}>
                             {bestScore}%
                           </Badge>
                         )}
@@ -311,7 +307,7 @@ export default function AdminMatchingPage() {
                     <div className="text-center">
                       <div className={cn(
                         "inline-flex items-center justify-center w-20 h-20 rounded-full text-2xl font-bold text-white mb-2",
-                        getScoreColor(selectedCompatibility.score)
+                        toneDotClass(getScoreTone(selectedCompatibility.score))
                       )}>
                         {selectedCompatibility.score}%
                       </div>
@@ -327,8 +323,8 @@ export default function AdminMatchingPage() {
                           <span className="capitalize text-muted-foreground">{key}</span>
                           <div className="flex items-center gap-2">
                             <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className={cn("h-full", getScoreColor(value))}
+                              <div
+                                className={cn("h-full", toneDotClass(getScoreTone(value)))}
                                 style={{ width: `${value}%` }}
                               />
                             </div>
@@ -343,11 +339,11 @@ export default function AdminMatchingPage() {
                         <Separator />
                         <div className="space-y-2">
                           <h4 className="text-sm font-medium flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3 text-yellow-500" />
+                            <AlertTriangle className="h-3 w-3 text-warning" />
                             Warnings
                           </h4>
                           {selectedCompatibility.flags.map((flag) => (
-                            <Badge key={flag} variant="secondary" className="bg-yellow-500/10 text-yellow-700">
+                            <Badge key={flag} variant="secondary" className={toneBadgeClass("warning")}>
                               {flag.replace(/_/g, ' ')}
                             </Badge>
                           ))}
@@ -432,7 +428,7 @@ export default function AdminMatchingPage() {
                           </div>
                         </div>
                         {compatWithMentor && (
-                          <Badge variant="secondary" className={cn("text-xs", getScoreBgColor(compatWithMentor.score))}>
+                          <Badge variant="secondary" className={cn("text-xs", toneBadgeClass(getScoreTone(compatWithMentor.score)))}>
                             {compatWithMentor.score}%
                           </Badge>
                         )}
@@ -487,9 +483,9 @@ export default function AdminMatchingPage() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {match.flags.length > 0 && (
-                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                          <AlertTriangle className="h-4 w-4 text-warning" />
                         )}
-                        <Badge className={cn("text-white", getScoreColor(match.score))}>
+                        <Badge className={cn("text-white", toneDotClass(getScoreTone(match.score)))}>
                           {match.score}%
                         </Badge>
                       </div>
@@ -526,7 +522,7 @@ export default function AdminMatchingPage() {
             )}
             {matchToCreate && (
               <div className="mt-4 text-center">
-                <Badge className={cn("text-white", getScoreColor(matchToCreate.score))}>
+                <Badge className={cn("text-white", toneDotClass(getScoreTone(matchToCreate.score)))}>
                   {matchToCreate.score}% Compatibility
                 </Badge>
               </div>

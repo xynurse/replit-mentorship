@@ -58,14 +58,10 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import type { ProgramApplication, Cohort } from "@shared/schema";
-
-const statusColors: Record<string, string> = {
-  PENDING: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  REVIEWING: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  APPROVED: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  REJECTED: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  WAITLISTED: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-};
+import { StatusBadge, statusTone, toneBadgeClass } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type RatingData = Record<string, number>;
 
@@ -116,7 +112,7 @@ function ApplicationDetail({ app, cohorts }: { app: ProgramApplication; cohorts:
   return (
     <div className="space-y-4 text-sm">
       {app.provisionedUserId && (
-        <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-800 dark:text-green-300 text-sm">
+        <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg text-success text-sm">
           <UserCheck className="h-4 w-4 shrink-0" />
           <span>
             Account provisioned{app.provisionedAt ? ` on ${format(new Date(app.provisionedAt), "MMM d, yyyy")}` : ""}. Set-password email sent.
@@ -125,7 +121,7 @@ function ApplicationDetail({ app, cohorts }: { app: ProgramApplication; cohorts:
       )}
 
       {assignedCohort && (
-        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-blue-800 dark:text-blue-300 text-sm">
+        <div className="flex items-center gap-2 p-3 bg-info/10 border border-info/20 rounded-lg text-info text-sm">
           <BookOpen className="h-4 w-4 shrink-0" />
           <span>
             Assigned to cohort <strong>{assignedCohort.name}</strong>
@@ -373,15 +369,13 @@ export default function AdminApplications() {
         return (
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1.5">
-              <Badge className={`${statusColors[app.status || "PENDING"]} no-default-hover-elevate no-default-active-elevate`}>
-                {app.status}
-              </Badge>
+              <StatusBadge status={app.status || "PENDING"} label={app.status || "PENDING"} />
               {app.provisionedUserId && (
-                <UserCheck className="h-3.5 w-3.5 text-green-600" aria-label="Account provisioned" />
+                <UserCheck className="h-3.5 w-3.5 text-success" aria-label="Account provisioned" />
               )}
             </div>
             {assignedCohort && (
-              <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+              <span className="text-xs text-info flex items-center gap-1">
                 <BookOpen className="h-3 w-3" />{assignedCohort.name}
               </span>
             )}
@@ -418,7 +412,7 @@ export default function AdminApplications() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => updateMutation.mutate({ id: app.id, status: "APPROVED" })}
-                  className="text-green-600"
+                  className="text-success"
                 >
                   <CheckCircle className="mr-2 h-4 w-4" /> Approve
                 </DropdownMenuItem>
@@ -427,7 +421,7 @@ export default function AdminApplications() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => updateMutation.mutate({ id: app.id, status: "REJECTED" })}
-                  className="text-red-600"
+                  className="text-destructive"
                 >
                   <XCircle className="mr-2 h-4 w-4" /> Reject
                 </DropdownMenuItem>
@@ -437,7 +431,7 @@ export default function AdminApplications() {
               <>
                 <DropdownMenuItem
                   onClick={() => updateMutation.mutate({ id: app.id, status: "APPROVED" })}
-                  className="text-green-600"
+                  className="text-success"
                 >
                   <CheckCircle className="mr-2 h-4 w-4" /> Approve
                 </DropdownMenuItem>
@@ -446,7 +440,7 @@ export default function AdminApplications() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => updateMutation.mutate({ id: app.id, status: "REJECTED" })}
-                  className="text-red-600"
+                  className="text-destructive"
                 >
                   <XCircle className="mr-2 h-4 w-4" /> Reject
                 </DropdownMenuItem>
@@ -469,7 +463,7 @@ export default function AdminApplications() {
                 {!app.assignedCohortId ? (
                   <DropdownMenuItem
                     onClick={() => { setAssignCohortTarget(app); setAssignCohortId(""); }}
-                    className="text-blue-600 font-medium"
+                    className="text-primary font-medium"
                   >
                     <FolderOpen className="mr-2 h-4 w-4" /> Assign to Cohort
                   </DropdownMenuItem>
@@ -477,12 +471,12 @@ export default function AdminApplications() {
                   <DropdownMenuItem
                     onClick={() => { setAssignCohortTarget(app); setAssignCohortId(app.assignedCohortId || ""); }}
                   >
-                    <FolderOpen className="mr-2 h-4 w-4 text-blue-600" /> Change Cohort
+                    <FolderOpen className="mr-2 h-4 w-4 text-primary" /> Change Cohort
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem disabled>
-                  <UserCheck className="mr-2 h-4 w-4 text-green-600" />
-                  <span className="text-green-600">Account Active</span>
+                  <UserCheck className="mr-2 h-4 w-4 text-success" />
+                  <span className="text-success">Account Active</span>
                 </DropdownMenuItem>
               </>
             )}
@@ -495,27 +489,29 @@ export default function AdminApplications() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Applications</h1>
-          <p className="text-muted-foreground">Review and process mentorship program applications from <code className="text-xs">/apply</code></p>
+        <div data-testid="text-page-title">
+          <PageHeader
+            title="Applications"
+            description="Review and process mentorship program applications from /apply"
+          />
         </div>
 
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
-              { key: "PENDING", label: "Pending", color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-900/20" },
-              { key: "REVIEWING", label: "Reviewing", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20" },
-              { key: "APPROVED", label: "Approved", color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20" },
-              { key: "WAITLISTED", label: "Waitlisted", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-900/20" },
-              { key: "REJECTED", label: "Rejected", color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/20" },
-            ].map(({ key, label, color, bg }) => (
+              { key: "PENDING", label: "Pending" },
+              { key: "REVIEWING", label: "Reviewing" },
+              { key: "APPROVED", label: "Approved" },
+              { key: "WAITLISTED", label: "Waitlisted" },
+              { key: "REJECTED", label: "Rejected" },
+            ].map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setStatusFilter(key)}
-                className={`rounded-lg p-3 text-left transition-all hover:opacity-90 active:scale-95 ${bg} ${statusFilter === key ? "ring-2 ring-offset-1 ring-current" : ""}`}
+                className={`rounded-lg p-3 text-left transition-all hover:opacity-90 active:scale-95 ${toneBadgeClass(statusTone(key))} ${statusFilter === key ? "ring-2 ring-offset-1 ring-current" : ""}`}
               >
-                <p className={`text-2xl font-bold ${color}`}>{stats.byStatus[key] ?? 0}</p>
-                <p className={`text-xs font-medium ${color} opacity-80`}>{label}</p>
+                <p className="text-2xl font-bold">{stats.byStatus[key] ?? 0}</p>
+                <p className="text-xs font-medium opacity-80">{label}</p>
               </button>
             ))}
           </div>
@@ -524,17 +520,17 @@ export default function AdminApplications() {
         {selectedApps.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 p-3 bg-muted rounded-lg border">
             <span className="text-sm font-medium mr-1">{selectedApps.length} selected:</span>
-            <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50"
+            <Button size="sm" variant="outline" className="text-info border-info/30 hover:bg-info/10"
               disabled={bulkStatusMutation.isPending}
               onClick={() => bulkStatusMutation.mutate({ ids: selectedApps.map(a => a.id), status: "REVIEWING" })}>
               <Clock className="h-3.5 w-3.5 mr-1.5" /> Mark Reviewing
             </Button>
-            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
+            <Button size="sm" className="bg-success hover:bg-success/90 text-success-foreground"
               disabled={bulkStatusMutation.isPending}
               onClick={() => bulkStatusMutation.mutate({ ids: selectedApps.map(a => a.id), status: "APPROVED" })}>
               <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Approve All
             </Button>
-            <Button size="sm" variant="outline" className="text-purple-600 border-purple-200 hover:bg-purple-50"
+            <Button size="sm" variant="outline" className="text-warning border-warning/30 hover:bg-warning/10"
               disabled={bulkStatusMutation.isPending}
               onClick={() => bulkStatusMutation.mutate({ ids: selectedApps.map(a => a.id), status: "WAITLISTED" })}>
               Waitlist All
@@ -576,16 +572,20 @@ export default function AdminApplications() {
             </div>
           </CardHeader>
           <CardContent>
-            {applications.length === 0 && !isLoading ? (
-              <div className="py-12 text-center">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No {statusFilter === "ALL" ? "" : statusFilter.toLowerCase()} applications</h3>
-                <p className="text-muted-foreground text-sm">
-                  {statusFilter === "PENDING"
-                    ? "New applications from /apply will appear here"
-                    : "No applications match this filter"}
-                </p>
+            {isLoading ? (
+              <div className="space-y-3 py-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
               </div>
+            ) : applications.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title={`No ${statusFilter === "ALL" ? "" : statusFilter.toLowerCase() + " "}applications`}
+                description={statusFilter === "PENDING"
+                  ? "New applications from /apply will appear here"
+                  : "No applications match this filter"}
+              />
             ) : (
               <DataTable
                 data={applications}
@@ -610,18 +610,19 @@ export default function AdminApplications() {
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   {selectedApplication && (
                     <>
-                      <Badge className={`${statusColors[selectedApplication.status || "PENDING"]} no-default-hover-elevate no-default-active-elevate`}>
-                        {selectedApplication.status}
-                      </Badge>
+                      <StatusBadge
+                        status={selectedApplication.status || "PENDING"}
+                        label={selectedApplication.status || "PENDING"}
+                      />
                       {selectedApplication.provisionedUserId && (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 no-default-hover-elevate no-default-active-elevate gap-1">
+                        <Badge className={`${toneBadgeClass("success")} no-default-hover-elevate no-default-active-elevate gap-1`}>
                           <UserCheck className="h-3 w-3" /> Account Active
                         </Badge>
                       )}
                       {selectedApplication.assignedCohortId && (() => {
                         const c = cohorts.find(x => x.id === selectedApplication.assignedCohortId);
                         return c ? (
-                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 no-default-hover-elevate no-default-active-elevate gap-1">
+                          <Badge className={`${toneBadgeClass("info")} no-default-hover-elevate no-default-active-elevate gap-1`}>
                             <BookOpen className="h-3 w-3" /> {c.name}
                           </Badge>
                         ) : null;
@@ -702,7 +703,7 @@ export default function AdminApplications() {
               {selectedApplication?.provisionedUserId && (
                 <Button
                   variant="outline"
-                  className="border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                  className="border-primary/30 text-primary hover:bg-primary/10"
                   onClick={() => {
                     setAssignCohortTarget(selectedApplication);
                     setAssignCohortId(selectedApplication.assignedCohortId || "");
