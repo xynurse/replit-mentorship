@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toneBadgeClass, type StatusTone } from "@/components/shared/status-badge";
 import { Building2, ArrowRight, Loader2, LogOut } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
@@ -14,11 +15,11 @@ const roleLabels: Record<string, string> = {
   MENTEE: "Mentee",
 };
 
-const roleColors: Record<string, string> = {
-  SUPER_ADMIN: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  ADMIN: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  MENTOR: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  MENTEE: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+const roleTones: Record<string, StatusTone> = {
+  SUPER_ADMIN: "danger",
+  ADMIN: "primary",
+  MENTOR: "info",
+  MENTEE: "success",
 };
 
 export default function ProgramSelectorPage() {
@@ -90,7 +91,7 @@ export default function ProgramSelectorPage() {
                       </CardDescription>
                     )}
                   </div>
-                  <Badge className={`shrink-0 mt-0.5 ${roleColors[membership.role] ?? ""} no-default-hover-elevate no-default-active-elevate`}>
+                  <Badge className={`shrink-0 mt-0.5 ${toneBadgeClass(roleTones[membership.role] ?? "neutral")} no-default-hover-elevate no-default-active-elevate`}>
                     {roleLabels[membership.role] ?? membership.role}
                   </Badge>
                 </div>

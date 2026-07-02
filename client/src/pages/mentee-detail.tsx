@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -83,9 +84,9 @@ export default function MenteeDetailPage() {
   const getGoalStatusIcon = (status: string) => {
     switch (status) {
       case "COMPLETED":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+        return <CheckCircle2 className="h-4 w-4 text-success" />;
       case "IN_PROGRESS":
-        return <Clock3 className="h-4 w-4 text-blue-500" />;
+        return <Clock3 className="h-4 w-4 text-info" />;
       default:
         return <Circle className="h-4 w-4 text-muted-foreground" />;
     }
@@ -94,9 +95,9 @@ export default function MenteeDetailPage() {
   const getGoalStatusBadge = (status: string) => {
     switch (status) {
       case "COMPLETED":
-        return <Badge variant="default" className="bg-green-500">Completed</Badge>;
+        return <StatusBadge status="COMPLETED" tone="success" label="Completed" />;
       case "IN_PROGRESS":
-        return <Badge variant="default" className="bg-blue-500">In Progress</Badge>;
+        return <StatusBadge status="IN_PROGRESS" label="In Progress" />;
       case "NOT_STARTED":
         return <Badge variant="secondary">Not Started</Badge>;
       case "ON_HOLD":

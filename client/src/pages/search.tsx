@@ -42,6 +42,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { toneBadgeClass } from "@/components/shared/status-badge";
 
 interface SearchResult {
   users: Array<{
@@ -510,7 +511,7 @@ function UserResult({ user }: { user: SearchResult["users"][0] }) {
     >
       <Avatar className="h-10 w-10">
         <AvatarImage src={user.profileImage || undefined} />
-        <AvatarFallback>
+        <AvatarFallback className="bg-primary/10 text-primary">
           {user.firstName[0]}{user.lastName[0]}
         </AvatarFallback>
       </Avatar>
@@ -529,10 +530,10 @@ function UserResult({ user }: { user: SearchResult["users"][0] }) {
 
 function TaskResult({ task }: { task: SearchResult["tasks"][0] }) {
   const statusColors: Record<string, string> = {
-    TODO: "bg-muted",
-    IN_PROGRESS: "bg-blue-500/10 text-blue-500",
-    COMPLETED: "bg-green-500/10 text-green-500",
-    BLOCKED: "bg-red-500/10 text-red-500",
+    TODO: toneBadgeClass("neutral"),
+    IN_PROGRESS: toneBadgeClass("info"),
+    COMPLETED: toneBadgeClass("success"),
+    BLOCKED: toneBadgeClass("danger"),
   };
 
   return (

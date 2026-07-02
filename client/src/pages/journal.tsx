@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { EmptyState } from "@/components/shared/empty-state";
 import type { JournalEntry, User } from "@shared/schema";
 import type { Goal, MeetingLog, MentorshipMatch } from "@shared/schema";
 import {
@@ -84,11 +85,11 @@ import {
 type JournalEntryWithUser = JournalEntry & { user?: User };
 
 const MOOD_OPTIONS = [
-  { value: "EXCELLENT", label: "Excellent", icon: Star, color: "text-yellow-500" },
-  { value: "GOOD", label: "Good", icon: Smile, color: "text-green-500" },
-  { value: "NEUTRAL", label: "Neutral", icon: Meh, color: "text-gray-500" },
-  { value: "CHALLENGING", label: "Challenging", icon: AlertCircle, color: "text-orange-500" },
-  { value: "DIFFICULT", label: "Difficult", icon: Frown, color: "text-red-500" },
+  { value: "EXCELLENT", label: "Excellent", icon: Star, color: "text-primary" },
+  { value: "GOOD", label: "Good", icon: Smile, color: "text-success" },
+  { value: "NEUTRAL", label: "Neutral", icon: Meh, color: "text-muted-foreground" },
+  { value: "CHALLENGING", label: "Challenging", icon: AlertCircle, color: "text-warning" },
+  { value: "DIFFICULT", label: "Difficult", icon: Frown, color: "text-destructive" },
 ];
 
 const VISIBILITY_OPTIONS = [
@@ -392,9 +393,11 @@ export default function JournalPage() {
                 </div>
               ) : menteeEntries.length === 0 ? (
                 <Card>
-                  <CardContent className="py-12 text-center">
-                    <BookOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                    <p className="text-muted-foreground">No shared journal entries from your mentees yet</p>
+                  <CardContent>
+                    <EmptyState
+                      icon={BookOpen}
+                      title="No shared journal entries from your mentees yet"
+                    />
                   </CardContent>
                 </Card>
               ) : (
@@ -887,12 +890,12 @@ function JournalList({
   if (entries.length === 0) {
     return (
       <Card>
-        <CardContent className="py-12 text-center">
-          <BookOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-          <h3 className="text-lg font-medium mb-2">Start Your Journey</h3>
-          <p className="text-muted-foreground mb-4">
-            Create your first journal entry to track your mentorship growth
-          </p>
+        <CardContent>
+          <EmptyState
+            icon={BookOpen}
+            title="Start Your Journey"
+            description="Create your first journal entry to track your mentorship growth"
+          />
         </CardContent>
       </Card>
     );
@@ -933,7 +936,7 @@ function JournalCard({
               <div className="flex items-center gap-2 mb-2">
                 <Avatar className="h-6 w-6">
                   <AvatarImage src={entry.user.profileImage || undefined} />
-                  <AvatarFallback>
+                  <AvatarFallback className="bg-primary/10 text-primary">
                     {entry.user.firstName?.[0]}{entry.user.lastName?.[0]}
                   </AvatarFallback>
                 </Avatar>

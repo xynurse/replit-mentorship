@@ -46,10 +46,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { PlatformIssue } from "@shared/schema";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof AlertCircle; badgeVariant: "default" | "secondary" | "destructive" | "outline" }> = {
-  INVESTIGATING: { label: "Investigating", color: "text-red-500", icon: Search, badgeVariant: "destructive" },
-  IN_PROGRESS: { label: "In Progress", color: "text-yellow-500", icon: Clock, badgeVariant: "secondary" },
-  MONITORING: { label: "Monitoring", color: "text-blue-500", icon: Activity, badgeVariant: "outline" },
-  RESOLVED: { label: "Resolved", color: "text-green-500", icon: CheckCircle, badgeVariant: "default" },
+  INVESTIGATING: { label: "Investigating", color: "text-destructive", icon: Search, badgeVariant: "destructive" },
+  IN_PROGRESS: { label: "In Progress", color: "text-warning", icon: Clock, badgeVariant: "secondary" },
+  MONITORING: { label: "Monitoring", color: "text-info", icon: Activity, badgeVariant: "outline" },
+  RESOLVED: { label: "Resolved", color: "text-success", icon: CheckCircle, badgeVariant: "default" },
 };
 
 function formatDate(dateString: string | Date) {
@@ -195,7 +195,7 @@ export default function AdminPlatformStatus() {
         ) : issues.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-3" />
+              <CheckCircle className="h-10 w-10 text-success mx-auto mb-3" />
               <p className="text-lg font-medium">All Systems Operational</p>
               <p className="text-sm text-muted-foreground mt-1">
                 No platform issues have been reported. Click "Report Issue" to add one.

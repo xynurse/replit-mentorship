@@ -69,22 +69,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { StatusBadge, toneBadgeClass, type StatusTone } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
 
 type ReminderWithCreator = Reminder & { createdBy?: User };
 type ReminderWithRecipient = Reminder & { recipient?: User | null };
 
-const PRIORITY_OPTIONS = [
-  { value: "LOW", label: "Low", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
-  { value: "NORMAL", label: "Normal", color: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200" },
-  { value: "HIGH", label: "High", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
-  { value: "URGENT", label: "Urgent", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+const PRIORITY_OPTIONS: { value: string; label: string; tone: StatusTone }[] = [
+  { value: "LOW", label: "Low", tone: "info" },
+  { value: "NORMAL", label: "Normal", tone: "neutral" },
+  { value: "HIGH", label: "High", tone: "warning" },
+  { value: "URGENT", label: "Urgent", tone: "danger" },
 ];
 
 const STATUS_OPTIONS = [
-  { value: "PENDING", label: "Pending", icon: Clock, color: "text-yellow-500" },
-  { value: "SENT", label: "Sent", icon: Send, color: "text-blue-500" },
-  { value: "COMPLETED", label: "Completed", icon: CheckCircle2, color: "text-green-500" },
-  { value: "DISMISSED", label: "Dismissed", icon: XCircle, color: "text-gray-500" },
+  { value: "PENDING", label: "Pending", icon: Clock, color: "text-warning" },
+  { value: "SENT", label: "Sent", icon: Send, color: "text-info" },
+  { value: "COMPLETED", label: "Completed", icon: CheckCircle2, color: "text-success" },
+  { value: "DISMISSED", label: "Dismissed", icon: XCircle, color: "text-muted-foreground" },
 ];
 
 const RECURRENCE_OPTIONS = [
@@ -292,7 +294,7 @@ export default function RemindersPage() {
   const getPriorityBadge = (priority: string) => {
     const option = PRIORITY_OPTIONS.find((o) => o.value === priority);
     if (!option) return null;
-    return <Badge className={option.color}>{option.label}</Badge>;
+    return <StatusBadge status={option.value} tone={option.tone} label={option.label} />;
   };
 
   const getTypeBadge = (type: string) => {
@@ -300,9 +302,9 @@ export default function RemindersPage() {
       case "PERSONAL":
         return <Badge variant="secondary" className="gap-1"><UserIcon className="h-3 w-3" />Personal</Badge>;
       case "MENTOR_ASSIGNED":
-        return <Badge variant="default" className="gap-1 bg-purple-600"><UserPlus className="h-3 w-3" />From Mentor</Badge>;
+        return <Badge variant="outline" className={`gap-1 ${toneBadgeClass("info")}`}><UserPlus className="h-3 w-3" />From Mentor</Badge>;
       case "ADMIN_ASSIGNED":
-        return <Badge variant="default" className="gap-1 bg-teal-600"><AlertCircle className="h-3 w-3" />From Admin</Badge>;
+        return <Badge variant="outline" className={`gap-1 ${toneBadgeClass("primary")}`}><AlertCircle className="h-3 w-3" />From Admin</Badge>;
       default:
         return null;
     }
@@ -344,7 +346,7 @@ export default function RemindersPage() {
     return (
       <Card 
         key={reminder.id} 
-        className={`hover-elevate transition-all ${isCompleted ? "opacity-60" : ""} ${overdue ? "border-red-300 dark:border-red-700" : ""}`}
+        className={`hover-elevate transition-all ${isCompleted ? "opacity-60" : ""} ${overdue ? "border-destructive/40" : ""}`}
         data-testid={`card-reminder-${reminder.id}`}
       >
         <CardHeader className="pb-2">
@@ -368,7 +370,7 @@ export default function RemindersPage() {
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              <span className={overdue ? "text-red-500 font-medium" : ""}>
+              <span className={overdue ? "text-destructive font-medium" : ""}>
                 {formatDate(reminder.dueDate)}
                 {overdue && " (Overdue)"}
               </span>
@@ -462,10 +464,7 @@ export default function RemindersPage() {
   };
 
   const renderEmptyState = (message: string) => (
-    <div className="text-center py-12 text-muted-foreground">
-      <Bell className="h-12 w-12 mx-auto mb-4 opacity-50" />
-      <p>{message}</p>
-    </div>
+    <EmptyState icon={Bell} title={message} />
   );
 
   const renderLoadingSkeleton = () => (

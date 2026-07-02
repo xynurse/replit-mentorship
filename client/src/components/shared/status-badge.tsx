@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 /**
  * Single source of truth for status → color across the app.
  * Tones map to the semantic theme tokens (index.css) — never hardcode
- * Tailwind palette colors (bg-blue-500 etc.) for statuses.
+ * raw Tailwind palette colors for statuses.
  */
 export type StatusTone =
   | "success"

@@ -260,7 +260,7 @@ function GoalWizard({ isOpen, onClose, onSuccess }: GoalWizardProps) {
                 index === currentStep
                   ? "bg-primary text-primary-foreground"
                   : index < currentStep
-                  ? "bg-green-600 text-white"
+                  ? "bg-success text-success-foreground"
                   : "bg-muted text-muted-foreground"
               }`}
             >
@@ -709,20 +709,20 @@ export default function GoalsPage() {
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-blue-600">{inProgressGoals}</div>
+              <div className="text-2xl font-bold text-info">{inProgressGoals}</div>
               <div className="text-sm text-muted-foreground">In Progress</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-green-600">{completedGoals}</div>
+              <div className="text-2xl font-bold text-success">{completedGoals}</div>
               <div className="text-sm text-muted-foreground">Completed</div>
             </CardContent>
           </Card>
           <Card
             className={cn(
               "cursor-pointer hover-elevate",
-              atRiskOnly && "border-red-500/60 bg-red-50/40 dark:bg-red-950/20",
+              atRiskOnly && "border-destructive/60 bg-destructive/5",
             )}
             onClick={() => setAtRiskOnly((v) => !v)}
             data-testid="card-needs-attention"
@@ -730,7 +730,7 @@ export default function GoalsPage() {
             <CardContent className="p-4">
               <div className={cn(
                 "text-2xl font-bold",
-                atRiskCount > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground",
+                atRiskCount > 0 ? "text-destructive" : "text-muted-foreground",
               )}>
                 {atRiskCount}
               </div>
@@ -803,7 +803,7 @@ export default function GoalsPage() {
                 key={goal.id}
                 className={cn(
                   "hover-elevate cursor-pointer",
-                  isAtRisk(goal) && "border-red-500/50 bg-red-50/30 dark:bg-red-950/10",
+                  isAtRisk(goal) && "border-destructive/50 bg-destructive/5",
                 )}
                 onClick={() => {
                   setSelectedGoal(goal);

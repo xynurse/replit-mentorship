@@ -769,14 +769,14 @@ export default function AdminMenteeProfiles() {
             {importResults && (
               <div className="space-y-2">
                 <div className="text-sm">
-                  <span className="text-green-600 font-medium">{importResults.successful.length} successful</span>
+                  <span className="text-success font-medium">{importResults.successful.length} successful</span>
                   {" | "}
-                  <span className="text-red-600 font-medium">{importResults.failed.length} failed</span>
+                  <span className="text-destructive font-medium">{importResults.failed.length} failed</span>
                 </div>
                 {importResults.failed.length > 0 && (
                   <div className="max-h-32 overflow-y-auto border rounded-md p-2 text-sm">
                     {importResults.failed.map((f, i) => (
-                      <div key={i} className="text-red-600">
+                      <div key={i} className="text-destructive">
                         Row {f.row} ({f.email}): {f.error}
                       </div>
                     ))}

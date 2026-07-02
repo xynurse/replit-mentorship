@@ -18,10 +18,10 @@ import {
 import type { PlatformIssue } from "@shared/schema";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof AlertCircle; badgeVariant: "default" | "secondary" | "destructive" | "outline" }> = {
-  INVESTIGATING: { label: "Investigating", color: "text-red-500", icon: Search, badgeVariant: "destructive" },
-  IN_PROGRESS: { label: "In Progress", color: "text-yellow-500", icon: Clock, badgeVariant: "secondary" },
-  MONITORING: { label: "Monitoring", color: "text-blue-500", icon: Activity, badgeVariant: "outline" },
-  RESOLVED: { label: "Resolved", color: "text-green-500", icon: CheckCircle, badgeVariant: "default" },
+  INVESTIGATING: { label: "Investigating", color: "text-destructive", icon: Search, badgeVariant: "destructive" },
+  IN_PROGRESS: { label: "In Progress", color: "text-warning", icon: Clock, badgeVariant: "secondary" },
+  MONITORING: { label: "Monitoring", color: "text-info", icon: Activity, badgeVariant: "outline" },
+  RESOLVED: { label: "Resolved", color: "text-success", icon: CheckCircle, badgeVariant: "default" },
 };
 
 const FILTER_OPTIONS = ["ALL", "INVESTIGATING", "IN_PROGRESS", "MONITORING"] as const;
@@ -67,9 +67,9 @@ export function StatusBoard() {
       >
         <div className="flex items-center gap-2">
           {activeIssues.length === 0 ? (
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CheckCircle className="h-4 w-4 text-success" />
           ) : (
-            <AlertCircle className="h-4 w-4 text-yellow-500" />
+            <AlertCircle className="h-4 w-4 text-warning" />
           )}
           <span className="font-medium text-foreground">Platform Status</span>
           {activeIssues.length > 0 && (
@@ -92,8 +92,8 @@ export function StatusBoard() {
         >
           {issues.length === 0 ? (
             <div className="flex items-center gap-2 py-3 justify-center" data-testid="status-all-operational">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <span className="text-sm font-medium text-green-600 dark:text-green-400">
+              <CheckCircle className="h-5 w-5 text-success" />
+              <span className="text-sm font-medium text-success">
                 All systems operational
               </span>
             </div>

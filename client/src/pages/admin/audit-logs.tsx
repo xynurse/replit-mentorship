@@ -445,7 +445,7 @@ export default function AuditLogs() {
                       </TableCell>
                       <TableCell>
                         {log.success ? (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <CheckCircle className="h-4 w-4 text-success" />
                         ) : (
                           <XCircle className="h-4 w-4 text-destructive" />
                         )}

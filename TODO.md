@@ -81,14 +81,15 @@ Items are grouped by phase. Within a phase they're ordered by what should happen
 
 ---
 
-## Phase 11 — Calm Clinical, Phase 2 (design de-AI pass) 🚧 In progress
+## Phase 11 — Calm Clinical, Phase 2 (design de-AI pass) ✅ Complete (2026-07-02)
 
-Extends the sage/Hanken Grotesk theme (commit `5f1ff5d`, login-only) across the whole app. Audit found 206 hardcoded Tailwind palette colors across 23 files — rainbow status badges, per-card stat colors, leftover gradient blobs.
+Extends the sage/Hanken Grotesk theme (commit `5f1ff5d`, login-only) across the whole app. Audit found 200+ hardcoded Tailwind palette colors across 30+ files — rainbow status badges, per-card stat colors, leftover gradient blobs.
 
 - [x] **Semantic status palette** — `--success` / `--warning` / `--info` tokens (light + dark) in `index.css`, exposed in Tailwind; `status.*` colors retuned to tokens.
-- [x] **Shared primitives** in `components/shared/` — `PageHeader`, `StatCard` (extracted from home), `EmptyState`, `StatusBadge` (single status→tone map), `EventTypeIndicator`.
-- [ ] **Worst-page sweep** — calendar, notifications + bell, admin/connections, admin/matching, admin/applications, forgot-password (leftover glow blobs) onto tokens/primitives.
-- [ ] **Long tail** — remaining ~15 files with hardcoded palette colors; adopt PageHeader/EmptyState app-wide; unify loading states on skeletons.
+- [x] **Shared primitives** in `components/shared/` — `PageHeader`, `StatCard` (extracted from home), `EmptyState`, `StatusBadge` (single status→tone map), `EventTypeIndicator`, `notification-meta` (21 types → icon + 3 calm tones).
+- [x] **Worst-page sweep** — calendar, notifications + bell, admin/connections, admin/matching, admin/applications, forgot-password (leftover glow blobs) onto tokens/primitives.
+- [x] **Long tail** — every remaining client file swept; **zero raw Tailwind palette classes remain** in client/src. reset-password.tsx (missed by the original redesign) rebuilt to match login/forgot-password.
+- [ ] **Follow-ups** — adopt PageHeader/EmptyState on remaining pages that kept bespoke headers for `data-testid` reasons; unify remaining spinner-only loading states on skeletons; visual QA pass in dark mode.
 
 ## Phase 12 — Feature roadmap (from 2026-07-02 product audit)
 

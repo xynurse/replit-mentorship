@@ -110,7 +110,7 @@ export default function AdminSettings() {
                   <Label>Database Status</Label>
                   <p className="text-sm text-muted-foreground">PostgreSQL database is connected and operational</p>
                 </div>
-                <span className="text-sm font-medium text-green-600 dark:text-green-400">Connected</span>
+                <span className="text-sm font-medium text-success">Connected</span>
               </div>
             </CardContent>
           </Card>
@@ -129,7 +129,7 @@ export default function AdminSettings() {
                   <Label>Email Provider</Label>
                   <p className="text-sm text-muted-foreground">Resend</p>
                 </div>
-                <span className="text-sm font-medium text-green-600 dark:text-green-400">Configured</span>
+                <span className="text-sm font-medium text-success">Configured</span>
               </div>
               <Separator />
               <div className="space-y-2">

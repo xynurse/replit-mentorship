@@ -70,7 +70,7 @@ function RatingInput({
               className={cn(
                 "h-7 w-7 transition-colors",
                 filled
-                  ? "fill-yellow-400 text-yellow-400"
+                  ? "fill-warning text-warning"
                   : "fill-transparent text-muted-foreground"
               )}
             />
@@ -319,7 +319,7 @@ export default function SurveyPage() {
         <div className="flex justify-center py-8">
           <Card className="w-full max-w-2xl text-center">
             <CardHeader className="items-center gap-3">
-              <CheckCircle2 className="h-12 w-12 text-green-500" />
+              <CheckCircle2 className="h-12 w-12 text-success" />
               <CardTitle>Thank you!</CardTitle>
               <CardDescription>
                 Your response to &ldquo;{survey.title}&rdquo; has been submitted successfully.

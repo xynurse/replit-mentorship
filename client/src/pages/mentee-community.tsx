@@ -38,6 +38,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { EmptyState } from "@/components/shared/empty-state";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search,
@@ -202,7 +203,7 @@ function ThreadCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               {thread.isPinned && (
-                <Pin className="h-4 w-4 text-indigo-500 shrink-0" />
+                <Pin className="h-4 w-4 text-primary shrink-0" />
               )}
               <CardTitle className="text-lg truncate">{thread.title}</CardTitle>
             </div>
@@ -223,7 +224,7 @@ function ThreadCard({
               }}
               data-testid={`button-pin-mentee-${thread.id}`}
             >
-              <Pin className={`h-4 w-4 ${thread.isPinned ? "text-indigo-500" : ""}`} />
+              <Pin className={`h-4 w-4 ${thread.isPinned ? "text-primary" : ""}`} />
             </Button>
           )}
         </div>
@@ -237,7 +238,7 @@ function ThreadCard({
         <div className="flex items-center gap-3">
           <Avatar className="h-6 w-6">
             <AvatarImage src={thread.author.profileImage || undefined} />
-            <AvatarFallback className="text-xs">
+            <AvatarFallback className="text-xs bg-primary/10 text-primary">
               {getInitials(thread.author.firstName, thread.author.lastName)}
             </AvatarFallback>
           </Avatar>
@@ -535,7 +536,7 @@ export default function MenteeCommunityPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <GraduationCap className="h-6 w-6 text-indigo-500" />
+              <GraduationCap className="h-6 w-6 text-primary" />
               <h1 className="text-2xl font-semibold">Mentee Community Board</h1>
             </div>
             <p className="text-muted-foreground">
@@ -605,20 +606,21 @@ export default function MenteeCommunityPage() {
           </div>
         ) : sortedThreads.length === 0 ? (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <GraduationCap className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium">No discussions yet</h3>
-              <p className="text-muted-foreground text-center max-w-sm mt-2">
-                Be the first to start a discussion in the mentee community!
-              </p>
-              <Button 
-                className="mt-4" 
-                onClick={() => setShowCreateDialog(true)}
-                data-testid="button-first-mentee-thread"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Start Discussion
-              </Button>
+            <CardContent>
+              <EmptyState
+                icon={GraduationCap}
+                title="No discussions yet"
+                description="Be the first to start a discussion in the mentee community!"
+                action={
+                  <Button
+                    onClick={() => setShowCreateDialog(true)}
+                    data-testid="button-first-mentee-thread"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Start Discussion
+                  </Button>
+                }
+              />
             </CardContent>
           </Card>
         ) : (

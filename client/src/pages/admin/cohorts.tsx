@@ -60,12 +60,12 @@ const cohortFormSchema = z.object({
 type CohortFormValues = z.infer<typeof cohortFormSchema>;
 
 const statusColors: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-  RECRUITING: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  MATCHING: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  ACTIVE: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  COMPLETED: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  ARCHIVED: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500",
+  DRAFT: "bg-muted text-muted-foreground",
+  RECRUITING: "bg-info/10 text-info",
+  MATCHING: "bg-warning/10 text-warning",
+  ACTIVE: "bg-success/10 text-success",
+  COMPLETED: "bg-primary/10 text-primary",
+  ARCHIVED: "bg-muted text-muted-foreground",
 };
 
 export default function AdminCohorts() {
