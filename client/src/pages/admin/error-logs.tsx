@@ -251,9 +251,9 @@ export default function ErrorLogs() {
                       </TableCell>
                       <TableCell>
                         {log.resolved ? (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <CheckCircle className="h-4 w-4 text-success" />
                         ) : (
-                          <AlertTriangle className="h-4 w-4 text-amber-500" />
+                          <AlertTriangle className="h-4 w-4 text-warning" />
                         )}
                       </TableCell>
                       <TableCell>

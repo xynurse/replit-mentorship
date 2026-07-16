@@ -2,8 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Users, 
   Calendar, 
-  MessageSquare, 
-  TrendingUp, 
+  MessageSquare,
   Clock,
   ArrowRight,
   CheckCircle,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { StatCard } from "@/components/shared/stat-card";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -375,41 +375,6 @@ export default function HomePage() {
       </div>
     </DashboardLayout>
   );
-}
-
-function StatCard({
-  title,
-  value,
-  change,
-  icon,
-  href,
-}: {
-  title: string;
-  value: string;
-  change: string;
-  icon: React.ReactNode;
-  href?: string;
-}) {
-  const body = (
-    <Card className={href ? "hover-elevate cursor-pointer transition-shadow" : ""}>
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-2xl font-semibold mt-1">{value}</p>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-primary" />
-              {change}
-            </p>
-          </div>
-          <div className="p-3 rounded-md bg-primary/10 text-primary">
-            {icon}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-  return href ? <Link href={href}>{body}</Link> : body;
 }
 
 function ActivityItem({

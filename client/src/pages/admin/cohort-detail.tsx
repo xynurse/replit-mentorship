@@ -35,12 +35,12 @@ import { format } from "date-fns";
 import type { Cohort, CohortStatus } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-  RECRUITING: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  MATCHING: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  ACTIVE: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  COMPLETED: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  ARCHIVED: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500",
+  DRAFT: "bg-muted text-muted-foreground",
+  RECRUITING: "bg-info/10 text-info",
+  MATCHING: "bg-warning/10 text-warning",
+  ACTIVE: "bg-success/10 text-success",
+  COMPLETED: "bg-primary/10 text-primary",
+  ARCHIVED: "bg-muted text-muted-foreground",
 };
 
 const statusDescriptions: Record<string, string> = {
@@ -455,28 +455,28 @@ export default function CohortDetail() {
                   <CardContent>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                       <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md">
-                        <UserPlus className="h-8 w-8 text-blue-500" />
+                        <UserPlus className="h-8 w-8 text-primary" />
                         <div>
                           <p className="text-2xl font-bold">0</p>
                           <p className="text-sm text-muted-foreground">Applications</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md">
-                        <Users className="h-8 w-8 text-green-500" />
+                        <Users className="h-8 w-8 text-primary" />
                         <div>
                           <p className="text-2xl font-bold">0</p>
                           <p className="text-sm text-muted-foreground">Active Mentors</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md">
-                        <Users className="h-8 w-8 text-purple-500" />
+                        <Users className="h-8 w-8 text-primary" />
                         <div>
                           <p className="text-2xl font-bold">0</p>
                           <p className="text-sm text-muted-foreground">Active Mentees</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md">
-                        <Target className="h-8 w-8 text-orange-500" />
+                        <Target className="h-8 w-8 text-primary" />
                         <div>
                           <p className="text-2xl font-bold">0</p>
                           <p className="text-sm text-muted-foreground">Active Matches</p>

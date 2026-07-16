@@ -49,19 +49,14 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User, MentorshipMatch, Goal } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
 
 type MatchWithDetails = MentorshipMatch & {
   mentor: User;
   mentee: User;
   cohort?: { id: string; name: string };
-};
-
-const statusColors: Record<string, string> = {
-  PROPOSED: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
-  ACTIVE: "bg-green-500/10 text-green-700 dark:text-green-400",
-  PAUSED: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
-  COMPLETED: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
-  TERMINATED: "bg-red-500/10 text-red-700 dark:text-red-400",
 };
 
 export default function AdminConnectionsPage() {
@@ -266,24 +261,22 @@ export default function AdminConnectionsPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Mentor-Mentee Connections</h1>
-            <p className="text-muted-foreground mt-1">
-              Easily connect mentors with mentees and manage their relationships
-            </p>
-          </div>
-          <Button onClick={() => refetchMatches()} variant="outline" size="sm" data-testid="button-refresh">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
+        <PageHeader
+          title="Mentor-Mentee Connections"
+          description="Easily connect mentors with mentees and manage their relationships"
+          actions={
+            <Button onClick={() => refetchMatches()} variant="outline" size="sm" data-testid="button-refresh">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          }
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-md bg-blue-500/10">
-                <UserCheck className="h-5 w-5 text-blue-600" />
+              <div className="p-2 rounded-md bg-primary/10 text-primary">
+                <UserCheck className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{mentors.length}</p>
@@ -295,8 +288,8 @@ export default function AdminConnectionsPage() {
           </Card>
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-md bg-purple-500/10">
-                <GraduationCap className="h-5 w-5 text-purple-600" />
+              <div className="p-2 rounded-md bg-primary/10 text-primary">
+                <GraduationCap className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{mentees.length}</p>
@@ -308,8 +301,8 @@ export default function AdminConnectionsPage() {
           </Card>
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-md bg-green-500/10">
-                <Users className="h-5 w-5 text-green-600" />
+              <div className="p-2 rounded-md bg-primary/10 text-primary">
+                <Users className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{matches.filter(m => m.status === 'ACTIVE').length}</p>
@@ -319,8 +312,8 @@ export default function AdminConnectionsPage() {
           </Card>
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-md bg-gray-500/10">
-                <Users className="h-5 w-5 text-gray-600" />
+              <div className="p-2 rounded-md bg-primary/10 text-primary">
+                <Users className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{matches.length}</p>
@@ -377,7 +370,7 @@ export default function AdminConnectionsPage() {
                           >
                             <Avatar className="h-8 w-8">
                               <AvatarImage src={u.id ? `/api/profile-photo/${u.id}` : undefined} />
-                              <AvatarFallback className="bg-blue-500/10 text-blue-700 text-xs">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
                                 {getInitials(u)}
                               </AvatarFallback>
                             </Avatar>
@@ -426,7 +419,7 @@ export default function AdminConnectionsPage() {
                           >
                             <Avatar className="h-8 w-8">
                               <AvatarImage src={u.id ? `/api/profile-photo/${u.id}` : undefined} />
-                              <AvatarFallback className="bg-purple-500/10 text-purple-700 text-xs">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
                                 {getInitials(u)}
                               </AvatarFallback>
                             </Avatar>
@@ -490,11 +483,12 @@ export default function AdminConnectionsPage() {
               </CardHeader>
               <CardContent>
                 {filteredMatches.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No connections found</p>
-                    <p className="text-sm">Create a new connection in the "Create Connection" tab</p>
-                  </div>
+                  <EmptyState
+                    icon={Users}
+                    title="No connections found"
+                    description={'Create a new connection in the "Create Connection" tab'}
+                    className="py-8"
+                  />
                 ) : (
                   <div className="space-y-3">
                     {filteredMatches.map((match) => (
@@ -508,7 +502,7 @@ export default function AdminConnectionsPage() {
                             <div className="flex items-center gap-2">
                               <Avatar className="h-9 w-9">
                                 <AvatarImage src={match.mentor?.profileImage || undefined} />
-                                <AvatarFallback className="bg-blue-500/10 text-blue-700">
+                                <AvatarFallback className="bg-primary/10 text-primary">
                                   {match.mentor ? getInitials(match.mentor) : '?'}
                                 </AvatarFallback>
                               </Avatar>
@@ -525,7 +519,7 @@ export default function AdminConnectionsPage() {
                             <div className="flex items-center gap-2">
                               <Avatar className="h-9 w-9">
                                 <AvatarImage src={match.mentee?.profileImage || undefined} />
-                                <AvatarFallback className="bg-purple-500/10 text-purple-700">
+                                <AvatarFallback className="bg-primary/10 text-primary">
                                   {match.mentee ? getInitials(match.mentee) : '?'}
                                 </AvatarFallback>
                               </Avatar>
@@ -539,9 +533,10 @@ export default function AdminConnectionsPage() {
                           </div>
                           
                           <div className="hidden md:flex items-center gap-2 shrink-0">
-                            <Badge className={cn("text-xs", statusColors[match.status || 'ACTIVE'])}>
-                              {match.status || 'ACTIVE'}
-                            </Badge>
+                            <StatusBadge
+                              status={match.status || 'ACTIVE'}
+                              label={match.status || 'ACTIVE'}
+                            />
                             {match.cohort && (
                               <Badge variant="outline" className="text-xs">
                                 {match.cohort.name}
@@ -561,9 +556,9 @@ export default function AdminConnectionsPage() {
                               <Eye className="h-4 w-4 mr-2" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => setMatchToDelete(match)}
-                              className="text-red-600"
+                              className="text-destructive"
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
                               Delete Connection
@@ -618,7 +613,7 @@ export default function AdminConnectionsPage() {
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
                               <AvatarImage src={mentor.profileImage || undefined} />
-                              <AvatarFallback className="bg-blue-500/10 text-blue-700">
+                              <AvatarFallback className="bg-primary/10 text-primary">
                                 {getInitials(mentor)}
                               </AvatarFallback>
                             </Avatar>
@@ -659,7 +654,7 @@ export default function AdminConnectionsPage() {
                           <div className="text-center">
                             <Avatar className="h-14 w-14 mx-auto mb-2">
                               <AvatarImage src={selectedMentor.profileImage || undefined} />
-                              <AvatarFallback className="bg-blue-500/10 text-blue-700 text-lg">
+                              <AvatarFallback className="bg-primary/10 text-primary text-lg">
                                 {getInitials(selectedMentor)}
                               </AvatarFallback>
                             </Avatar>
@@ -670,7 +665,7 @@ export default function AdminConnectionsPage() {
                           <div className="text-center">
                             <Avatar className="h-14 w-14 mx-auto mb-2">
                               <AvatarImage src={selectedMentee.profileImage || undefined} />
-                              <AvatarFallback className="bg-purple-500/10 text-purple-700 text-lg">
+                              <AvatarFallback className="bg-primary/10 text-primary text-lg">
                                 {getInitials(selectedMentee)}
                               </AvatarFallback>
                             </Avatar>
@@ -693,7 +688,7 @@ export default function AdminConnectionsPage() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Status</span>
-                          <Badge className="bg-green-500/10 text-green-700">Active</Badge>
+                          <StatusBadge status="ACTIVE" label="Active" />
                         </div>
                       </div>
 
@@ -720,10 +715,11 @@ export default function AdminConnectionsPage() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p className="text-sm">Select a mentor and mentee from the lists to create a connection</p>
-                    </div>
+                    <EmptyState
+                      icon={Users}
+                      title="Select a mentor and mentee from the lists to create a connection"
+                      className="py-8"
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -766,7 +762,7 @@ export default function AdminConnectionsPage() {
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
                               <AvatarImage src={mentee.profileImage || undefined} />
-                              <AvatarFallback className="bg-purple-500/10 text-purple-700">
+                              <AvatarFallback className="bg-primary/10 text-primary">
                                 {getInitials(mentee)}
                               </AvatarFallback>
                             </Avatar>
@@ -807,7 +803,7 @@ export default function AdminConnectionsPage() {
                 <div className="text-center">
                   <Avatar className="h-12 w-12 mx-auto mb-2">
                     <AvatarImage src={selectedMentor.profileImage || undefined} />
-                    <AvatarFallback className="bg-blue-500/10 text-blue-700">
+                    <AvatarFallback className="bg-primary/10 text-primary">
                       {getInitials(selectedMentor)}
                     </AvatarFallback>
                   </Avatar>
@@ -818,7 +814,7 @@ export default function AdminConnectionsPage() {
                 <div className="text-center">
                   <Avatar className="h-12 w-12 mx-auto mb-2">
                     <AvatarImage src={selectedMentee.profileImage || undefined} />
-                    <AvatarFallback className="bg-purple-500/10 text-purple-700">
+                    <AvatarFallback className="bg-primary/10 text-primary">
                       {getInitials(selectedMentee)}
                     </AvatarFallback>
                   </Avatar>
@@ -851,7 +847,7 @@ export default function AdminConnectionsPage() {
                 <div className="text-center">
                   <Avatar className="h-14 w-14 mx-auto mb-2">
                     <AvatarImage src={matchToView.mentor?.profileImage || undefined} />
-                    <AvatarFallback className="bg-blue-500/10 text-blue-700 text-lg">
+                    <AvatarFallback className="bg-primary/10 text-primary text-lg">
                       {matchToView.mentor ? getInitials(matchToView.mentor) : '?'}
                     </AvatarFallback>
                   </Avatar>
@@ -862,7 +858,7 @@ export default function AdminConnectionsPage() {
                 <div className="text-center">
                   <Avatar className="h-14 w-14 mx-auto mb-2">
                     <AvatarImage src={matchToView.mentee?.profileImage || undefined} />
-                    <AvatarFallback className="bg-purple-500/10 text-purple-700 text-lg">
+                    <AvatarFallback className="bg-primary/10 text-primary text-lg">
                       {matchToView.mentee ? getInitials(matchToView.mentee) : '?'}
                     </AvatarFallback>
                   </Avatar>
@@ -876,9 +872,10 @@ export default function AdminConnectionsPage() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Status</span>
-                  <Badge className={cn(statusColors[matchToView.status || 'ACTIVE'])}>
-                    {matchToView.status || 'ACTIVE'}
-                  </Badge>
+                  <StatusBadge
+                    status={matchToView.status || 'ACTIVE'}
+                    label={matchToView.status || 'ACTIVE'}
+                  />
                 </div>
                 {matchToView.cohort && (
                   <div className="flex justify-between items-center">
@@ -920,17 +917,11 @@ export default function AdminConnectionsPage() {
                         >
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <p className="text-sm font-medium line-clamp-2">{goal.title}</p>
-                            <Badge 
-                              variant="outline" 
-                              className={cn(
-                                "shrink-0 text-xs",
-                                goal.status === 'COMPLETED' && "bg-green-500/10 text-green-700 border-green-300",
-                                goal.status === 'IN_PROGRESS' && "bg-blue-500/10 text-blue-700 border-blue-300",
-                                goal.status === 'NOT_STARTED' && "bg-gray-500/10 text-gray-600 border-gray-300"
-                              )}
-                            >
-                              {goal.status?.replace('_', ' ') || 'NOT STARTED'}
-                            </Badge>
+                            <StatusBadge
+                              status={goal.status || 'NOT_STARTED'}
+                              label={goal.status?.replace('_', ' ') || 'NOT STARTED'}
+                              className="shrink-0"
+                            />
                           </div>
                           {goal.progress !== undefined && goal.progress !== null && (
                             <div className="space-y-1">
@@ -992,7 +983,7 @@ export default function AdminConnectionsPage() {
             <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => matchToDelete && deleteMatchMutation.mutate(matchToDelete.id)}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete"
             >
               {deleteMatchMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

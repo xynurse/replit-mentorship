@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { useTheme } from "@/components/theme-provider";
 
 export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -26,7 +25,6 @@ export default function ResetPasswordPage() {
   const [, setLocation] = useLocation();
   const params = useParams<{ token: string }>();
   const { resetPasswordMutation } = useAuth();
-  const { theme } = useTheme();
 
   const form = useForm<ResetPasswordInput>({
     resolver: zodResolver(resetPasswordSchema),
@@ -42,7 +40,7 @@ export default function ResetPasswordPage() {
 
   function onSubmit(values: ResetPasswordInput) {
     if (!params.token) return;
-    
+
     resetPasswordMutation.mutate(
       { token: params.token, password: values.password },
       {
@@ -55,27 +53,19 @@ export default function ResetPasswordPage() {
     if (!params.token) {
       return (
         <div className="text-center space-y-6">
-          <div 
-            className="mx-auto w-16 h-16 rounded-full flex items-center justify-center bg-destructive/10"
-          >
+          <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center bg-destructive/10">
             <AlertCircle className="h-8 w-8 text-destructive" />
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">Invalid link</h2>
+            <h2 className="text-2xl font-semibold text-foreground mb-2">Invalid link</h2>
             <p className="text-muted-foreground">
               This password reset link is invalid or has expired. Please request a new one.
             </p>
           </div>
 
           <Link href="/forgot-password">
-            <Button 
-              className="w-full h-12"
-              style={{
-                background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
-              }}
-              data-testid="link-request-new"
-            >
+            <Button className="w-full h-12" data-testid="link-request-new">
               Request new link
             </Button>
           </Link>
@@ -86,18 +76,12 @@ export default function ResetPasswordPage() {
     if (isSuccess) {
       return (
         <div className="text-center space-y-6">
-          <div 
-            className="mx-auto w-16 h-16 rounded-full flex items-center justify-center"
-            style={{
-              background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
-              boxShadow: '0 8px 24px -8px rgba(20,184,166,0.5)'
-            }}
-          >
-            <CheckCircle className="h-8 w-8 text-white" />
+          <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center bg-success/10 text-success">
+            <CheckCircle className="h-8 w-8" />
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">Password reset successful</h2>
+            <h2 className="text-2xl font-semibold text-foreground mb-2">Password reset successful</h2>
             <p className="text-muted-foreground">
               Your password has been changed. You can now sign in with your new password.
             </p>
@@ -105,9 +89,6 @@ export default function ResetPasswordPage() {
 
           <Button
             className="w-full h-12"
-            style={{
-              background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
-            }}
             onClick={() => setLocation("/login")}
             data-testid="button-go-login"
           >
@@ -120,16 +101,10 @@ export default function ResetPasswordPage() {
     return (
       <>
         <div className="text-center mb-8">
-          <div 
-            className="mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-4"
-            style={{
-              background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
-              boxShadow: '0 8px 24px -8px rgba(20,184,166,0.5)'
-            }}
-          >
-            <Lock className="h-7 w-7 text-white" />
+          <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-primary text-primary-foreground">
+            <Lock className="h-7 w-7" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Create new password</h2>
+          <h2 className="text-2xl font-semibold text-foreground mb-2">Create new password</h2>
           <p className="text-muted-foreground">
             Enter a strong password for your account
           </p>
@@ -149,7 +124,7 @@ export default function ResetPasswordPage() {
                         type={showPassword ? "text" : "password"}
                         placeholder="Enter new password"
                         data-testid="input-password"
-                        className="h-12 bg-background/50 pr-12"
+                        className="h-12 pr-12"
                         {...field}
                       />
                       <Button
@@ -185,7 +160,7 @@ export default function ResetPasswordPage() {
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="Confirm new password"
                         data-testid="input-confirm-password"
-                        className="h-12 bg-background/50 pr-12"
+                        className="h-12 pr-12"
                         {...field}
                       />
                       <Button
@@ -212,9 +187,6 @@ export default function ResetPasswordPage() {
             <Button
               type="submit"
               className="w-full h-12 text-base font-medium"
-              style={{
-                background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
-              }}
               disabled={resetPasswordMutation.isPending}
               data-testid="button-reset"
             >
@@ -241,95 +213,18 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div 
-      className="min-h-screen relative overflow-hidden bg-background dark:bg-[#0F172A]"
-      style={{
-        fontFamily: "'Outfit', 'Segoe UI', sans-serif",
-      }}
-    >
-      {theme === 'dark' && (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div 
-            className="absolute rounded-full"
-            style={{
-              top: '-20%',
-              right: '-10%',
-              width: '600px',
-              height: '600px',
-              background: 'radial-gradient(circle, rgba(96,165,250,0.15) 0%, transparent 70%)',
-              animation: 'float 8s ease-in-out infinite',
-            }} 
-          />
-          <div 
-            className="absolute rounded-full"
-            style={{
-              bottom: '-30%',
-              left: '-15%',
-              width: '800px',
-              height: '800px',
-              background: 'radial-gradient(circle, rgba(20,184,166,0.12) 0%, transparent 70%)',
-              animation: 'float 10s ease-in-out infinite reverse',
-            }} 
-          />
-          <div 
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `
-                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)
-              `,
-              backgroundSize: '60px 60px'
-            }} 
-          />
-        </div>
-      )}
-
-      {theme === 'light' && (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div 
-            className="absolute rounded-full opacity-30"
-            style={{
-              top: '-20%',
-              right: '-10%',
-              width: '600px',
-              height: '600px',
-              background: 'radial-gradient(circle, rgba(20,184,166,0.2) 0%, transparent 70%)',
-            }} 
-          />
-          <div 
-            className="absolute rounded-full opacity-20"
-            style={{
-              bottom: '-30%',
-              left: '-15%',
-              width: '800px',
-              height: '800px',
-              background: 'radial-gradient(circle, rgba(96,165,250,0.15) 0%, transparent 70%)',
-            }} 
-          />
-        </div>
-      )}
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
-      `}</style>
-
-      <header 
+    <div className="min-h-screen relative overflow-hidden bg-background">
+      <header
         className="relative z-10 px-6 md:px-12 py-6 flex justify-between items-center transition-opacity duration-600"
         style={{ opacity: isLoaded ? 1 : 0 }}
       >
         <Link href="/login">
           <div className="flex items-center gap-3 cursor-pointer">
-            <div 
-              className="w-12 h-12 rounded-xl flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
-                boxShadow: '0 8px 24px -8px rgba(20,184,166,0.5)'
-              }}
-            >
-              <Heart size={26} strokeWidth={2.5} className="text-white" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-primary">
+              <Heart size={24} strokeWidth={2.25} className="text-primary-foreground" />
             </div>
             <div>
-              <div className="text-[22px] font-bold tracking-tight text-foreground">SONSIEL</div>
+              <div className="text-[22px] font-semibold tracking-tight text-foreground">SONSIEL</div>
               <div className="text-[11px] text-muted-foreground tracking-[2px] uppercase font-medium">Mentorship Hub</div>
             </div>
           </div>
@@ -338,26 +233,15 @@ export default function ResetPasswordPage() {
       </header>
 
       <main className="relative z-10 flex items-center justify-center px-6 md:px-12 py-8 min-h-[calc(100vh-100px)]">
-        <div 
+        <div
           className="w-full max-w-md transition-all duration-800"
-          style={{ 
+          style={{
             opacity: isLoaded ? 1 : 0,
             transform: isLoaded ? 'translateY(0)' : 'translateY(30px)',
             transitionDelay: '0.2s'
           }}
         >
-          <div 
-            className="rounded-2xl p-8 backdrop-blur-sm border"
-            style={{
-              background: theme === 'dark' 
-                ? 'rgba(30, 41, 59, 0.8)'
-                : 'rgba(255, 255, 255, 0.9)',
-              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-              boxShadow: theme === 'dark' 
-                ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-                : '0 25px 50px -12px rgba(0, 0, 0, 0.1)'
-            }}
-          >
+          <div className="rounded-xl p-8 bg-card border border-card-border shadow-sm">
             {renderContent()}
           </div>
         </div>

@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toneBadgeClass } from "@/components/shared/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -28,9 +29,9 @@ function getStatusBadge(status: string) {
     case "UNDER_REVIEW":
       return <Badge variant="default" data-testid={`badge-status-${status}`}><Eye className="mr-1 h-3 w-3" />Under Review</Badge>;
     case "IN_PROGRESS":
-      return <Badge className="bg-blue-600 text-white" data-testid={`badge-status-${status}`}><Loader2 className="mr-1 h-3 w-3" />In Progress</Badge>;
+      return <Badge className={toneBadgeClass("info")} data-testid={`badge-status-${status}`}><Loader2 className="mr-1 h-3 w-3" />In Progress</Badge>;
     case "COMPLETED":
-      return <Badge className="bg-green-600 text-white" data-testid={`badge-status-${status}`}><CheckCircle className="mr-1 h-3 w-3" />Completed</Badge>;
+      return <Badge className={toneBadgeClass("success")} data-testid={`badge-status-${status}`}><CheckCircle className="mr-1 h-3 w-3" />Completed</Badge>;
     case "DECLINED":
       return <Badge variant="destructive" data-testid={`badge-status-${status}`}><XCircle className="mr-1 h-3 w-3" />Declined</Badge>;
     default:
@@ -126,7 +127,7 @@ function SubmissionCard({ submission }: { submission: UserSubmission }) {
             {submission.type === "ISSUE" ? (
               <Bug className="h-4 w-4 text-destructive shrink-0" />
             ) : (
-              <Lightbulb className="h-4 w-4 text-yellow-500 shrink-0" />
+              <Lightbulb className="h-4 w-4 text-primary shrink-0" />
             )}
             <CardTitle className="text-base">{submission.title}</CardTitle>
           </div>

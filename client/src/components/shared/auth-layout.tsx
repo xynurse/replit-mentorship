@@ -10,9 +10,8 @@ interface AuthLayoutProps {
 export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
   return (
     <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/90 via-primary to-primary/80 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-transparent" />
-        
+      <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden">
+
         <div className="relative z-10 flex flex-col justify-between p-12 text-primary-foreground">
           <div>
             <div className="flex items-center gap-3 mb-2">

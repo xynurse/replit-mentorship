@@ -18,6 +18,9 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { CalendarEvent, User, Goal } from "@shared/schema";
+import { EventTypeIndicator, eventTone } from "@/components/shared/event-type-indicator";
+import { StatusBadge, toneDotClass } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
 
 type PublicUserInfo = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'profileImage'>;
 
@@ -483,13 +486,11 @@ export default function CalendarPage() {
 
     if (visibleEvents.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <CalendarIcon className="h-12 w-12 text-muted-foreground/50 mb-3" />
-          <p className="text-sm font-medium">No events from {format(fromDate, "MMM d")} onward</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Schedule a meeting or block time to see it here.
-          </p>
-        </div>
+        <EmptyState
+          icon={CalendarIcon}
+          title={`No events from ${format(fromDate, "MMM d")} onward`}
+          description="Schedule a meeting or block time to see it here."
+        />
       );
     }
 
@@ -533,23 +534,17 @@ export default function CalendarPage() {
                     onClick={() => event.type === "goal" ? openGoalDetail(event) : openEventDetail(event.id)}
                     className={cn(
                       "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate text-left",
-                      event.type === "block" ? "bg-red-50 dark:bg-red-950/20" :
-                      event.type === "goal" ? "bg-purple-100/60 dark:bg-purple-950/30" : "bg-muted/40",
+                      event.type === "block" ? "bg-muted/60" :
+                      event.type === "goal" ? "bg-info/10" : "bg-muted/40",
                     )}
                     data-testid={`agenda-${event.type}-${event.id}`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={cn(
-                        "w-2 h-2 rounded-full shrink-0",
-                        event.type === "meeting" ? "bg-blue-500" :
-                        event.type === "block" ? "bg-red-500" : "bg-purple-500"
-                      )} />
+                      <EventTypeIndicator type={event.type} variant="dot" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm truncate">{event.title}</span>
-                          <Badge variant="outline" className={cn("text-xs flex-shrink-0", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400", event.type === "block" && "border-red-400 text-red-600 dark:text-red-400")}>
-                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Unavailable" : "Goal"}
-                          </Badge>
+                          <EventTypeIndicator type={event.type} variant="badge" className="text-xs flex-shrink-0" />
                         </div>
                         {event.type === "goal" && event.ownerName && (
                           <span className="text-xs text-muted-foreground">({event.ownerName})</span>
@@ -581,11 +576,11 @@ export default function CalendarPage() {
       <div className="p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2" data-testid="text-calendar-title">
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2" data-testid="text-calendar-title">
               <CalendarIcon className="h-6 w-6" />
               Calendar
             </h1>
-            <p className="text-muted-foreground">View your schedule and manage events</p>
+            <p className="text-sm text-muted-foreground">View your schedule and manage events</p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -715,7 +710,7 @@ export default function CalendarPage() {
                             <div
                               className={cn(
                                 "w-1.5 h-1.5 rounded-full",
-                                isSelected ? "bg-primary-foreground" : "bg-blue-500"
+                                isSelected ? "bg-primary-foreground" : toneDotClass(eventTone("meeting"))
                               )}
                             />
                           )}
@@ -723,7 +718,7 @@ export default function CalendarPage() {
                             <div
                               className={cn(
                                 "w-1.5 h-1.5 rounded-full",
-                                isSelected ? "bg-primary-foreground" : "bg-red-500"
+                                isSelected ? "bg-primary-foreground" : toneDotClass(eventTone("block"))
                               )}
                             />
                           )}
@@ -731,7 +726,7 @@ export default function CalendarPage() {
                             <div
                               className={cn(
                                 "w-1.5 h-1.5 rounded-full",
-                                isSelected ? "bg-primary-foreground" : "bg-purple-500"
+                                isSelected ? "bg-primary-foreground" : toneDotClass(eventTone("goal"))
                               )}
                             />
                           )}
@@ -744,15 +739,15 @@ export default function CalendarPage() {
               
               <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <EventTypeIndicator type="meeting" variant="dot" />
                   <span>Meetings</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <EventTypeIndicator type="block" variant="dot" />
                   <span>Unavailable</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-purple-500" />
+                  <EventTypeIndicator type="goal" variant="dot" />
                   <span>Goals</span>
                 </div>
               </div>
@@ -785,7 +780,7 @@ export default function CalendarPage() {
                       title="Mark unavailable"
                       data-testid="button-mark-unavailable-for-date"
                     >
-                      <Ban className="h-4 w-4 text-red-500" />
+                      <Ban className="h-4 w-4 text-muted-foreground" />
                     </Button>
                     <Button
                       size="sm"
@@ -816,8 +811,8 @@ export default function CalendarPage() {
                         onClick={() => event.type === "goal" ? openGoalDetail(event) : openEventDetail(event.id)}
                         className={cn(
                           "w-full text-left p-3 rounded-md hover-elevate cursor-pointer",
-                          event.type === "block" ? "bg-red-50 dark:bg-red-950/20" :
-                          event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
+                          event.type === "block" ? "bg-muted/60" :
+                          event.type === "goal" ? "bg-info/10" : "bg-muted/50",
                         )}
                         data-testid={`event-${event.id}`}
                       >
@@ -830,7 +825,7 @@ export default function CalendarPage() {
                                   <Target className="h-3 w-3" />
                                   <span>Target: {format(event.date, "MMM d, yyyy")}</span>
                                   {event.progress !== undefined && (
-                                    <span className="text-purple-600 dark:text-purple-400">({event.progress}% complete)</span>
+                                    <span className="text-info">({event.progress}% complete)</span>
                                   )}
                                 </>
                               ) : (
@@ -856,41 +851,34 @@ export default function CalendarPage() {
                               </div>
                             )}
                           </div>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs shrink-0",
-                              event.type === "meeting" && "bg-primary text-primary-foreground border-primary",
-                              event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400",
-                              event.type === "block" && "border-red-400 text-red-600 dark:text-red-400",
-                            )}
-                          >
-                            {event.type === "block" ? "Unavailable" : event.type === "goal" ? "Goal" : "Meeting"}
-                          </Badge>
+                          <EventTypeIndicator type={event.type} variant="badge" className="text-xs shrink-0" />
                         </div>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <CalendarIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No events on this date</p>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="mt-2"
-                      onClick={() => openNewEventWithDate(selectedDate)}
-                      data-testid="button-schedule-for-date"
-                    >
-                      Add an event
-                    </Button>
-                  </div>
+                  <EmptyState
+                    icon={CalendarIcon}
+                    title="No events on this date"
+                    className="py-8"
+                    action={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openNewEventWithDate(selectedDate)}
+                        data-testid="button-schedule-for-date"
+                      >
+                        Add an event
+                      </Button>
+                    }
+                  />
                 )
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CalendarIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Select a date to view events</p>
-                </div>
+                <EmptyState
+                  icon={CalendarIcon}
+                  title="Select a date to view events"
+                  className="py-8"
+                />
               )}
             </CardContent>
           </Card>
@@ -920,26 +908,16 @@ export default function CalendarPage() {
                       onClick={() => event.type === "goal" ? openGoalDetail(event) : openEventDetail(event.id)}
                       className={cn(
                         "w-full flex items-center justify-between gap-4 p-3 rounded-md hover-elevate cursor-pointer",
-                        event.type === "block" ? "bg-red-50 dark:bg-red-950/20" :
-                        event.type === "goal" ? "bg-purple-100 dark:bg-purple-950/30" : "bg-muted/50",
+                        event.type === "block" ? "bg-muted/60" :
+                        event.type === "goal" ? "bg-info/10" : "bg-muted/50",
                       )}
                       data-testid={`upcoming-${event.type}-${event.id}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-2 h-2 rounded-full shrink-0",
-                          event.type === "meeting" ? "bg-blue-500" : 
-                          event.type === "block" ? "bg-red-500" :
-                          "bg-purple-500"
-                        )} />
+                        <EventTypeIndicator type={event.type} variant="dot" />
                         <div className="text-left">
                           <span className="font-medium text-sm">{event.title}</span>
-                          <Badge
-                            variant="outline"
-                            className={cn("ml-2 text-xs", event.type === "goal" && "border-purple-500 text-purple-600 dark:text-purple-400", event.type === "block" && "border-red-400 text-red-600 dark:text-red-400")}
-                          >
-                            {event.type === "meeting" ? "Meeting" : event.type === "block" ? "Unavailable" : "Goal"}
-                          </Badge>
+                          <EventTypeIndicator type={event.type} variant="badge" className="ml-2 text-xs" />
                           {event.type === "goal" && event.ownerName && (
                             <span className="ml-2 text-xs text-muted-foreground">({event.ownerName})</span>
                           )}
@@ -962,9 +940,11 @@ export default function CalendarPage() {
                   ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">No upcoming events</p>
-              </div>
+              <EmptyState
+                icon={CalendarIcon}
+                title="No upcoming events"
+                className="py-8"
+              />
             )}
           </CardContent>
         </Card>
@@ -1322,9 +1302,9 @@ export default function CalendarPage() {
                   <div className="flex-1">
                     <DialogTitle className="flex items-center gap-2">
                       {selectedEvent.type === "MEETING" ? (
-                        <Video className="h-5 w-5 text-blue-500" />
+                        <Video className="h-5 w-5 text-primary" />
                       ) : (
-                        <Ban className="h-5 w-5 text-red-500" />
+                        <Ban className="h-5 w-5 text-muted-foreground" />
                       )}
                       {isEditing ? "Edit Event" : selectedEvent.title}
                     </DialogTitle>
@@ -1600,9 +1580,7 @@ export default function CalendarPage() {
                   {selectedEvent.status && (
                     <div className="space-y-2">
                       <Label className="text-muted-foreground">Status</Label>
-                      <Badge variant={selectedEvent.status === "COMPLETED" ? "default" : "secondary"}>
-                        {selectedEvent.status}
-                      </Badge>
+                      <StatusBadge status={selectedEvent.status} />
                     </div>
                   )}
                 </div>
@@ -1644,7 +1622,7 @@ export default function CalendarPage() {
         <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              <Target className="h-5 w-5 text-info" />
               Goal Details
             </DialogTitle>
           </DialogHeader>
@@ -1673,9 +1651,7 @@ export default function CalendarPage() {
               {selectedGoal.status && (
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Status</Label>
-                  <Badge variant={selectedGoal.status === "COMPLETED" ? "default" : "secondary"}>
-                    {selectedGoal.status.replace(/_/g, " ")}
-                  </Badge>
+                  <StatusBadge status={selectedGoal.status} />
                 </div>
               )}
 
@@ -1685,7 +1661,7 @@ export default function CalendarPage() {
                   <div className="flex items-center gap-3">
                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-purple-600 dark:bg-purple-400 rounded-full transition-all"
+                        className="h-full bg-info rounded-full transition-all"
                         style={{ width: `${selectedGoal.progress}%` }}
                       />
                     </div>

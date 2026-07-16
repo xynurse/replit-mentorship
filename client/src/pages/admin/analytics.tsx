@@ -172,9 +172,9 @@ function KPICard({
 }) {
   const variantClasses = {
     default: "",
-    success: "border-green-500/30 bg-green-50/50 dark:bg-green-950/20",
-    warning: "border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20",
-    danger: "border-red-500/30 bg-red-50/50 dark:bg-red-950/20",
+    success: "border-success/30 bg-success/5",
+    warning: "border-warning/30 bg-warning/5",
+    danger: "border-destructive/30 bg-destructive/5",
   };
 
   const isClickable = !!href || !!onClick;
@@ -189,7 +189,7 @@ function KPICard({
         <div className="flex items-baseline gap-2">
           <span className="text-3xl font-bold" data-testid={`kpi-${title.toLowerCase().replace(/\s/g, '-')}`}>{value}</span>
           {trend && trendValue && (
-            <span className={`flex items-center text-xs ${trend === "up" ? "text-green-600" : trend === "down" ? "text-red-600" : "text-muted-foreground"}`}>
+            <span className={`flex items-center text-xs ${trend === "up" ? "text-success" : trend === "down" ? "text-destructive" : "text-muted-foreground"}`}>
               {trend === "up" ? <ArrowUp className="h-3 w-3" /> : trend === "down" ? <ArrowDown className="h-3 w-3" /> : null}
               {trendValue}
             </span>

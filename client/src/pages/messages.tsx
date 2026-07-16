@@ -278,7 +278,7 @@ function ConversationList() {
                     <AvatarFallback>{getInitials(conv)}</AvatarFallback>
                   </Avatar>
                   {conv.type === "DIRECT" && isOnline(conv) && (
-                    <Circle className="absolute bottom-0 right-0 h-3 w-3 fill-green-500 text-green-500" />
+                    <Circle className="absolute bottom-0 right-0 h-3 w-3 fill-status-online text-status-online" />
                   )}
                 </div>
                 

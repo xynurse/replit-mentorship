@@ -75,6 +75,7 @@ import {
   Filter,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { toneBadgeClass } from "@/components/shared/status-badge";
 
 interface User {
   id: string;
@@ -126,6 +127,26 @@ interface Thread {
 
 function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+}
+
+let cachedDefaultCategoryColor: string | null = null;
+
+/** Resolve the theme primary token to a concrete hex value (color inputs require hex). */
+function defaultCategoryColor(): string {
+  if (cachedDefaultCategoryColor !== null) return cachedDefaultCategoryColor;
+  if (typeof document === "undefined") return "";
+  const probe = document.createElement("span");
+  probe.style.color = "hsl(var(--primary))";
+  document.body.appendChild(probe);
+  const channels = (getComputedStyle(probe).color.match(/\d+/g) || [])
+    .slice(0, 3)
+    .map(Number);
+  probe.remove();
+  cachedDefaultCategoryColor =
+    channels.length === 3
+      ? `#${channels.map((c) => c.toString(16).padStart(2, "0")).join("")}`
+      : "";
+  return cachedDefaultCategoryColor;
 }
 
 function formatDate(date?: Date | string | null): string {
@@ -336,7 +357,7 @@ function MentorAccessTab() {
                   <TableCell>{mentor.trackSpecialty || "-"}</TableCell>
                   <TableCell>
                     {status === "ACTIVE" && (
-                      <Badge variant="default" className="bg-green-600">
+                      <Badge className={toneBadgeClass("success")}>
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Active
                       </Badge>
@@ -640,7 +661,7 @@ function MenteeAccessTab() {
                   <TableCell>{mentee.trackSpecialty || "-"}</TableCell>
                   <TableCell>
                     {status === "ACTIVE" && (
-                      <Badge variant="default" className="bg-green-600">
+                      <Badge className={toneBadgeClass("success")}>
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Active
                       </Badge>
@@ -995,7 +1016,7 @@ function CategoriesTab() {
   const [board, setBoard] = useState<"mentor" | "mentee">("mentor");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ThreadCategory | null>(null);
-  const [newCategory, setNewCategory] = useState({ name: "", description: "", color: "#6366F1" });
+  const [newCategory, setNewCategory] = useState({ name: "", description: "", color: defaultCategoryColor() });
 
   const mentorEndpoint = "/api/community/categories";
   const menteeEndpoint = "/api/mentee-community/categories";
@@ -1015,7 +1036,7 @@ function CategoriesTab() {
       toast({ title: "Category created" });
       queryClient.invalidateQueries({ queryKey: [endpoint] });
       setShowAddDialog(false);
-      setNewCategory({ name: "", description: "", color: "#6366F1" });
+      setNewCategory({ name: "", description: "", color: defaultCategoryColor() });
     },
     onError: (error: any) => {
       toast({ title: "Failed to create category", description: error.message, variant: "destructive" });
@@ -1091,10 +1112,14 @@ function CategoriesTab() {
               <TableRow key={category.id} data-testid={`row-category-${category.id}`}>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <div
-                      className="h-4 w-4 rounded"
-                      style={{ backgroundColor: category.color || "#6366F1" }}
-                    />
+                    {category.color ? (
+                      <div
+                        className="h-4 w-4 rounded"
+                        style={{ backgroundColor: category.color }}
+                      />
+                    ) : (
+                      <div className="h-4 w-4 rounded bg-primary" />
+                    )}
                     <span className="font-medium">{category.name}</span>
                   </div>
                 </TableCell>
@@ -1103,7 +1128,7 @@ function CategoriesTab() {
                 </TableCell>
                 <TableCell>
                   {category.isActive ? (
-                    <Badge variant="default" className="bg-green-600">Active</Badge>
+                    <Badge className={toneBadgeClass("success")}>Active</Badge>
                   ) : (
                     <Badge variant="secondary">Archived</Badge>
                   )}
@@ -1211,7 +1236,7 @@ function CategoriesTab() {
                 <label className="text-sm font-medium">Color</label>
                 <Input
                   type="color"
-                  value={editingCategory.color || "#6366F1"}
+                  value={editingCategory.color || defaultCategoryColor()}
                   onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
                   className="mt-2 h-10 w-20"
                   data-testid="input-edit-category-color"
@@ -1338,7 +1363,7 @@ function ActivityLogsTab() {
                 </TableCell>
                 <TableCell>
                   {record.status === "ACTIVE" ? (
-                    <Badge variant="default" className="bg-green-600">
+                    <Badge className={toneBadgeClass("success")}>
                       <ShieldCheck className="h-3 w-3 mr-1" />
                       Access Granted
                     </Badge>

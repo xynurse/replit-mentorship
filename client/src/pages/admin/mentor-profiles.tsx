@@ -36,15 +36,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { toneBadgeClass, type StatusTone } from "@/components/shared/status-badge";
 import type { MentorProfile, User, Track } from "@shared/schema";
 
 type MentorProfileWithUser = MentorProfile & { user: User };
 
-const statusColors: Record<string, string> = {
-  ACTIVE: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  INACTIVE: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
-  ON_LEAVE: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  PENDING: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+const statusTones: Record<string, StatusTone> = {
+  ACTIVE: "success",
+  INACTIVE: "neutral",
+  ON_LEAVE: "warning",
+  PENDING: "info",
 };
 
 const regionLabels: Record<string, string> = {
@@ -450,11 +451,11 @@ export default function AdminMentorProfiles() {
         const hasCapacity = current < max;
         return (
           <div className="flex items-center gap-2">
-            <span className={hasCapacity ? "text-green-600" : "text-muted-foreground"}>
+            <span className={hasCapacity ? "text-success" : "text-muted-foreground"}>
               {current}/{max}
             </span>
             {hasCapacity && (
-              <UserCheck className="h-4 w-4 text-green-600" />
+              <UserCheck className="h-4 w-4 text-success" />
             )}
           </div>
         );
@@ -464,7 +465,7 @@ export default function AdminMentorProfiles() {
       key: "status",
       header: "Status",
       render: (profile) => (
-        <Badge className={statusColors[profile.status || "PENDING"]}>
+        <Badge className={toneBadgeClass(statusTones[profile.status || "PENDING"] ?? "neutral")}>
           {profile.status || "PENDING"}
         </Badge>
       ),

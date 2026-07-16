@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { toneBadgeClass } from "@/components/shared/status-badge";
 import type { Program, ProgramMembership } from "@shared/schema";
 
 type User = {
@@ -39,7 +40,7 @@ type MemberWithUser = ProgramMembership & { user: User };
 function getRoleBadge(role: string) {
   switch (role) {
     case "ADMIN":
-      return <Badge className="bg-purple-600 text-white" data-testid={`badge-role-${role}`}><Shield className="mr-1 h-3 w-3" />Admin</Badge>;
+      return <Badge className={toneBadgeClass("primary")} data-testid={`badge-role-${role}`}><Shield className="mr-1 h-3 w-3" />Admin</Badge>;
     case "MENTOR":
       return <Badge variant="default" data-testid={`badge-role-${role}`}><UserCheck className="mr-1 h-3 w-3" />Mentor</Badge>;
     case "MENTEE":

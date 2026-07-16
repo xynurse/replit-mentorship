@@ -24,7 +24,7 @@ interface Certificate {
 const statusConfig = {
   PENDING: { label: "Pending", icon: Clock, variant: "secondary" as const, color: "text-muted-foreground" },
   GENERATED: { label: "Generated", icon: CheckCircle, variant: "default" as const, color: "text-primary" },
-  DELIVERED: { label: "Delivered", icon: CheckCircle, variant: "default" as const, color: "text-green-600 dark:text-green-400" },
+  DELIVERED: { label: "Delivered", icon: CheckCircle, variant: "default" as const, color: "text-success" },
   REVOKED: { label: "Revoked", icon: XCircle, variant: "destructive" as const, color: "text-destructive" },
 };
 

@@ -81,6 +81,40 @@ Items are grouped by phase. Within a phase they're ordered by what should happen
 
 ---
 
+## Phase 11 — Calm Clinical, Phase 2 (design de-AI pass) ✅ Complete (2026-07-02)
+
+Extends the sage/Hanken Grotesk theme (commit `5f1ff5d`, login-only) across the whole app. Audit found 200+ hardcoded Tailwind palette colors across 30+ files — rainbow status badges, per-card stat colors, leftover gradient blobs.
+
+- [x] **Semantic status palette** — `--success` / `--warning` / `--info` tokens (light + dark) in `index.css`, exposed in Tailwind; `status.*` colors retuned to tokens.
+- [x] **Shared primitives** in `components/shared/` — `PageHeader`, `StatCard` (extracted from home), `EmptyState`, `StatusBadge` (single status→tone map), `EventTypeIndicator`, `notification-meta` (21 types → icon + 3 calm tones).
+- [x] **Worst-page sweep** — calendar, notifications + bell, admin/connections, admin/matching, admin/applications, forgot-password (leftover glow blobs) onto tokens/primitives.
+- [x] **Long tail** — every remaining client file swept; **zero raw Tailwind palette classes remain** in client/src. reset-password.tsx (missed by the original redesign) rebuilt to match login/forgot-password.
+- [ ] **Follow-ups** — adopt PageHeader/EmptyState on remaining pages that kept bespoke headers for `data-testid` reasons; unify remaining spinner-only loading states on skeletons; visual QA pass in dark mode.
+
+## Phase 12 — Feature roadmap (from 2026-07-02 product audit)
+
+Ranked for a program of dozens of users. Tier 1 first.
+
+### Tier 1 — high value, schema mostly exists
+- [ ] **Match health dashboard** — per-match last-message/last-meeting recency for admins; flag pairs inactive 14+ days.
+- [ ] **Automated match nudges** — email check-in when no message in 7 days / no meeting in 2 weeks (Resend + existing notifications).
+- [ ] **Post-meeting session feedback** — `mentorFeedback`/`menteeFeedback` jsonb columns exist with no UI; add a 2-question rating after logging a meeting + admin rollup.
+- [ ] **Survey builder** (was Phase 10) — schema + endpoints exist; needs question-builder UI and response analytics.
+- [ ] **Onboarding progress widget** — `onboardingProgress` table (6 flags) has no endpoints or UI; show "N of 6 steps" for new users.
+
+### Tier 2
+- [ ] **Message reactions** — `messages.reactions` jsonb exists; add endpoint + picker UI.
+- [ ] **Cohort broadcast messaging** — admins can currently only ping 1:1.
+- [ ] **Program summary report export** — one-click PDF/CSV outcomes report for stakeholders.
+- [ ] **Journal upgrades** — visualize existing mood field, tags/filtering, reflection prompts.
+
+### Tier 3 — hygiene/compliance
+- [ ] **GDPR self-service** — data-export endpoints exist with no UI; account-deletion table exists with no endpoints.
+- [ ] **Close stubs** — force-logout returns "coming soon" (`routes.ts:212`); membership-checking TODO at `routes.ts:3919` is on an access-control path — review.
+- [ ] **Mobile refinements** — messages layout on narrow screens, collapsible documents tree; pagination on long lists.
+
+---
+
 ## Carried over from migration
 
 See sections below. DNS cutover and deploy wrap-up are complete (2026-06-12); remaining items are operational follow-ups (guide re-upload, Ably verification, observability).

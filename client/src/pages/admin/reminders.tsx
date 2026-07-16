@@ -81,21 +81,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { StatusBadge, type StatusTone } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
 
 type ReminderWithUsers = Reminder & { createdBy: User; recipient: User | null };
 
-const PRIORITY_OPTIONS = [
-  { value: "LOW", label: "Low", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
-  { value: "NORMAL", label: "Normal", color: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200" },
-  { value: "HIGH", label: "High", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
-  { value: "URGENT", label: "Urgent", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+const PRIORITY_OPTIONS: { value: string; label: string; tone: StatusTone }[] = [
+  { value: "LOW", label: "Low", tone: "info" },
+  { value: "NORMAL", label: "Normal", tone: "neutral" },
+  { value: "HIGH", label: "High", tone: "warning" },
+  { value: "URGENT", label: "Urgent", tone: "danger" },
 ];
 
 const STATUS_OPTIONS = [
-  { value: "PENDING", label: "Pending", icon: Clock, color: "text-yellow-500" },
-  { value: "SENT", label: "Sent", icon: Send, color: "text-blue-500" },
-  { value: "COMPLETED", label: "Completed", icon: CheckCircle2, color: "text-green-500" },
-  { value: "DISMISSED", label: "Dismissed", icon: XCircle, color: "text-gray-500" },
+  { value: "PENDING", label: "Pending", icon: Clock, color: "text-warning" },
+  { value: "SENT", label: "Sent", icon: Send, color: "text-info" },
+  { value: "COMPLETED", label: "Completed", icon: CheckCircle2, color: "text-success" },
+  { value: "DISMISSED", label: "Dismissed", icon: XCircle, color: "text-muted-foreground" },
 ];
 
 const TYPE_OPTIONS = [
@@ -216,7 +218,7 @@ export default function AdminRemindersPage() {
   const getPriorityBadge = (priority: string) => {
     const option = PRIORITY_OPTIONS.find((o) => o.value === priority);
     if (!option) return null;
-    return <Badge className={option.color}>{option.label}</Badge>;
+    return <StatusBadge status={option.value} tone={option.tone} label={option.label} />;
   };
 
   const getTypeBadge = (type: string) => {
@@ -285,19 +287,19 @@ export default function AdminRemindersPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Pending</CardDescription>
-              <CardTitle className="text-2xl text-yellow-600">{stats.pending}</CardTitle>
+              <CardTitle className="text-2xl text-warning">{stats.pending}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Completed</CardDescription>
-              <CardTitle className="text-2xl text-green-600">{stats.completed}</CardTitle>
+              <CardTitle className="text-2xl text-success">{stats.completed}</CardTitle>
             </CardHeader>
           </Card>
-          <Card className={stats.overdue > 0 ? "border-red-300 dark:border-red-700" : ""}>
+          <Card className={stats.overdue > 0 ? "border-destructive/40" : ""}>
             <CardHeader className="pb-2">
               <CardDescription>Overdue</CardDescription>
-              <CardTitle className="text-2xl text-red-600">{stats.overdue}</CardTitle>
+              <CardTitle className="text-2xl text-destructive">{stats.overdue}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -371,10 +373,7 @@ export default function AdminRemindersPage() {
                 ))}
               </div>
             ) : filteredReminders.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Bell className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No reminders found</p>
-              </div>
+              <EmptyState icon={Bell} title="No reminders found" />
             ) : viewMode === "table" ? (
               <div className="overflow-x-auto">
                 <Table>
@@ -394,7 +393,7 @@ export default function AdminRemindersPage() {
                     {filteredReminders.map((reminder) => (
                       <TableRow 
                         key={reminder.id}
-                        className={isOverdue(reminder.dueDate, reminder.status || "PENDING") ? "bg-red-50 dark:bg-red-950/20" : ""}
+                        className={isOverdue(reminder.dueDate, reminder.status || "PENDING") ? "bg-destructive/5" : ""}
                         data-testid={`row-reminder-${reminder.id}`}
                       >
                         <TableCell className="font-medium max-w-[200px] truncate">
@@ -431,7 +430,7 @@ export default function AdminRemindersPage() {
                           </div>
                         </TableCell>
                         <TableCell>{getTypeBadge(reminder.type)}</TableCell>
-                        <TableCell className={isOverdue(reminder.dueDate, reminder.status || "PENDING") ? "text-red-600 font-medium" : ""}>
+                        <TableCell className={isOverdue(reminder.dueDate, reminder.status || "PENDING") ? "text-destructive font-medium" : ""}>
                           {formatDate(reminder.dueDate)}
                           {isOverdue(reminder.dueDate, reminder.status || "PENDING") && " (Overdue)"}
                         </TableCell>
@@ -457,7 +456,7 @@ export default function AdminRemindersPage() {
                 {filteredReminders.map((reminder) => (
                   <Card 
                     key={reminder.id}
-                    className={`hover-elevate ${isOverdue(reminder.dueDate, reminder.status || "PENDING") ? "border-red-300 dark:border-red-700" : ""}`}
+                    className={`hover-elevate ${isOverdue(reminder.dueDate, reminder.status || "PENDING") ? "border-destructive/40" : ""}`}
                     data-testid={`card-reminder-${reminder.id}`}
                   >
                     <CardHeader className="pb-2">
@@ -476,7 +475,7 @@ export default function AdminRemindersPage() {
                       </div>
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <Calendar className="h-4 w-4" />
-                        <span className={isOverdue(reminder.dueDate, reminder.status || "PENDING") ? "text-red-500" : ""}>
+                        <span className={isOverdue(reminder.dueDate, reminder.status || "PENDING") ? "text-destructive" : ""}>
                           {formatDate(reminder.dueDate)}
                         </span>
                       </div>

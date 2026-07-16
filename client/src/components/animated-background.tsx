@@ -14,7 +14,7 @@ export function AnimatedBackground() {
           right: '-10%',
           width: '600px',
           height: '600px',
-          background: 'radial-gradient(circle, rgba(96,165,250,0.025) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(110,150,124,0.030) 0%, transparent 70%)',
           animation: 'float 8s ease-in-out infinite',
         }}
       />
@@ -25,7 +25,7 @@ export function AnimatedBackground() {
           left: '-15%',
           width: '800px',
           height: '800px',
-          background: 'radial-gradient(circle, rgba(20,184,166,0.018) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(150,140,120,0.022) 0%, transparent 70%)',
           animation: 'float 10s ease-in-out infinite reverse',
         }}
       />

@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { 
-  Bell, 
-  Check, 
-  CheckCheck, 
-  Archive, 
-  Trash2, 
+import {
+  Check,
+  CheckCheck,
+  Archive,
+  Trash2,
   ExternalLink,
   Filter,
   Settings,
@@ -16,7 +15,6 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Select,
@@ -31,6 +29,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
+import { toneBadgeClass } from "@/components/shared/status-badge";
+import { notificationMeta, priorityAccentClass } from "@/components/shared/notification-meta";
+import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
 import type { Notification, NotificationPreference, NotificationType, EmailFrequency } from "@shared/schema";
 
 const NOTIFICATION_TYPES: { value: NotificationType; label: string; description: string }[] = [
@@ -64,46 +66,12 @@ const EMAIL_FREQUENCIES: { value: EmailFrequency; label: string }[] = [
   { value: "NEVER", label: "Never" },
 ];
 
-function getNotificationIcon(type: string) {
-  const iconMap: Record<string, { bg: string; label: string }> = {
-    WELCOME: { bg: "bg-green-500/10 text-green-600 dark:text-green-400", label: "Welcome" },
-    APPLICATION_RECEIVED: { bg: "bg-blue-500/10 text-blue-600 dark:text-blue-400", label: "Application" },
-    APPLICATION_APPROVED: { bg: "bg-green-500/10 text-green-600 dark:text-green-400", label: "Approved" },
-    APPLICATION_REJECTED: { bg: "bg-red-500/10 text-red-600 dark:text-red-400", label: "Rejected" },
-    MATCH_PROPOSED: { bg: "bg-purple-500/10 text-purple-600 dark:text-purple-400", label: "Match" },
-    MATCH_CONFIRMED: { bg: "bg-purple-500/10 text-purple-600 dark:text-purple-400", label: "Match" },
-    NEW_MESSAGE: { bg: "bg-blue-500/10 text-blue-600 dark:text-blue-400", label: "Message" },
-    NEW_ANNOUNCEMENT: { bg: "bg-orange-500/10 text-orange-600 dark:text-orange-400", label: "Announcement" },
-    TASK_ASSIGNED: { bg: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400", label: "Task" },
-    TASK_DUE_SOON: { bg: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400", label: "Task" },
-    TASK_OVERDUE: { bg: "bg-red-500/10 text-red-600 dark:text-red-400", label: "Overdue" },
-    TASK_COMPLETED: { bg: "bg-green-500/10 text-green-600 dark:text-green-400", label: "Completed" },
-    GOAL_APPROVED: { bg: "bg-green-500/10 text-green-600 dark:text-green-400", label: "Goal" },
-    GOAL_FEEDBACK: { bg: "bg-blue-500/10 text-blue-600 dark:text-blue-400", label: "Feedback" },
-    GOAL_MILESTONE_DUE: { bg: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400", label: "Milestone" },
-    MEETING_REMINDER: { bg: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400", label: "Meeting" },
-    MEETING_SCHEDULED: { bg: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400", label: "Meeting" },
-    DOCUMENT_SHARED: { bg: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400", label: "Document" },
-    MENTEE_PROGRESS_UPDATE: { bg: "bg-teal-500/10 text-teal-600 dark:text-teal-400", label: "Progress" },
-    COHORT_ENDING_SOON: { bg: "bg-amber-500/10 text-amber-600 dark:text-amber-400", label: "Cohort" },
-    SYSTEM_ANNOUNCEMENT: { bg: "bg-gray-500/10 text-gray-600 dark:text-gray-400", label: "System" },
-  };
-  return iconMap[type] || { bg: "bg-gray-500/10 text-gray-600 dark:text-gray-400", label: type };
-}
-
 function getPriorityStyle(priority: string | null) {
-  if (!priority) return "";
-  switch (priority) {
-    case "HIGH":
-      return "border-l-4 border-l-orange-500";
-    case "URGENT":
-      return "border-l-4 border-l-red-500";
-    default:
-      return "";
-  }
+  const accent = priorityAccentClass(priority);
+  return accent ? cn("border-l-4", accent) : "";
 }
 
-function NotificationCard({ 
+function NotificationCard({
   notification, 
   onMarkRead, 
   onArchive,
@@ -114,28 +82,36 @@ function NotificationCard({
   onArchive: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const typeInfo = getNotificationIcon(notification.type);
+  const { icon: TypeIcon, tone } = notificationMeta(notification.type);
   const priorityStyle = getPriorityStyle(notification.priority);
-  
+
   return (
     <Card
       className={cn(
         "transition-colors",
-        !notification.isRead && "bg-muted/30",
+        !notification.isRead && "bg-primary/5",
         priorityStyle
       )}
       data-testid={`notification-card-${notification.id}`}
     >
       <CardContent className="p-4">
         <div className="flex gap-4">
-          <Badge variant="secondary" className={cn("text-xs shrink-0 h-6", typeInfo.bg)}>
-            {typeInfo.label}
-          </Badge>
+          <div
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md",
+              toneBadgeClass(tone)
+            )}
+          >
+            <TypeIcon className="h-4 w-4" />
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className={cn("font-medium", !notification.isRead && "font-semibold")}>
+                <p className={cn("font-medium flex items-center gap-2", !notification.isRead && "font-semibold")}>
                   {notification.title}
+                  {!notification.isRead && (
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                  )}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {notification.message}
@@ -290,19 +266,19 @@ function NotificationList({ filter }: { filter: "inbox" | "archived" }) {
         </div>
       ) : (
         <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
+          <CardContent className="p-0">
             {filter === "inbox" ? (
-              <>
-                <Inbox className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-lg font-medium">No notifications</p>
-                <p className="text-muted-foreground">You're all caught up!</p>
-              </>
+              <EmptyState
+                icon={Inbox}
+                title="No notifications"
+                description="You're all caught up!"
+              />
             ) : (
-              <>
-                <ArchiveIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-lg font-medium">No archived notifications</p>
-                <p className="text-muted-foreground">Archived notifications will appear here</p>
-              </>
+              <EmptyState
+                icon={ArchiveIcon}
+                title="No archived notifications"
+                description="Archived notifications will appear here"
+              />
             )}
           </CardContent>
         </Card>
@@ -451,19 +427,17 @@ export default function NotificationsPage() {
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Notifications</h1>
-            <p className="text-muted-foreground">
-              Stay updated on your mentorship activities
-            </p>
-          </div>
-          {unreadCount > 0 && (
-            <Badge variant="secondary" className="text-sm">
-              {unreadCount} unread
-            </Badge>
-          )}
-        </div>
+        <PageHeader
+          title="Notifications"
+          description="Stay updated on your mentorship activities"
+          actions={
+            unreadCount > 0 && (
+              <Badge variant="secondary" className="text-sm">
+                {unreadCount} unread
+              </Badge>
+            )
+          }
+        />
 
         <Tabs defaultValue="inbox" className="space-y-4">
           <TabsList>
@@ -471,7 +445,7 @@ export default function NotificationsPage() {
               <Inbox className="h-4 w-4" />
               Inbox
               {unreadCount > 0 && (
-                <Badge variant="destructive" className="ml-1 h-5 px-1.5">
+                <Badge className="ml-1 h-5 px-1.5">
                   {unreadCount}
                 </Badge>
               )}

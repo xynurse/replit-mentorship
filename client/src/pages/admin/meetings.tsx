@@ -52,6 +52,8 @@ import {
 } from "recharts";
 import { format, isAfter, isBefore, isToday, startOfDay, endOfDay, subDays, parseISO } from "date-fns";
 import type { MeetingLog } from "@shared/schema";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
 
 interface MeetingWithDetails {
   meeting: MeetingLog;
@@ -79,8 +81,8 @@ function KPICard({
 }) {
   const variantClasses = {
     default: "",
-    success: "border-green-500/30 bg-green-50/50 dark:bg-green-950/20",
-    warning: "border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20",
+    success: "border-success/30 bg-success/5",
+    warning: "border-warning/30 bg-warning/5",
     primary: "border-primary/30 bg-primary/5",
   };
 
@@ -105,11 +107,11 @@ function KPICard({
 function getFormatIcon(format?: string | null) {
   switch (format) {
     case 'VIRTUAL':
-      return <Video className="h-4 w-4 text-blue-500" />;
+      return <Video className="h-4 w-4 text-info" />;
     case 'IN_PERSON':
-      return <MapPin className="h-4 w-4 text-green-500" />;
+      return <MapPin className="h-4 w-4 text-success" />;
     case 'PHONE':
-      return <Phone className="h-4 w-4 text-purple-500" />;
+      return <Phone className="h-4 w-4 text-primary" />;
     default:
       return <Calendar className="h-4 w-4 text-muted-foreground" />;
   }
@@ -120,12 +122,12 @@ function getStatusBadge(meeting: MeetingLog) {
   const scheduledDate = meeting.scheduledDate ? new Date(meeting.scheduledDate) : null;
   
   if (meeting.actualDate) {
-    return <Badge variant="default" className="bg-green-500">Completed</Badge>;
+    return <StatusBadge status="Completed" tone="success" />;
   }
-  
+
   if (scheduledDate) {
     if (isToday(scheduledDate)) {
-      return <Badge variant="default" className="bg-blue-500">Today</Badge>;
+      return <StatusBadge status="Today" tone="info" />;
     }
     if (isAfter(scheduledDate, now)) {
       return <Badge variant="outline">Upcoming</Badge>;
@@ -334,15 +336,15 @@ export default function AdminMeetingsPage() {
               </CardHeader>
               <CardContent>
                 {filteredMeetings.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium">No meetings found</h3>
-                    <p className="text-muted-foreground">
-                      {searchTerm || statusFilter !== "all" || formatFilter !== "all"
+                  <EmptyState
+                    icon={Calendar}
+                    title="No meetings found"
+                    description={
+                      searchTerm || statusFilter !== "all" || formatFilter !== "all"
                         ? "Try adjusting your filters"
-                        : "Meetings will appear here once they are scheduled"}
-                    </p>
-                  </div>
+                        : "Meetings will appear here once they are scheduled"
+                    }
+                  />
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
@@ -524,16 +526,16 @@ export default function AdminMeetingsPage() {
                     <div className="text-3xl font-bold text-primary">{totalMeetings}</div>
                     <div className="text-sm text-muted-foreground">Total Scheduled</div>
                   </div>
-                  <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-950/30">
-                    <div className="text-3xl font-bold text-green-600">{completedMeetings}</div>
+                  <div className="text-center p-4 rounded-lg bg-success/10">
+                    <div className="text-3xl font-bold text-success">{completedMeetings}</div>
                     <div className="text-sm text-muted-foreground">Completed</div>
                   </div>
-                  <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30">
-                    <div className="text-3xl font-bold text-blue-600">{upcomingMeetings}</div>
+                  <div className="text-center p-4 rounded-lg bg-info/10">
+                    <div className="text-3xl font-bold text-info">{upcomingMeetings}</div>
                     <div className="text-sm text-muted-foreground">Upcoming</div>
                   </div>
-                  <div className="text-center p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30">
-                    <div className="text-3xl font-bold text-amber-600">
+                  <div className="text-center p-4 rounded-lg bg-warning/10">
+                    <div className="text-3xl font-bold text-warning">
                       {totalMeetings > 0 ? Math.round((completedMeetings / totalMeetings) * 100) : 0}%
                     </div>
                     <div className="text-sm text-muted-foreground">Completion Rate</div>

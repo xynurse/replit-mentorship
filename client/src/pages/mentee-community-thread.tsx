@@ -191,7 +191,7 @@ function ReplyCard({
     <div className="flex gap-4 py-4" data-testid={`mentee-reply-${reply.id}`}>
       <Avatar className="h-10 w-10 shrink-0">
         <AvatarImage src={reply.author.profileImage || undefined} />
-        <AvatarFallback>
+        <AvatarFallback className="bg-primary/10 text-primary">
           {getInitials(reply.author.firstName, reply.author.lastName)}
         </AvatarFallback>
       </Avatar>
@@ -434,7 +434,7 @@ export default function MenteeCommunityThreadPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   {thread.isPinned && (
-                    <Pin className="h-5 w-5 text-indigo-500 shrink-0" />
+                    <Pin className="h-5 w-5 text-primary shrink-0" />
                   )}
                   {thread.isLocked && (
                     <Lock className="h-5 w-5 text-muted-foreground shrink-0" />
@@ -464,7 +464,7 @@ export default function MenteeCommunityThreadPage() {
                     onClick={() => thread.isPinned ? unpinMutation.mutate() : pinMutation.mutate()}
                     data-testid="button-toggle-mentee-pin"
                   >
-                    <Pin className={`h-4 w-4 mr-1 ${thread.isPinned ? "text-indigo-500" : ""}`} />
+                    <Pin className={`h-4 w-4 mr-1 ${thread.isPinned ? "text-primary" : ""}`} />
                     {thread.isPinned ? "Unpin" : "Pin"}
                   </Button>
                 )}
@@ -508,7 +508,7 @@ export default function MenteeCommunityThreadPage() {
             <div className="flex gap-4">
               <Avatar className="h-12 w-12 shrink-0">
                 <AvatarImage src={thread.author.profileImage || undefined} />
-                <AvatarFallback>
+                <AvatarFallback className="bg-primary/10 text-primary">
                   {getInitials(thread.author.firstName, thread.author.lastName)}
                 </AvatarFallback>
               </Avatar>
@@ -576,7 +576,7 @@ export default function MenteeCommunityThreadPage() {
                 <div className="flex gap-4">
                   <Avatar className="h-10 w-10 shrink-0">
                     <AvatarImage src={user?.profileImage || undefined} />
-                    <AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary">
                       {user ? getInitials(user.firstName, user.lastName) : "?"}
                     </AvatarFallback>
                   </Avatar>

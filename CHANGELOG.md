@@ -24,6 +24,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dat
 
 ---
 
+## [1.5.0] — 2026-07-03 — Calm Clinical design system (app-wide de-AI redesign)
+
+Replaces the AI-app-builder look with a cohesive "Calm Clinical" design system: sage primary, warm-stone neutrals, Hanken Grotesk typography, and a strict tokens-only color policy. A design audit found 200+ raw Tailwind palette colors across 30+ files (rainbow status badges, per-card stat colors, leftover gradient blobs); all are now gone — **client/src contains zero raw palette color classes**. Commits `5f1ff5d`, `8619f99`, `b2ff96c`.
+
+### Added
+
+- **Semantic status tokens** — `--success`, `--warning`, `--info` (light + dark) in `index.css`, exposed as Tailwind colors alongside the existing `destructive`/`muted`/`primary`. The `status.online/away/busy/offline` colors now derive from these tokens.
+- **Shared UI primitives** in `client/src/components/shared/`:
+  - `StatusBadge` + `statusTone`/`toneBadgeClass`/`toneDotClass` — single source of truth for status → color across matches, applications, goals, cohorts, and surveys.
+  - `PageHeader` — standard title/description/actions header.
+  - `StatCard` — extracted from the dashboard; always primary-toned (no per-card colors).
+  - `EmptyState` — standard icon/title/description/CTA empty state.
+  - `EventTypeIndicator` — calendar event dots and badges from one mapping.
+  - `notification-meta` — maps all 21 notification types to an icon + one of just three tones (muted default; success for approvals; destructive for rejected/overdue).
+
+### Changed
+
+- **Theme** — sage/warm-stone palette in light and dark mode, Hanken Grotesk as `--font-sans`, softer radii, Notion-style shadows (commit `5f1ff5d`).
+- **Auth pages** — login, forgot-password, and reset-password rebuilt without the AI-era styling: no gradient text/buttons, glow blobs, grid overlays, or the one-off Outfit font. Solid sage CTAs on token-based cards.
+- **Notifications (page + bell)** — the 17-color type rainbow replaced by calm muted icon chips; unread is a primary dot + tinted row instead of a red badge.
+- **Admin pages** (connections, matching, applications, users, cohorts, meetings, reminders, analytics, and the rest) — status color-map object literals deleted in favor of `StatusBadge`; stat-card icon chips and avatar fallbacks unified to sage; score/health indicators use the semantic success/warning/destructive ladder.
+- **Calendar** — event-type dots, badges, and legends share `EventTypeIndicator`; the four ad-hoc empty states use `EmptyState`; hex-gradient decoration removed.
+- **All remaining pages** (goals, journal, community, search, survey, program selector, CoC onboarding, certificates, apply, 404) swept onto tokens.
+- **TODO.md** — roadmap restructured: Phase 11 (this design pass) and Phase 12 (tiered feature roadmap from the 2026-07 product audit: match health dashboard, automated nudges, session feedback, survey builder, onboarding progress, GDPR self-service).
+
+### Notes for contributors
+
+- Do not use raw Tailwind palette classes (`bg-blue-500`, `text-green-600`, `gray-*`, hex/rgba inline styles) in client code. Use the semantic tokens and shared primitives; extend `STATUS_TONES` in `status-badge.tsx` for new statuses.
+
+---
+
 ## [1.4.0] — 2026-06-01 — Phase 8 complete: CoC gate, cohort assignment, admin compliance view
 
 Completes the application intake → activation → onboarding pipeline. Newly-activated users must sign the Code of Conduct before accessing the platform. Admins can assign activated applicants to cohorts directly from the applications queue. The Users admin page now surfaces CoC compliance status.

@@ -9,52 +9,20 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { toneBadgeClass } from "@/components/shared/status-badge";
+import { notificationMeta, priorityAccentClass } from "@/components/shared/notification-meta";
+import { EmptyState } from "@/components/shared/empty-state";
 import * as Ably from "ably";
 import type { Notification } from "@shared/schema";
 
-function getNotificationIcon(type: string) {
-  const iconMap: Record<string, { bg: string; label: string }> = {
-    WELCOME: { bg: "bg-green-500/10 text-green-600 dark:text-green-400", label: "Welcome" },
-    APPLICATION_RECEIVED: { bg: "bg-blue-500/10 text-blue-600 dark:text-blue-400", label: "Application" },
-    APPLICATION_APPROVED: { bg: "bg-green-500/10 text-green-600 dark:text-green-400", label: "Approved" },
-    APPLICATION_REJECTED: { bg: "bg-red-500/10 text-red-600 dark:text-red-400", label: "Rejected" },
-    MATCH_PROPOSED: { bg: "bg-purple-500/10 text-purple-600 dark:text-purple-400", label: "Match" },
-    MATCH_CONFIRMED: { bg: "bg-purple-500/10 text-purple-600 dark:text-purple-400", label: "Match" },
-    NEW_MESSAGE: { bg: "bg-blue-500/10 text-blue-600 dark:text-blue-400", label: "Message" },
-    NEW_ANNOUNCEMENT: { bg: "bg-orange-500/10 text-orange-600 dark:text-orange-400", label: "Announcement" },
-    TASK_ASSIGNED: { bg: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400", label: "Task" },
-    TASK_DUE_SOON: { bg: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400", label: "Task" },
-    TASK_OVERDUE: { bg: "bg-red-500/10 text-red-600 dark:text-red-400", label: "Overdue" },
-    TASK_COMPLETED: { bg: "bg-green-500/10 text-green-600 dark:text-green-400", label: "Completed" },
-    GOAL_APPROVED: { bg: "bg-green-500/10 text-green-600 dark:text-green-400", label: "Goal" },
-    GOAL_FEEDBACK: { bg: "bg-blue-500/10 text-blue-600 dark:text-blue-400", label: "Feedback" },
-    GOAL_MILESTONE_DUE: { bg: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400", label: "Milestone" },
-    MEETING_REMINDER: { bg: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400", label: "Meeting" },
-    MEETING_SCHEDULED: { bg: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400", label: "Meeting" },
-    DOCUMENT_SHARED: { bg: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400", label: "Document" },
-    MENTEE_PROGRESS_UPDATE: { bg: "bg-teal-500/10 text-teal-600 dark:text-teal-400", label: "Progress" },
-    COHORT_ENDING_SOON: { bg: "bg-amber-500/10 text-amber-600 dark:text-amber-400", label: "Cohort" },
-    SYSTEM_ANNOUNCEMENT: { bg: "bg-gray-500/10 text-gray-600 dark:text-gray-400", label: "System" },
-  };
-  return iconMap[type] || { bg: "bg-gray-500/10 text-gray-600 dark:text-gray-400", label: type };
-}
-
 function getPriorityStyle(priority: string | null) {
-  if (!priority) return "";
-  switch (priority) {
-    case "HIGH":
-      return "border-l-2 border-l-orange-500";
-    case "URGENT":
-      return "border-l-2 border-l-red-500";
-    default:
-      return "";
-  }
+  const accent = priorityAccentClass(priority);
+  return accent ? cn("border-l-2", accent) : "";
 }
 
 function NotificationItem({ 
@@ -68,26 +36,36 @@ function NotificationItem({
   onArchive: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const typeInfo = getNotificationIcon(notification.type);
+  const { icon: TypeIcon, tone } = notificationMeta(notification.type);
   const priorityStyle = getPriorityStyle(notification.priority);
-  
+
   return (
     <div
       className={cn(
         "p-3 hover-elevate transition-colors",
-        !notification.isRead && "bg-muted/50",
+        !notification.isRead && "bg-primary/5",
         priorityStyle
       )}
       data-testid={`notification-item-${notification.id}`}
     >
       <div className="flex gap-3">
-        <Badge variant="secondary" className={cn("text-xs shrink-0", typeInfo.bg)}>
-          {typeInfo.label}
-        </Badge>
+        <div
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+            toneBadgeClass(tone)
+          )}
+        >
+          <TypeIcon className="h-4 w-4" />
+        </div>
         <div className="flex-1 min-w-0">
-          <p className={cn("text-sm font-medium truncate", !notification.isRead && "font-semibold")}>
-            {notification.title}
-          </p>
+          <div className="flex items-center gap-2">
+            {!notification.isRead && (
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+            )}
+            <p className={cn("text-sm font-medium truncate", !notification.isRead && "font-semibold")}>
+              {notification.title}
+            </p>
+          </div>
           <p className="text-sm text-muted-foreground line-clamp-2">
             {notification.message}
           </p>
@@ -238,7 +216,7 @@ export function NotificationBell() {
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
+            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -282,11 +260,12 @@ export function NotificationBell() {
               ))}
             </div>
           ) : (
-            <div className="p-8 text-center">
-              <Bell className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">No notifications</p>
-              <p className="text-sm text-muted-foreground">You're all caught up</p>
-            </div>
+            <EmptyState
+              icon={Bell}
+              title="No notifications"
+              description="You're all caught up"
+              className="px-8 py-8"
+            />
           )}
         </ScrollArea>
 

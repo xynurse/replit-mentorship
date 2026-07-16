@@ -34,15 +34,16 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { toneBadgeClass, type StatusTone } from "@/components/shared/status-badge";
 import type { MentorProfile, User } from "@shared/schema";
 
 type MentorProfileWithUser = MentorProfile & { user: User };
 
-const statusColors: Record<string, string> = {
-  ACTIVE: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  INACTIVE: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
-  ON_LEAVE: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  PENDING: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+const statusTones: Record<string, StatusTone> = {
+  ACTIVE: "success",
+  INACTIVE: "neutral",
+  ON_LEAVE: "warning",
+  PENDING: "info",
 };
 
 const regionLabels: Record<string, string> = {
@@ -223,7 +224,7 @@ export default function AdminMentorProfileDetail() {
                   {profile.pronouns && (
                     <p className="text-sm text-muted-foreground">{profile.pronouns}</p>
                   )}
-                  <Badge className={`mt-2 ${statusColors[profile.status || "PENDING"]}`} data-testid="badge-status">
+                  <Badge className={`mt-2 ${toneBadgeClass(statusTones[profile.status || "PENDING"] ?? "neutral")}`} data-testid="badge-status">
                     {profile.status || "PENDING"}
                   </Badge>
                 </div>
@@ -326,7 +327,7 @@ export default function AdminMentorProfileDetail() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Badge className={statusColors[profile.status || "PENDING"]}>
+                  <Badge className={toneBadgeClass(statusTones[profile.status || "PENDING"] ?? "neutral")}>
                     {profile.status || "PENDING"}
                   </Badge>
                 )}

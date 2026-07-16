@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { toneBadgeClass } from "@/components/shared/status-badge";
 import type { UserSubmission } from "@shared/schema";
 
 type SubmissionWithUser = UserSubmission & { userName?: string; userEmail?: string };
@@ -34,9 +35,9 @@ function getStatusBadge(status: string) {
     case "UNDER_REVIEW":
       return <Badge variant="default"><Eye className="mr-1 h-3 w-3" />Under Review</Badge>;
     case "IN_PROGRESS":
-      return <Badge className="bg-blue-600 text-white"><Loader2 className="mr-1 h-3 w-3" />In Progress</Badge>;
+      return <Badge className={toneBadgeClass("info")}><Loader2 className="mr-1 h-3 w-3" />In Progress</Badge>;
     case "COMPLETED":
-      return <Badge className="bg-green-600 text-white"><CheckCircle className="mr-1 h-3 w-3" />Completed</Badge>;
+      return <Badge className={toneBadgeClass("success")}><CheckCircle className="mr-1 h-3 w-3" />Completed</Badge>;
     case "DECLINED":
       return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3" />Declined</Badge>;
     default:
@@ -48,7 +49,7 @@ function getTypeBadge(type: string) {
   if (type === "ISSUE") {
     return <Badge variant="destructive"><Bug className="mr-1 h-3 w-3" />Issue</Badge>;
   }
-  return <Badge className="bg-yellow-500 text-white"><Lightbulb className="mr-1 h-3 w-3" />Suggestion</Badge>;
+  return <Badge className={toneBadgeClass("warning")}><Lightbulb className="mr-1 h-3 w-3" />Suggestion</Badge>;
 }
 
 function RespondDialog({ submission, onClose }: { submission: SubmissionWithUser; onClose: () => void }) {
@@ -181,7 +182,7 @@ export default function AdminSubmissionsPage() {
                   <p className="text-sm text-muted-foreground">Suggestions</p>
                   <p className="text-2xl font-bold" data-testid="text-suggestion-count">{suggestionCount}</p>
                 </div>
-                <Lightbulb className="h-8 w-8 text-yellow-500 opacity-50" />
+                <Lightbulb className="h-8 w-8 text-warning opacity-50" />
               </div>
             </CardContent>
           </Card>

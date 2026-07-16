@@ -45,7 +45,7 @@ function SignaturePad({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
-    ctx.strokeStyle = "#1a1a1a";
+    ctx.strokeStyle = "black";
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -101,7 +101,7 @@ function SignaturePad({
 
   return (
     <div className="space-y-2">
-      <div className="relative border-2 border-dashed border-border rounded-lg overflow-hidden bg-white dark:bg-zinc-950 touch-none">
+      <div className="relative border-2 border-dashed border-border rounded-lg overflow-hidden bg-white touch-none">
         <canvas
           ref={canvasRef}
           width={600}
@@ -320,7 +320,7 @@ export default function CocSigningPage() {
 
         {/* Scroll-to-read instruction */}
         {!hasScrolledToBottom && (
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-warning/10 border border-warning/20 text-warning text-sm">
             <span className="text-base">↓</span>
             <span>Please read the full document before signing. Scroll to the bottom to unlock the signature form.</span>
           </div>
