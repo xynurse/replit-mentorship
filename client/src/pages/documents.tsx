@@ -73,6 +73,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ListSkeleton } from "@/components/skeletons";
 
 type SharedDocument = Document & { sharedBy: User; sharedAt: Date };
 
@@ -957,8 +958,9 @@ export default function DocumentsPage() {
                 <CollapsibleContent>
                   <CardContent className="pt-0">
                     {!personalFolder ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <div className="space-y-3 py-2">
+                        <Skeleton className="h-9 w-full" />
+                        <ListSkeleton items={3} />
                       </div>
                     ) : (
                       renderFiltersAndContent("personal")
@@ -989,8 +991,9 @@ export default function DocumentsPage() {
                 <CollapsibleContent>
                   <CardContent className="pt-0">
                     {!systemFolder ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <div className="space-y-3 py-2">
+                        <Skeleton className="h-9 w-full" />
+                        <ListSkeleton items={3} />
                       </div>
                     ) : (
                       renderFiltersAndContent("system")

@@ -34,6 +34,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
+import { ProfileSkeleton, CardSkeleton } from "@/components/skeletons";
 
 const EXPERTISE_AREAS = ["Science", "Innovation", "Entrepreneurship", "Intrapreneurship", "Leadership"];
 const EDUCATION_LEVELS = ["Bachelor", "Master", "DNP", "PhD"];
@@ -624,8 +625,10 @@ export default function MyProfilePage() {
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="p-6 space-y-6">
+          <ProfileSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       </DashboardLayout>
     );

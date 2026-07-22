@@ -7,6 +7,8 @@ import { toneBadgeClass, type StatusTone } from "@/components/shared/status-badg
 import { Building2, ArrowRight, Loader2, LogOut } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import { CardSkeleton } from "@/components/skeletons";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Admin",
@@ -47,8 +49,15 @@ export default function ProgramSelectorPage() {
 
   if (isLoadingPrograms) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md space-y-4">
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
       </div>
     );
   }
