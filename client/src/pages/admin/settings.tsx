@@ -6,15 +6,17 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Settings, Bell, Shield, Database, Mail } from "lucide-react";
+import { PageHeader } from "@/components/shared/page-header";
 
 export default function AdminSettings() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Settings</h1>
-          <p className="text-muted-foreground">Manage platform settings and configurations</p>
-        </div>
+        <PageHeader
+          title="Settings"
+          description="Manage platform settings and configurations"
+          titleTestId="text-page-title"
+        />
 
         <div className="grid gap-6">
           <Card>

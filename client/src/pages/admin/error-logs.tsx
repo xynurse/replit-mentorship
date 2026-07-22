@@ -40,6 +40,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface ErrorLog {
   id: string;
@@ -140,23 +141,22 @@ export default function ErrorLogs() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Error Logs</h1>
-            <p className="text-muted-foreground">
-              Monitor and resolve system errors
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            data-testid="button-refresh"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
+        <PageHeader
+          title="Error Logs"
+          description="Monitor and resolve system errors"
+          titleTestId="text-page-title"
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              data-testid="button-refresh"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          }
+        />
 
         <Card>
           <CardHeader className="pb-4">

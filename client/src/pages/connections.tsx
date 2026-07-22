@@ -7,8 +7,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Users, Target, Calendar, Mail, Building, Briefcase, UserPlus, Eye } from "lucide-react";
+import { Target, Calendar, Mail, Building, Briefcase, UserPlus, Eye } from "lucide-react";
 import type { MentorshipMatch, User } from "@shared/schema";
+import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
 
 // API returns only public user fields for security
 type PublicUserInfo = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'profileImage' | 'bio' | 'jobTitle' | 'organizationName' | 'linkedInUrl'>;
@@ -44,17 +46,16 @@ export default function ConnectionsPage() {
   return (
     <DashboardLayout>
       <div className="p-6 max-w-5xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold flex items-center gap-2" data-testid="text-connections-title">
-            <Users className="h-6 w-6" />
-            {isMentor ? "My Mentees" : "My Mentor"}
-          </h1>
-          <p className="text-muted-foreground">
-            {isMentor 
-              ? "View and manage your mentee relationships" 
-              : "Connect with your mentor and track your progress"}
-          </p>
-        </div>
+        <PageHeader
+          title={isMentor ? "My Mentees" : "My Mentor"}
+          description={
+            isMentor
+              ? "View and manage your mentee relationships"
+              : "Connect with your mentor and track your progress"
+          }
+          titleTestId="text-connections-title"
+          className="mb-6"
+        />
 
         {isLoading ? (
           <div className="space-y-4">
@@ -75,19 +76,23 @@ export default function ConnectionsPage() {
           </div>
         ) : activeMatches.length === 0 && pendingMatches.length === 0 ? (
           <Card>
-            <CardContent className="p-12 text-center">
-              <UserPlus className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Connections Yet</h3>
-              <p className="text-muted-foreground mb-4">
-                {isMentor 
-                  ? "You haven't been matched with any mentees yet. Matches will appear here once assigned." 
-                  : "You haven't been matched with a mentor yet. Apply to a program to get started."}
-              </p>
-              {!isMentor && (
-                <Link href="/">
-                  <Button data-testid="button-find-programs">Find Programs</Button>
-                </Link>
-              )}
+            <CardContent>
+              <EmptyState
+                icon={UserPlus}
+                title="No connections yet"
+                description={
+                  isMentor
+                    ? "You haven't been matched with any mentees yet. Matches will appear here once assigned."
+                    : "You haven't been matched with a mentor yet. Apply to a program to get started."
+                }
+                action={
+                  !isMentor && (
+                    <Link href="/">
+                      <Button data-testid="button-find-programs">Find Programs</Button>
+                    </Link>
+                  )
+                }
+              />
             </CardContent>
           </Card>
         ) : (

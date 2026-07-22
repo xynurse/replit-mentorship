@@ -54,6 +54,7 @@ import { format, isAfter, isBefore, isToday, startOfDay, endOfDay, subDays, pars
 import type { MeetingLog } from "@shared/schema";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface MeetingWithDetails {
   meeting: MeetingLog;
@@ -234,10 +235,11 @@ export default function AdminMeetingsPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground" data-testid="heading-meetings">Meeting Management</h1>
-          <p className="text-muted-foreground mt-1">Track and analyze mentor-mentee meetings across all cohorts</p>
-        </div>
+        <PageHeader
+          title="Meeting Management"
+          description="Track and analyze mentor-mentee meetings across all cohorts"
+          titleTestId="heading-meetings"
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <KPICard

@@ -71,6 +71,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { StatusBadge, toneBadgeClass, type StatusTone } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
 
 type ReminderWithCreator = Reminder & { createdBy?: User };
 type ReminderWithRecipient = Reminder & { recipient?: User | null };
@@ -486,29 +487,25 @@ export default function RemindersPage() {
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" data-testid="text-page-title">
-              <Bell className="h-6 w-6" />
-              Reminders
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Manage your reminders and tasks
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => openCreateDialog(false)} data-testid="button-create-personal">
-              <Plus className="h-4 w-4 mr-2" />
-              Personal Reminder
-            </Button>
-            {isMentor && (
-              <Button variant="secondary" onClick={() => openCreateDialog(true)} data-testid="button-create-for-mentee">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Remind Mentee
+        <PageHeader
+          title="Reminders"
+          description="Manage your reminders and tasks"
+          titleTestId="text-page-title"
+          actions={
+            <>
+              <Button onClick={() => openCreateDialog(false)} data-testid="button-create-personal">
+                <Plus className="h-4 w-4 mr-2" />
+                Personal Reminder
               </Button>
-            )}
-          </div>
-        </div>
+              {isMentor && (
+                <Button variant="secondary" onClick={() => openCreateDialog(true)} data-testid="button-create-for-mentee">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Remind Mentee
+                </Button>
+              )}
+            </>
+          }
+        />
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full md:w-auto md:inline-grid grid-cols-3 gap-1">

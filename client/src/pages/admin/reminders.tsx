@@ -83,6 +83,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { StatusBadge, type StatusTone } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
 
 type ReminderWithUsers = Reminder & { createdBy: User; recipient: User | null };
 
@@ -261,21 +262,17 @@ export default function AdminRemindersPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" data-testid="text-page-title">
-              <Bell className="h-6 w-6" />
-              Reminders Dashboard
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Manage all reminders across the platform
-            </p>
-          </div>
-          <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-reminder">
-            <Plus className="h-4 w-4 mr-2" />
-            Send Reminder
-          </Button>
-        </div>
+        <PageHeader
+          title="Reminders Dashboard"
+          description="Manage all reminders across the platform"
+          titleTestId="text-page-title"
+          actions={
+            <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-reminder">
+              <Plus className="h-4 w-4 mr-2" />
+              Send Reminder
+            </Button>
+          }
+        />
 
         <div className="grid gap-4 md:grid-cols-4">
           <Card>

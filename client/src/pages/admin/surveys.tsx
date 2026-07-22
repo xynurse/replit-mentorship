@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -33,6 +33,7 @@ import {
   Clock
 } from "lucide-react";
 import type { Survey, SurveyQuestion } from "@shared/schema";
+import { PageHeader } from "@/components/shared/page-header";
 
 const surveySchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -188,18 +189,19 @@ export default function AdminSurveys() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Surveys</h1>
-            <p className="text-muted-foreground">Create and manage feedback surveys</p>
-          </div>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-create-survey">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Survey
-              </Button>
-            </DialogTrigger>
+        <PageHeader
+          title="Surveys"
+          description="Create and manage feedback surveys"
+          titleTestId="text-page-title"
+          actions={
+            <Button onClick={() => setCreateDialogOpen(true)} data-testid="button-create-survey">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Survey
+            </Button>
+          }
+        />
+
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Survey</DialogTitle>
@@ -411,8 +413,7 @@ export default function AdminSurveys() {
                 </form>
               </Form>
             </DialogContent>
-          </Dialog>
-        </div>
+        </Dialog>
 
         <Tabs defaultValue="all" className="space-y-4">
           <TabsList>

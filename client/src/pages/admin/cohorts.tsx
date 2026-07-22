@@ -45,6 +45,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import type { Cohort, Track } from "@shared/schema";
+import { PageHeader } from "@/components/shared/page-header";
 
 const cohortFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -153,22 +154,23 @@ export default function AdminCohorts() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Cohort Management</h1>
-            <p className="text-muted-foreground">Create and manage mentorship cohorts</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setIsBulkAssignOpen(true)} data-testid="button-bulk-assign">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Bulk Assign Users
-            </Button>
-            <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-cohort">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Cohort
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Cohort Management"
+          description="Create and manage mentorship cohorts"
+          titleTestId="text-page-title"
+          actions={
+            <>
+              <Button variant="outline" onClick={() => setIsBulkAssignOpen(true)} data-testid="button-bulk-assign">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Bulk Assign Users
+              </Button>
+              <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-cohort">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Cohort
+              </Button>
+            </>
+          }
+        />
 
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

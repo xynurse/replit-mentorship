@@ -76,6 +76,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toneBadgeClass } from "@/components/shared/status-badge";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface User {
   id: string;
@@ -1406,14 +1407,11 @@ export default function AdminCommunityPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
-            Community Management
-          </h1>
-          <p className="text-muted-foreground">
-            Manage user access, moderate content, and configure community boards
-          </p>
-        </div>
+        <PageHeader
+          title="Community Management"
+          description="Manage user access, moderate content, and configure community boards"
+          titleTestId="text-page-title"
+        />
 
         <Tabs defaultValue="mentor-access" className="space-y-4">
           <TabsList className="grid w-full grid-cols-5">

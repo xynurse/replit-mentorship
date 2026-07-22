@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { toneBadgeClass } from "@/components/shared/status-badge";
 import type { UserSubmission } from "@shared/schema";
+import { PageHeader } from "@/components/shared/page-header";
 
 type SubmissionWithUser = UserSubmission & { userName?: string; userEmail?: string };
 
@@ -158,10 +159,11 @@ export default function AdminSubmissionsPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">User Submissions</h1>
-          <p className="text-muted-foreground">Review and respond to user-reported issues and suggestions</p>
-        </div>
+        <PageHeader
+          title="User Submissions"
+          description="Review and respond to user-reported issues and suggestions"
+          titleTestId="text-page-title"
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>

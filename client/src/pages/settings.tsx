@@ -17,6 +17,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Loader2, User, Bell, Globe, FileDown } from "lucide-react";
 import { Link } from "wouter";
 import { exportProfileToPDF } from "@/lib/pdf-export";
+import { PageHeader } from "@/components/shared/page-header";
 
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -114,10 +115,12 @@ export default function SettingsPage() {
   return (
     <DashboardLayout>
       <div className="p-6 max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold" data-testid="text-settings-title">Settings</h1>
-          <p className="text-muted-foreground">Manage your account settings and preferences</p>
-        </div>
+        <PageHeader
+          title="Settings"
+          description="Manage your account settings and preferences"
+          titleTestId="text-settings-title"
+          className="mb-6"
+        />
 
         <Tabs defaultValue="profile" className="space-y-6">
           <TabsList>

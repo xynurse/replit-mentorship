@@ -21,6 +21,7 @@ import type { CalendarEvent, User, Goal } from "@shared/schema";
 import { EventTypeIndicator, eventTone } from "@/components/shared/event-type-indicator";
 import { StatusBadge, toneDotClass } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
 
 type PublicUserInfo = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'profileImage'>;
 
@@ -574,38 +575,37 @@ export default function CalendarPage() {
   return (
     <DashboardLayout>
       <div className="p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2" data-testid="text-calendar-title">
-              <CalendarIcon className="h-6 w-6" />
-              Calendar
-            </h1>
-            <p className="text-sm text-muted-foreground">View your schedule and manage events</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEventType("block");
-                setShowNewEventDialog(true);
-              }}
-              data-testid="button-block-time"
-            >
-              <Ban className="h-4 w-4 mr-2" />
-              Mark Unavailable
-            </Button>
-            <Button 
-              onClick={() => {
-                setEventType("meeting");
-                setShowNewEventDialog(true);
-              }}
-              data-testid="button-new-meeting"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Schedule Meeting
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Calendar"
+          description="View your schedule and manage events"
+          titleTestId="text-calendar-title"
+          className="mb-6"
+          actions={
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEventType("block");
+                  setShowNewEventDialog(true);
+                }}
+                data-testid="button-block-time"
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                Mark Unavailable
+              </Button>
+              <Button
+                onClick={() => {
+                  setEventType("meeting");
+                  setShowNewEventDialog(true);
+                }}
+                data-testid="button-new-meeting"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Schedule Meeting
+              </Button>
+            </>
+          }
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="lg:col-span-2">

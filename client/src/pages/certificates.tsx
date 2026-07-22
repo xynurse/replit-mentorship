@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Award, Download, ExternalLink, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
+import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
 
 interface Certificate {
   id: string;
@@ -57,24 +59,20 @@ export default function CertificatesPage() {
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-md bg-primary/10">
-          <Award className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">My Certificates</h1>
-          <p className="text-muted-foreground">View and download your earned certificates</p>
-        </div>
-      </div>
+      <PageHeader
+        title="My Certificates"
+        description="View and download your earned certificates"
+        titleTestId="text-page-title"
+      />
 
       {certificates.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Award className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Certificates Yet</h3>
-            <p className="text-muted-foreground text-center max-w-md">
-              You haven't earned any certificates yet. Complete your mentorship program to earn your certificate.
-            </p>
+          <CardContent>
+            <EmptyState
+              icon={Award}
+              title="No certificates yet"
+              description="You haven't earned any certificates yet. Complete your mentorship program to earn your certificate."
+            />
           </CardContent>
         </Card>
       ) : (

@@ -37,6 +37,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { MenteeProfile, User } from "@shared/schema";
+import { PageHeader } from "@/components/shared/page-header";
 
 type MenteeProfileWithUser = MenteeProfile & { user: User };
 
@@ -482,36 +483,37 @@ export default function AdminMenteeProfiles() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Mentee Profiles</h1>
-            <p className="text-muted-foreground">Manage mentee profiles, goals, and interests</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {selectedProfileIds.length > 0 && (
-              <Button variant="outline" onClick={() => setShowPasswordResetDialog(true)} data-testid="button-bulk-password-reset">
-                <KeyRound className="h-4 w-4 mr-2" />
-                Reset Passwords ({selectedProfileIds.length})
+        <PageHeader
+          title="Mentee Profiles"
+          description="Manage mentee profiles, goals, and interests"
+          titleTestId="text-page-title"
+          actions={
+            <>
+              {selectedProfileIds.length > 0 && (
+                <Button variant="outline" onClick={() => setShowPasswordResetDialog(true)} data-testid="button-bulk-password-reset">
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  Reset Passwords ({selectedProfileIds.length})
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setShowImportDialog(true)} data-testid="button-import">
+                <Upload className="mr-2 h-4 w-4" />
+                Import
               </Button>
-            )}
-            <Button variant="outline" onClick={() => setShowImportDialog(true)} data-testid="button-import">
-              <Upload className="mr-2 h-4 w-4" />
-              Import
-            </Button>
-            <Button variant="outline" onClick={handleExport} data-testid="button-export">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-            <Button variant="outline" onClick={() => setShowCreateUserDialog(true)} data-testid="button-create-mentee">
-              <Plus className="mr-2 h-4 w-4" />
-              New Mentee
-            </Button>
-            <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-profile">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Profile
-            </Button>
-          </div>
-        </div>
+              <Button variant="outline" onClick={handleExport} data-testid="button-export">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+              <Button variant="outline" onClick={() => setShowCreateUserDialog(true)} data-testid="button-create-mentee">
+                <Plus className="mr-2 h-4 w-4" />
+                New Mentee
+              </Button>
+              <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-profile">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Profile
+              </Button>
+            </>
+          }
+        />
 
         <div className="grid gap-4 md:grid-cols-3">
           <Card>

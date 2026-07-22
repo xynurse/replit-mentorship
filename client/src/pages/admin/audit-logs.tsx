@@ -42,6 +42,7 @@ import {
   User,
 } from "lucide-react";
 import { format } from "date-fns";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface AuditLog {
   id: string;
@@ -224,38 +225,41 @@ export default function AuditLogs() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Audit Logs</h1>
-            <p className="text-muted-foreground">
+        <PageHeader
+          title="Audit Logs"
+          titleTestId="text-page-title"
+          description={
+            <>
               Track all system activities and user actions
               {data?.totalCount !== undefined && (
                 <span className="ml-2">({data.totalCount.toLocaleString()} total entries)</span>
               )}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportLogs}
-              disabled={!data?.logs?.length}
-              data-testid="button-export"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              data-testid="button-refresh"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </div>
+            </>
+          }
+          actions={
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportLogs}
+                disabled={!data?.logs?.length}
+                data-testid="button-export"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                data-testid="button-refresh"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </>
+          }
+        />
 
         <Card>
           <CardHeader className="pb-4">

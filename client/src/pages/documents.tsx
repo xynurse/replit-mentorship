@@ -72,6 +72,7 @@ import {
   Loader2,
   ExternalLink,
 } from "lucide-react";
+import { EmptyState } from "@/components/shared/empty-state";
 
 type SharedDocument = Document & { sharedBy: User; sharedAt: Date };
 
@@ -1522,19 +1523,19 @@ export default function DocumentsPage() {
                 <h2 className="text-sm font-medium text-muted-foreground mb-3">Documents</h2>
               )}
               {documents && documents.length === 0 && (!folders || folders.length === 0) ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <FileText className="h-16 w-16 text-muted-foreground/50 mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No documents yet</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Upload your first document to get started.
-                  </p>
-                  {canUploadHere && (
-                    <Button onClick={() => { setFocusedSection(section); setShowUploadDialog(true); }} data-testid={`button-empty-upload-${section}`}>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Document
-                    </Button>
-                  )}
-                </div>
+                <EmptyState
+                  icon={FileText}
+                  title="No documents yet"
+                  description="Upload your first document to get started."
+                  action={
+                    canUploadHere && (
+                      <Button onClick={() => { setFocusedSection(section); setShowUploadDialog(true); }} data-testid={`button-empty-upload-${section}`}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Document
+                      </Button>
+                    )
+                  }
+                />
               ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {documents?.map((doc) => (
