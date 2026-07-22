@@ -1,11 +1,20 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -13,8 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Activity, HeartPulse, MessageSquare, RefreshCw, CalendarDays } from "lucide-react";
+import { Activity, HeartPulse, MessageSquare, RefreshCw, CalendarDays, Send, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge, toneDotClass, type StatusTone } from "@/components/shared/status-badge";
@@ -22,8 +33,25 @@ import {
   MATCH_AT_RISK_DAYS,
   MATCH_HEALTH_LABELS,
   MATCH_WATCH_DAYS,
+  NUDGE_COOLDOWN_DAYS,
   type MatchHealthLevel,
 } from "@shared/match-health";
+
+interface NudgeCandidate {
+  matchId: string;
+  mentor: { id: string; name: string; email: string };
+  mentee: { id: string; name: string; email: string };
+  cohortName?: string;
+  reasonLabels: string[];
+  daysSinceActivity: number | null;
+}
+
+interface NudgePreview {
+  dryRun: boolean;
+  candidates: NudgeCandidate[];
+  delivered: { matchId: string; email: string; notified: boolean; emailed: boolean; error?: string }[];
+  skipped: { matchId: string; because: string }[];
+}
 
 interface MatchHealthParty {
   id: string;
@@ -134,9 +162,40 @@ function SummaryCard({
 export default function AdminMatchHealthPage() {
   const [filter, setFilter] = useState<MatchHealthLevel | "all">("all");
   const [cohortFilter, setCohortFilter] = useState<string>("all");
+  const [nudgeDialogOpen, setNudgeDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const { data: rows = [], isLoading, refetch, isFetching } = useQuery<MatchHealthRow[]>({
     queryKey: ["/api/admin/match-health"],
+  });
+
+  // Read-only preview of who a nudge run would reach. Sends nothing.
+  const { data: preview, isLoading: previewLoading } = useQuery<NudgePreview>({
+    queryKey: ["/api/admin/match-nudges/preview"],
+  });
+
+  const nudgeCount = preview?.candidates.length ?? 0;
+
+  const sendNudges = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/match-nudges/send");
+      return (await res.json()) as NudgePreview;
+    },
+    onSuccess: (result) => {
+      const emailed = result.delivered.filter((d) => d.emailed).length;
+      const failed = result.delivered.filter((d) => d.error).length;
+      toast({
+        title: `Nudged ${result.candidates.length} pair${result.candidates.length === 1 ? "" : "s"}`,
+        description: `${emailed} email${emailed === 1 ? "" : "s"} sent${failed ? `, ${failed} failed` : ""}.`,
+        variant: failed ? "destructive" : undefined,
+      });
+      setNudgeDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/match-nudges/preview"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/match-health"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to send nudges", description: error.message, variant: "destructive" });
+    },
   });
 
   const cohorts = useMemo(() => {
@@ -180,16 +239,27 @@ export default function AdminMatchHealthPage() {
           description={`Engagement recency for every active pair. Flagged at ${MATCH_AT_RISK_DAYS}+ days without a message or meeting.`}
           titleTestId="text-page-title"
           actions={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              data-testid="button-refresh"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                data-testid="button-refresh"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setNudgeDialogOpen(true)}
+                disabled={previewLoading || nudgeCount === 0}
+                data-testid="button-open-nudges"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {nudgeCount > 0 ? `Send check-ins (${nudgeCount})` : "No check-ins due"}
+              </Button>
+            </>
           }
         />
 
@@ -358,6 +428,63 @@ export default function AdminMatchHealthPage() {
             </p>
           </>
         )}
+
+        <Dialog open={nudgeDialogOpen} onOpenChange={setNudgeDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Send check-in nudges</DialogTitle>
+              <DialogDescription>
+                Both people in each pair below get an in-app notification and an email
+                (unless they've turned check-in emails off). A pair won't be nudged again
+                for {NUDGE_COOLDOWN_DAYS} days.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              {preview?.candidates.map((c) => (
+                <div
+                  key={c.matchId}
+                  className="rounded-md border p-3"
+                  data-testid={`nudge-candidate-${c.matchId}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium">
+                      {c.mentor.name} &amp; {c.mentee.name}
+                    </p>
+                    {c.cohortName && (
+                      <span className="text-xs text-muted-foreground">{c.cohortName}</span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {c.reasonLabels.map((label) => (
+                      <Badge key={label} variant="outline" className="text-xs font-normal">
+                        {label}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setNudgeDialogOpen(false)}
+                data-testid="button-cancel-nudges"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => sendNudges.mutate()}
+                disabled={sendNudges.isPending || nudgeCount === 0}
+                data-testid="button-confirm-nudges"
+              >
+                {sendNudges.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Send to {nudgeCount} pair{nudgeCount === 1 ? "" : "s"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );

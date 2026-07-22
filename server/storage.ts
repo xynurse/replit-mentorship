@@ -177,6 +177,7 @@ export interface IStorage {
   getMatchWithUsers(id: string): Promise<(MentorshipMatch & { mentor: User; mentee: User; mentorId: string; menteeId: string }) | undefined>;
   getAllMatches(): Promise<(MentorshipMatch & { mentor: User; mentee: User; cohort?: { id: string; name: string } })[]>;
   getMatchHealth(): Promise<MatchHealthRow[]>;
+  getLastNudgedAtByMatch(matchIds: string[]): Promise<Map<string, Date>>;
   deleteMatch(id: string): Promise<boolean>;
   
   // Simple matching (without cohort requirement)
@@ -1423,6 +1424,33 @@ export class DatabaseStorage implements IStorage {
         health: matchHealthLevel(activity, now),
       };
     });
+  }
+
+  /**
+   * When each match was last sent a check-in nudge. Derived from the
+   * notifications table rather than a dedicated column, so the cooldown can
+   * never drift out of sync with what was actually delivered.
+   */
+  async getLastNudgedAtByMatch(matchIds: string[]): Promise<Map<string, Date>> {
+    if (matchIds.length === 0) return new Map();
+
+    const rows = await db.select({
+      matchId: notifications.resourceId,
+      lastNudgedAt: sql<string | null>`max(${notifications.createdAt})`,
+    })
+      .from(notifications)
+      .where(and(
+        eq(notifications.type, 'MATCH_CHECK_IN'),
+        eq(notifications.resourceType, 'MATCH'),
+        inArray(notifications.resourceId, matchIds),
+      ))
+      .groupBy(notifications.resourceId);
+
+    const map = new Map<string, Date>();
+    for (const row of rows) {
+      if (row.matchId && row.lastNudgedAt) map.set(row.matchId, new Date(row.lastNudgedAt));
+    }
+    return map;
   }
 
   async deleteMatch(id: string): Promise<boolean> {

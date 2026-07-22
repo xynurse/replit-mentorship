@@ -18,6 +18,27 @@ export const NUDGE_NO_MESSAGE_DAYS = 7;
 /** Days without a logged meeting before the pair gets a check-in nudge. */
 export const NUDGE_NO_MEETING_DAYS = 14;
 
+/**
+ * Minimum gap between nudges for the same pair. Without this, a match that
+ * stays quiet would be nudged on every run, which trains people to ignore
+ * the mail — the opposite of what a nudge is for.
+ */
+export const NUDGE_COOLDOWN_DAYS = 7;
+
+/**
+ * Grace period after a match starts before it can be nudged. A pair matched
+ * this morning has not "gone quiet"; nudging them immediately is noise.
+ */
+export const NUDGE_GRACE_DAYS = 3;
+
+export type NudgeReason = "no_message" | "no_meeting" | "never_started";
+
+export const NUDGE_REASON_LABELS: Record<NudgeReason, string> = {
+  never_started: "No contact yet",
+  no_message: `No message in ${NUDGE_NO_MESSAGE_DAYS}+ days`,
+  no_meeting: `No meeting in ${NUDGE_NO_MEETING_DAYS}+ days`,
+};
+
 export type MatchHealthLevel = "healthy" | "watch" | "at_risk" | "no_activity";
 
 export interface MatchActivity {
@@ -69,3 +90,52 @@ export const MATCH_HEALTH_LABELS: Record<MatchHealthLevel, string> = {
   at_risk: "At risk",
   no_activity: "Not started",
 };
+
+export interface NudgeCandidateInput extends MatchActivity {
+  /** When the pair was matched — drives the grace period. */
+  startedAt: Date | string | null;
+  /** When this pair was last nudged, if ever — drives the cooldown. */
+  lastNudgedAt: Date | string | null;
+}
+
+export interface NudgeDecision {
+  shouldNudge: boolean;
+  reasons: NudgeReason[];
+  /** Set when `shouldNudge` is false, for preview/debugging. */
+  skippedBecause?: "in_grace_period" | "recently_nudged" | "engaged";
+}
+
+/**
+ * Decide whether a pair should be nudged, and why.
+ *
+ * Order matters: grace period is checked before cooldown, and both before
+ * the activity rules, so a brand-new or recently-nudged pair never produces
+ * reasons that a caller might act on by mistake.
+ */
+export function evaluateNudge(input: NudgeCandidateInput, now: Date = new Date()): NudgeDecision {
+  const ageDays = daysSince(input.startedAt, now);
+  if (ageDays !== null && ageDays < NUDGE_GRACE_DAYS) {
+    return { shouldNudge: false, reasons: [], skippedBecause: "in_grace_period" };
+  }
+
+  const sinceNudge = daysSince(input.lastNudgedAt, now);
+  if (sinceNudge !== null && sinceNudge < NUDGE_COOLDOWN_DAYS) {
+    return { shouldNudge: false, reasons: [], skippedBecause: "recently_nudged" };
+  }
+
+  const reasons: NudgeReason[] = [];
+  const sinceMessage = daysSince(input.lastMessageAt, now);
+  const sinceMeeting = daysSince(input.lastMeetingAt, now);
+
+  if (input.lastMessageAt === null && input.lastMeetingAt === null) {
+    reasons.push("never_started");
+  } else {
+    if (sinceMessage === null || sinceMessage >= NUDGE_NO_MESSAGE_DAYS) reasons.push("no_message");
+    if (sinceMeeting === null || sinceMeeting >= NUDGE_NO_MEETING_DAYS) reasons.push("no_meeting");
+  }
+
+  if (reasons.length === 0) {
+    return { shouldNudge: false, reasons: [], skippedBecause: "engaged" };
+  }
+  return { shouldNudge: true, reasons };
+}

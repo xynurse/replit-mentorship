@@ -808,3 +808,86 @@ export async function sendMatchNotificationEmail(
     return { success: false, error: error.message || 'Failed to send email' };
   }
 }
+
+export interface MatchCheckInEmailData {
+  email: string;
+  recipientName: string;
+  /** Role of the recipient in this pair. */
+  recipientRole: 'MENTOR' | 'MENTEE';
+  /** The person on the other side of the match. */
+  partnerName: string;
+  /** Human-readable reasons, e.g. "No message in 7+ days". */
+  reasons: string[];
+  /** Deep link to the pair's conversation. */
+  messagesUrl: string;
+  dashboardUrl: string;
+}
+
+/**
+ * A gentle check-in when a mentorship pair has gone quiet.
+ *
+ * Deliberately low-pressure: no "you have failed to..." framing, no red.
+ * The goal is to restart a conversation, not to report a violation — a
+ * scolding tone makes people disengage from the platform entirely.
+ */
+export async function sendMatchCheckInEmail(data: MatchCheckInEmailData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+
+    const counterpart = data.recipientRole === 'MENTOR' ? 'mentee' : 'mentor';
+    const reasonList = data.reasons.length
+      ? `<ul style="margin: 12px 0 0; padding-left: 20px; color: #5A6B60;">${data.reasons
+          .map((r) => `<li style="margin-bottom: 4px;">${r}</li>`)
+          .join('')}</ul>`
+      : '';
+
+    const result = await client.emails.send({
+      from: fromEmail,
+      to: data.email,
+      subject: `Checking in on your mentorship with ${data.partnerName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #2E3A33; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: #4E7E63; padding: 24px; border-radius: 10px 10px 0 0;">
+            <h1 style="color: #F2F7F4; margin: 0; font-size: 20px; font-weight: 600;">A quick check-in</h1>
+          </div>
+          <div style="background: #F2F7F4; padding: 28px; border: 1px solid #DCE5DF; border-top: none; border-radius: 0 0 10px 10px;">
+            <p style="margin-top: 0;">Hi ${data.recipientName},</p>
+            <p>
+              It's been a little while since there was activity between you and your
+              ${counterpart}, <strong>${data.partnerName}</strong>.
+            </p>
+            ${reasonList}
+            <p style="margin-top: 20px;">
+              No action is required — mentorships naturally ebb and flow. But if it has
+              simply slipped down the list, a short message is usually all it takes to
+              pick things back up.
+            </p>
+            <p style="margin-top: 24px;">
+              <a href="${data.messagesUrl}" style="display:inline-block; background:#4E7E63; color:#F2F7F4; padding:11px 22px; border-radius:6px; text-decoration:none; font-weight:500;">Send a message</a>
+            </p>
+            <p style="color:#5A6B60; font-size:12px; margin-top: 28px; border-top: 1px solid #DCE5DF; padding-top: 16px;">
+              You're receiving this because you have an active mentorship match on
+              SONSIEL Mentorship Hub. You can adjust which emails you receive in
+              <a href="${data.dashboardUrl}/notifications" style="color:#4E7E63;">notification settings</a>.
+            </p>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    if (result.error) {
+      return { success: false, error: result.error.message };
+    }
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to send match check-in email:', error);
+    return { success: false, error: error.message || 'Failed to send email' };
+  }
+}

@@ -50,6 +50,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "MENTEE_PROGRESS_UPDATE",
   "COHORT_ENDING_SOON",
   "SYSTEM_ANNOUNCEMENT",
+  "MATCH_CHECK_IN",
 ]);
 
 export const notificationPriorityEnum = pgEnum("notification_priority", ["LOW", "NORMAL", "HIGH", "URGENT"]);
@@ -1042,7 +1043,7 @@ export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type NotificationPreference = typeof notificationPreferences.$inferSelect;
 export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferenceSchema>;
-export type NotificationType = "WELCOME" | "APPLICATION_RECEIVED" | "APPLICATION_APPROVED" | "APPLICATION_REJECTED" | "MATCH_PROPOSED" | "MATCH_CONFIRMED" | "NEW_MESSAGE" | "NEW_ANNOUNCEMENT" | "TASK_ASSIGNED" | "TASK_DUE_SOON" | "TASK_OVERDUE" | "TASK_COMPLETED" | "GOAL_APPROVED" | "GOAL_FEEDBACK" | "GOAL_MILESTONE_DUE" | "MEETING_REMINDER" | "MEETING_SCHEDULED" | "DOCUMENT_SHARED" | "MENTEE_PROGRESS_UPDATE" | "COHORT_ENDING_SOON" | "SYSTEM_ANNOUNCEMENT";
+export type NotificationType = "WELCOME" | "APPLICATION_RECEIVED" | "APPLICATION_APPROVED" | "APPLICATION_REJECTED" | "MATCH_PROPOSED" | "MATCH_CONFIRMED" | "NEW_MESSAGE" | "NEW_ANNOUNCEMENT" | "TASK_ASSIGNED" | "TASK_DUE_SOON" | "TASK_OVERDUE" | "TASK_COMPLETED" | "GOAL_APPROVED" | "GOAL_FEEDBACK" | "GOAL_MILESTONE_DUE" | "MEETING_REMINDER" | "MEETING_SCHEDULED" | "DOCUMENT_SHARED" | "MENTEE_PROGRESS_UPDATE" | "COHORT_ENDING_SOON" | "SYSTEM_ANNOUNCEMENT" | "MATCH_CHECK_IN";
 export type NotificationPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type NotificationResourceType = "USER" | "MATCH" | "TASK" | "GOAL" | "MESSAGE" | "DOCUMENT" | "COHORT" | "APPLICATION" | "MEETING" | "SYSTEM";
 export type EmailFrequency = "INSTANT" | "DAILY_DIGEST" | "WEEKLY_DIGEST" | "NEVER";

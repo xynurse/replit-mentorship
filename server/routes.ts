@@ -25,6 +25,7 @@ import {
   type UploadKind,
 } from "./storage/blob";
 import { AuditService, createAuditMiddleware } from "./audit";
+import { runMatchNudges } from "./jobs/match-nudges";
 import ical, { ICalEventStatus } from "ical-generator";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -2798,6 +2799,40 @@ export async function registerRoutes(
     try {
       const rows = await storage.getMatchHealth();
       res.json(rows);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Preview which pairs would be nudged. Read-only — sends nothing.
+  app.get("/api/admin/match-nudges/preview", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const result = await runMatchNudges({ dryRun: true });
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Actually send the nudges. Separate endpoint from the preview on purpose:
+  // sending real email to real people should never be a query-param away from
+  // a read.
+  app.post("/api/admin/match-nudges/send", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const result = await runMatchNudges({ dryRun: false });
+      const audit = AuditService.fromRequest(req);
+      await audit.log({
+        action: "MATCH_UPDATED",
+        resourceType: "MATCH",
+        resourceName: `${result.candidates.length} pair(s) nudged`,
+        metadata: {
+          matchIds: result.candidates.map((c) => c.matchId),
+          recipients: result.delivered.length,
+          emailsSent: result.delivered.filter((d) => d.emailed).length,
+          failures: result.delivered.filter((d) => d.error).length,
+        },
+      });
+      res.json(result);
     } catch (error) {
       next(error);
     }
