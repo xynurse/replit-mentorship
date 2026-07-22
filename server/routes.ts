@@ -2792,6 +2792,17 @@ export async function registerRoutes(
     }
   });
 
+  // Match health — engagement recency per active pair, so admins can spot
+  // matches that have gone quiet before the cohort ends.
+  app.get("/api/admin/match-health", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const rows = await storage.getMatchHealth();
+      res.json(rows);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Get available mentors for matching
   app.get("/api/admin/matches/available-mentors", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {

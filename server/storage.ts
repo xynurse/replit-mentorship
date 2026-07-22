@@ -51,13 +51,47 @@ import {
   type Program, type InsertProgram, type ProgramMembership, type InsertProgramMembership
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
+import {
+  lastActivityAt,
+  daysSince,
+  matchHealthLevel,
+  type MatchHealthLevel,
+} from "@shared/match-health";
+import { eq, and, gt, isNull, isNotNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 
 const PostgresSessionStore = connectPg(session);
+
+/** A public-safe user summary for match-health rows. */
+interface MatchHealthParty {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  profileImage: string | null;
+}
+
+/** One active mentorship pair with its engagement recency. */
+export interface MatchHealthRow {
+  matchId: string;
+  status: string | null;
+  startedAt: Date | null;
+  mentor: MatchHealthParty;
+  mentee: MatchHealthParty;
+  cohort?: { id: string; name: string };
+  lastMessageAt: Date | null;
+  lastMeetingAt: Date | null;
+  lastActivityAt: Date | null;
+  messageCount: number;
+  meetingCount: number;
+  daysSinceMessage: number | null;
+  daysSinceMeeting: number | null;
+  daysSinceActivity: number | null;
+  health: MatchHealthLevel;
+}
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -142,6 +176,7 @@ export interface IStorage {
   getMatch(id: string): Promise<MentorshipMatch | undefined>;
   getMatchWithUsers(id: string): Promise<(MentorshipMatch & { mentor: User; mentee: User; mentorId: string; menteeId: string }) | undefined>;
   getAllMatches(): Promise<(MentorshipMatch & { mentor: User; mentee: User; cohort?: { id: string; name: string } })[]>;
+  getMatchHealth(): Promise<MatchHealthRow[]>;
   deleteMatch(id: string): Promise<boolean>;
   
   // Simple matching (without cohort requirement)
@@ -1287,6 +1322,107 @@ export class DatabaseStorage implements IStorage {
       mentee: r.mentee,
       cohort: r.cohort || undefined,
     }));
+  }
+
+  async getMatchHealth(): Promise<MatchHealthRow[]> {
+    const mentorUsers = alias(users, 'mh_mentor_users');
+    const menteeUsers = alias(users, 'mh_mentee_users');
+    const mentorMemberships = alias(cohortMemberships, 'mh_mentor_memberships');
+    const menteeMemberships = alias(cohortMemberships, 'mh_mentee_memberships');
+
+    const matchRows = await db.select({
+      id: mentorshipMatches.id,
+      status: mentorshipMatches.status,
+      startDate: mentorshipMatches.startDate,
+      matchedAt: mentorshipMatches.matchedAt,
+      createdAt: mentorshipMatches.createdAt,
+      mentor: {
+        id: mentorUsers.id,
+        firstName: mentorUsers.firstName,
+        lastName: mentorUsers.lastName,
+        email: mentorUsers.email,
+        profileImage: mentorUsers.profileImage,
+      },
+      mentee: {
+        id: menteeUsers.id,
+        firstName: menteeUsers.firstName,
+        lastName: menteeUsers.lastName,
+        email: menteeUsers.email,
+        profileImage: menteeUsers.profileImage,
+      },
+      cohort: { id: cohorts.id, name: cohorts.name },
+    })
+      .from(mentorshipMatches)
+      .innerJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .innerJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .innerJoin(mentorUsers, eq(mentorMemberships.userId, mentorUsers.id))
+      .innerJoin(menteeUsers, eq(menteeMemberships.userId, menteeUsers.id))
+      .leftJoin(cohorts, eq(mentorshipMatches.cohortId, cohorts.id))
+      .where(eq(mentorshipMatches.status, 'ACTIVE'));
+
+    if (matchRows.length === 0) return [];
+    const matchIds = matchRows.map(r => r.id);
+
+    // Message recency is derived from `messages` rather than the denormalized
+    // `conversations.lastMessageAt`, so soft-deleted messages don't keep a
+    // silent pair looking active.
+    const messageRows = await db.select({
+      matchId: conversations.matchId,
+      lastMessageAt: sql<string | null>`max(${messages.createdAt})`,
+      messageCount: count(messages.id),
+    })
+      .from(messages)
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(and(
+        inArray(conversations.matchId, matchIds),
+        eq(messages.isDeleted, false),
+      ))
+      .groupBy(conversations.matchId);
+
+    // `actualDate` — a meeting that was scheduled but never happened must not
+    // count as activity.
+    const meetingRows = await db.select({
+      matchId: meetingLogs.matchId,
+      lastMeetingAt: sql<string | null>`max(${meetingLogs.actualDate})`,
+      meetingCount: count(meetingLogs.id),
+    })
+      .from(meetingLogs)
+      .where(and(
+        inArray(meetingLogs.matchId, matchIds),
+        isNotNull(meetingLogs.actualDate),
+      ))
+      .groupBy(meetingLogs.matchId);
+
+    const messagesByMatch = new Map(messageRows.map(r => [r.matchId, r]));
+    const meetingsByMatch = new Map(meetingRows.map(r => [r.matchId, r]));
+    const now = new Date();
+
+    return matchRows.map(row => {
+      const msg = messagesByMatch.get(row.id);
+      const meet = meetingsByMatch.get(row.id);
+      const lastMessageAt = msg?.lastMessageAt ? new Date(msg.lastMessageAt) : null;
+      const lastMeetingAt = meet?.lastMeetingAt ? new Date(meet.lastMeetingAt) : null;
+      const activity = { lastMessageAt, lastMeetingAt };
+      const lastActivity = lastActivityAt(activity);
+
+      return {
+        matchId: row.id,
+        status: row.status,
+        startedAt: row.startDate ?? row.matchedAt ?? row.createdAt ?? null,
+        mentor: row.mentor,
+        mentee: row.mentee,
+        cohort: row.cohort?.id ? row.cohort : undefined,
+        lastMessageAt,
+        lastMeetingAt,
+        lastActivityAt: lastActivity,
+        messageCount: msg?.messageCount ?? 0,
+        meetingCount: meet?.meetingCount ?? 0,
+        daysSinceMessage: daysSince(lastMessageAt, now),
+        daysSinceMeeting: daysSince(lastMeetingAt, now),
+        daysSinceActivity: daysSince(lastActivity, now),
+        health: matchHealthLevel(activity, now),
+      };
+    });
   }
 
   async deleteMatch(id: string): Promise<boolean> {

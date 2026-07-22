@@ -38,6 +38,7 @@ const AdminMenteeProfileDetail = lazy(() => import("@/pages/admin/mentee-profile
 const AdminCohortDetail = lazy(() => import("@/pages/admin/cohort-detail"));
 const AdminSettings = lazy(() => import("@/pages/admin/settings"));
 const AdminConnections = lazy(() => import("@/pages/admin/connections"));
+const AdminMatchHealth = lazy(() => import("@/pages/admin/match-health"));
 const AdminMeetings = lazy(() => import("@/pages/admin/meetings"));
 const AdminCommunity = lazy(() => import("@/pages/admin/community"));
 const AdminReminders = lazy(() => import("@/pages/admin/reminders"));
@@ -119,6 +120,7 @@ function Router() {
       <AdminRoute path="/admin/mentee-profiles/:userId" component={AdminMenteeProfileDetail} />
       <AdminRoute path="/admin/settings" component={AdminSettings} />
       <AdminRoute path="/admin/connections" component={AdminConnections} />
+      <AdminRoute path="/admin/match-health" component={AdminMatchHealth} />
       <AdminRoute path="/admin/meetings" component={AdminMeetings} />
       <AdminRoute path="/admin/community" component={AdminCommunity} />
       <AdminRoute path="/admin/reminders" component={AdminReminders} />
