@@ -26,6 +26,7 @@ import {
 } from "./storage/blob";
 import { AuditService, createAuditMiddleware } from "./audit";
 import { runMatchNudges } from "./jobs/match-nudges";
+import { sessionFeedbackInputSchema } from "@shared/session-feedback";
 import ical, { ICalEventStatus } from "ical-generator";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -4684,9 +4685,61 @@ export async function registerRoutes(
       if (!meeting) {
         return res.status(404).json({ message: "Meeting not found" });
       }
-      
+
       const updated = await storage.updateMeeting(req.params.id, req.body);
       res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Post-meeting feedback — the mentor or mentee rates a session they were
+  // part of. submitSessionFeedback returns null when the caller isn't in the
+  // match, which is the 403 signal.
+  app.post("/api/meetings/:id/feedback", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const input = sessionFeedbackInputSchema.parse(req.body);
+      const result = await storage.submitSessionFeedback(req.params.id, user.id, input);
+      if (!result) {
+        return res.status(403).json({ message: "You can only give feedback on your own meetings." });
+      }
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid feedback", errors: error.errors });
+      }
+      next(error);
+    }
+  });
+
+  // Both sides' feedback for a meeting. Participants and admins only.
+  app.get("/api/meetings/:id/feedback", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const meeting = await storage.getMeeting(req.params.id);
+      if (!meeting) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
+      if (!isAdmin) {
+        const match = await storage.getMatchWithUsers(meeting.matchId);
+        if (!match || (match.mentorId !== user.id && match.menteeId !== user.id)) {
+          return res.status(403).json({ message: "Not your meeting." });
+        }
+      }
+      const feedback = await storage.getSessionFeedback(req.params.id);
+      res.json(feedback);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Program-wide session-feedback rollup for admins.
+  app.get("/api/admin/session-feedback/summary", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const summary = await storage.getSessionFeedbackSummary();
+      res.json(summary);
     } catch (error) {
       next(error);
     }

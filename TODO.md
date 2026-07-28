@@ -96,8 +96,8 @@ Extends the sage/Hanken Grotesk theme (commit `5f1ff5d`, login-only) across the 
 Ranked for a program of dozens of users. Tier 1 first.
 
 ### Tier 1 — high value, schema mostly exists
-- [ ] **Match health dashboard** — per-match last-message/last-meeting recency for admins; flag pairs inactive 14+ days.
-- [ ] **Automated match nudges** — email check-in when no message in 7 days / no meeting in 2 weeks (Resend + existing notifications).
+- [x] **Match health dashboard** — per-match last-message/last-meeting recency for admins; flag pairs inactive 14+ days. Shipped: `/admin/match-health`, worst-first, health + cohort filters. Logic in `shared/match-health.ts`.
+- [x] **Automated match nudges** — in-app + email check-in when no message in 7 days / no meeting in 2 weeks. Code complete and verified, but **DORMANT**: needs `MATCH_CHECK_IN` added to the production `notification_type` enum (`drizzle-kit push`) before the preview/send endpoints work. Preview-then-confirm UI on the Match Health page; 3-day grace + 7-day cooldown; defaults to dry-run.
 - [ ] **Post-meeting session feedback** — `mentorFeedback`/`menteeFeedback` jsonb columns exist with no UI; add a 2-question rating after logging a meeting + admin rollup.
 - [ ] **Survey builder** (was Phase 10) — schema + endpoints exist; needs question-builder UI and response analytics.
 - [ ] **Onboarding progress widget** — `onboardingProgress` table (6 flags) has no endpoints or UI; show "N of 6 steps" for new users.

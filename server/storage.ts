@@ -57,6 +57,15 @@ import {
   matchHealthLevel,
   type MatchHealthLevel,
 } from "@shared/match-health";
+import {
+  readFeedbackStore,
+  entryForMeeting,
+  type SessionFeedbackInput,
+  type SessionFeedbackEntry,
+  type MatchFeedbackStore,
+  type MeetingFeedbackPair,
+  type SessionFeedbackSummary,
+} from "@shared/session-feedback";
 import { eq, and, gt, isNull, isNotNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import session from "express-session";
@@ -126,6 +135,9 @@ export interface IStorage {
   getMeetingsForUser(userId: string): Promise<MeetingLog[]>;
   getMeeting(id: string): Promise<MeetingLog | undefined>;
   createMeeting(meeting: InsertMeetingLog): Promise<MeetingLog>;
+  submitSessionFeedback(meetingId: string, userId: string, input: SessionFeedbackInput): Promise<{ role: "MENTOR" | "MENTEE"; entry: SessionFeedbackEntry } | null>;
+  getSessionFeedback(meetingId: string): Promise<MeetingFeedbackPair | null>;
+  getSessionFeedbackSummary(): Promise<SessionFeedbackSummary>;
   updateMeeting(id: string, data: Partial<MeetingLog>): Promise<MeetingLog | undefined>;
   deleteMeeting(id: string): Promise<void>;
   getAllMeetingsWithDetails(): Promise<{
@@ -866,6 +878,92 @@ export class DatabaseStorage implements IStorage {
   async createMeeting(meeting: InsertMeetingLog): Promise<MeetingLog> {
     const [result] = await db.insert(meetingLogs).values(meeting).returning();
     return result;
+  }
+
+  /**
+   * Record one participant's feedback for a meeting.
+   *
+   * Returns the role the submitter played, or null if they aren't part of the
+   * match (the route uses this to 403). Mentor and mentee write to different
+   * jsonb columns, so their concurrent submissions never conflict.
+   */
+  async submitSessionFeedback(
+    meetingId: string,
+    userId: string,
+    input: SessionFeedbackInput,
+  ): Promise<{ role: "MENTOR" | "MENTEE"; entry: SessionFeedbackEntry } | null> {
+    const meeting = await this.getMeeting(meetingId);
+    if (!meeting) return null;
+
+    const match = await this.getMatchWithUsers(meeting.matchId);
+    if (!match) return null;
+
+    const isMentor = match.mentorId === userId;
+    const isMentee = match.menteeId === userId;
+    if (!isMentor && !isMentee) return null;
+
+    const column = isMentor ? "mentorFeedback" : "menteeFeedback";
+    const store = readFeedbackStore(match[column]);
+    const entry: SessionFeedbackEntry = {
+      rating: input.rating,
+      wentWell: input.wentWell ?? "",
+      submittedAt: new Date().toISOString(),
+    };
+    const next: MatchFeedbackStore = {
+      ...store,
+      sessions: { ...(store.sessions ?? {}), [meetingId]: entry },
+    };
+
+    await db.update(mentorshipMatches)
+      .set({ [column]: next, updatedAt: new Date() })
+      .where(eq(mentorshipMatches.id, match.id));
+
+    return { role: isMentor ? "MENTOR" : "MENTEE", entry };
+  }
+
+  /** Both sides' feedback for a single meeting. */
+  async getSessionFeedback(meetingId: string): Promise<MeetingFeedbackPair | null> {
+    const meeting = await this.getMeeting(meetingId);
+    if (!meeting) return null;
+    const match = await this.getMatch(meeting.matchId);
+    if (!match) return null;
+    return {
+      mentor: entryForMeeting(readFeedbackStore(match.mentorFeedback), meetingId),
+      mentee: entryForMeeting(readFeedbackStore(match.menteeFeedback), meetingId),
+    };
+  }
+
+  /** Program-wide rollup of session ratings for the admin dashboard. */
+  async getSessionFeedbackSummary(): Promise<SessionFeedbackSummary> {
+    const rows = await db.select({
+      mentorFeedback: mentorshipMatches.mentorFeedback,
+      menteeFeedback: mentorshipMatches.menteeFeedback,
+    }).from(mentorshipMatches);
+
+    const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let total = 0;
+    let sum = 0;
+    const meetingIds = new Set<string>();
+
+    for (const row of rows) {
+      for (const raw of [row.mentorFeedback, row.menteeFeedback]) {
+        const sessions = readFeedbackStore(raw).sessions ?? {};
+        for (const [meetingId, entry] of Object.entries(sessions)) {
+          if (typeof entry.rating !== "number") continue;
+          total += 1;
+          sum += entry.rating;
+          distribution[entry.rating] = (distribution[entry.rating] ?? 0) + 1;
+          meetingIds.add(meetingId);
+        }
+      }
+    }
+
+    return {
+      totalResponses: total,
+      averageRating: total > 0 ? Math.round((sum / total) * 10) / 10 : null,
+      distribution,
+      meetingsWithFeedback: meetingIds.size,
+    };
   }
 
   async updateMeeting(id: string, data: Partial<MeetingLog>): Promise<MeetingLog | undefined> {
