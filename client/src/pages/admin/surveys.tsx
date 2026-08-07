@@ -575,17 +575,39 @@ export default function AdminSurveys() {
               )}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[65vh] pr-1">
-            {!responses || (responses as any[]).length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <ClipboardList className="w-12 h-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No responses yet</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Share the survey link so participants can respond.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4 pb-2">
+          {!responses || (responses as any[]).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <ClipboardList className="w-12 h-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No responses yet</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Share the survey link so participants can respond.
+              </p>
+            </div>
+          ) : (
+            <Tabs defaultValue="summary" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="summary" data-testid="tab-response-summary">
+                  <BarChart3 className="w-4 h-4 mr-1" />
+                  Summary
+                </TabsTrigger>
+                <TabsTrigger value="individual" data-testid="tab-response-individual">
+                  <Eye className="w-4 h-4 mr-1" />
+                  Individual
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="summary">
+                <ScrollArea className="max-h-[65vh] pr-1">
+                  <SurveyAnalytics
+                    questions={(viewingResponses?.questions as SurveyQuestion[] | null) ?? []}
+                    responses={responses as any[]}
+                  />
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="individual">
+                <ScrollArea className="max-h-[65vh] pr-1">
+                  <div className="space-y-4 pb-2">
                 {(responses as any[]).map((response, index) => {
                   const questions = (viewingResponses?.questions as SurveyQuestion[] | null) ?? [];
                   const answers = (response.responses ?? {}) as Record<string, unknown>;
@@ -641,11 +663,147 @@ export default function AdminSurveys() {
                     </Card>
                   );
                 })}
-              </div>
-            )}
-          </ScrollArea>
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
+          )}
         </DialogContent>
       </Dialog>
     </AdminLayout>
+  );
+}
+
+/** Aggregate view of survey responses, one block per question. */
+function SurveyAnalytics({
+  questions,
+  responses,
+}: {
+  questions: SurveyQuestion[];
+  responses: { responses?: Record<string, unknown> }[];
+}) {
+  const total = responses.length;
+  const answers = responses.map((r) => (r.responses ?? {}) as Record<string, unknown>);
+
+  if (questions.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground py-6 text-center">
+        This survey has no question metadata, so responses can't be aggregated. See the Individual tab.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-2">
+      <p className="text-sm text-muted-foreground">
+        {total} {total === 1 ? "response" : "responses"} total
+      </p>
+      {questions.map((q) => {
+        // Collect this question's non-empty answers across all responses.
+        const values = answers
+          .map((a) => a[q.id])
+          .filter((v) => v !== undefined && v !== null && v !== "");
+        const answeredCount = values.length;
+
+        return (
+          <div key={q.id} className="space-y-2 border-b last:border-0 pb-4 last:pb-0">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-medium">
+                {q.text}
+                {q.required && <span className="text-destructive ml-0.5">*</span>}
+              </p>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {answeredCount}/{total} answered
+              </span>
+            </div>
+
+            {q.type === "RATING" ? (
+              <RatingBreakdown values={values.map((v) => Number(v)).filter((n) => !Number.isNaN(n))} />
+            ) : q.type === "SELECT" || q.type === "MULTISELECT" ? (
+              <OptionBreakdown values={values} options={q.options ?? []} answeredCount={answeredCount} />
+            ) : q.type === "CHECKBOX" ? (
+              <CheckboxBreakdown values={values} answeredCount={answeredCount} />
+            ) : (
+              <TextAnswers values={values.map((v) => String(v))} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatBar({ label, count, total }: { label: string; count: number; total: number }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <span className="w-32 shrink-0 truncate text-muted-foreground" title={label}>{label}</span>
+      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+        <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-16 shrink-0 text-right text-muted-foreground">{count} ({pct}%)</span>
+    </div>
+  );
+}
+
+function RatingBreakdown({ values }: { values: number[] }) {
+  const total = values.length;
+  const avg = total > 0 ? values.reduce((s, v) => s + v, 0) / total : 0;
+  return (
+    <div className="space-y-2">
+      <p className="text-sm">
+        Average: <span className="font-semibold">{avg.toFixed(1)}</span> / 5
+      </p>
+      {[5, 4, 3, 2, 1].map((star) => (
+        <StatBar key={star} label={`${star} ★`} count={values.filter((v) => v === star).length} total={total} />
+      ))}
+    </div>
+  );
+}
+
+function OptionBreakdown({
+  values,
+  options,
+  answeredCount,
+}: {
+  values: unknown[];
+  options: string[];
+  answeredCount: number;
+}) {
+  // MULTISELECT answers are arrays; SELECT are scalars. Flatten both.
+  const flat = values.flatMap((v) => (Array.isArray(v) ? v : [v])).map((v) => String(v));
+  const counts = new Map<string, number>();
+  for (const v of flat) counts.set(v, (counts.get(v) ?? 0) + 1);
+  // Seed declared options so zero-count options still show.
+  const labels = options.length > 0 ? options : Array.from(counts.keys());
+  return (
+    <div className="space-y-2">
+      {labels.map((opt) => (
+        <StatBar key={opt} label={opt} count={counts.get(opt) ?? 0} total={answeredCount} />
+      ))}
+    </div>
+  );
+}
+
+function CheckboxBreakdown({ values, answeredCount }: { values: unknown[]; answeredCount: number }) {
+  const yes = values.filter((v) => v === true || v === "true" || v === "Yes").length;
+  return (
+    <div className="space-y-2">
+      <StatBar label="Yes" count={yes} total={answeredCount} />
+      <StatBar label="No" count={answeredCount - yes} total={answeredCount} />
+    </div>
+  );
+}
+
+function TextAnswers({ values }: { values: string[] }) {
+  if (values.length === 0) {
+    return <p className="text-sm text-muted-foreground italic">No answers</p>;
+  }
+  return (
+    <ul className="space-y-1.5">
+      {values.map((v, i) => (
+        <li key={i} className="text-sm rounded-md bg-muted/50 px-3 py-2">{v}</li>
+      ))}
+    </ul>
   );
 }

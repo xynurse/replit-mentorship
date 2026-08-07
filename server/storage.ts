@@ -379,6 +379,7 @@ export interface IStorage {
   getSurvey(id: string): Promise<Survey | undefined>;
   createSurvey(survey: InsertSurvey): Promise<Survey>;
   updateSurvey(id: string, data: Partial<Survey>): Promise<Survey | undefined>;
+  deleteSurvey(id: string): Promise<void>;
   createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse>;
   getSurveyResponses(surveyId: string): Promise<SurveyResponse[]>;
   
@@ -3000,6 +3001,12 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(surveyResponses)
       .where(eq(surveyResponses.surveyId, surveyId))
       .orderBy(desc(surveyResponses.submittedAt));
+  }
+
+  async deleteSurvey(id: string): Promise<void> {
+    // Remove responses first — they reference the survey.
+    await db.delete(surveyResponses).where(eq(surveyResponses.surveyId, id));
+    await db.delete(surveys).where(eq(surveys.id, id));
   }
 
   // Onboarding

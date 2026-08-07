@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dat
 
 ## [Unreleased]
 
+### Phase 12 — feature roadmap (Tier 1 complete)
+
+- **Match health dashboard** — `/admin/match-health`, worst-first, flags pairs inactive 14+ days (health + cohort filters; logic in `shared/match-health.ts`).
+- **Automated match check-in nudges** — in-app + email when a match goes quiet (no message 7d / no meeting 2wk). Preview-then-confirm on the Match Health page, 3-day grace + 7-day cooldown, dry-run by default. **Dormant until** `MATCH_CHECK_IN` is added to the production `notification_type` enum.
+- **Post-meeting session feedback** — 2-question star rating after a logged meeting. Members rate from the dashboard's "Recent Sessions" card; admins see a Feedback column, a per-session view dialog, and a program-wide rollup (average, distribution, sessions rated) on the meetings page. Stored in the existing `mentorFeedback`/`menteeFeedback` jsonb columns — no migration.
+- **Survey response analytics** — the admin survey responses dialog gains a Summary tab with per-question aggregates (rating averages + distribution, single/multi-select and checkbox breakdowns, free-text answer lists) alongside the existing per-respondent view. Added the `DELETE /api/surveys/:id` endpoint the delete button already relied on (removes the survey and its responses).
+- **Onboarding progress widget** — `GET /api/onboarding/progress` derives a six-step getting-started checklist from real activity (profile, Code of Conduct, first match, first goal, first message, first logged session). The dashboard shows "N of 6 steps" for new members and hides the card once every step is done.
+
 ### Deploy wrap-up — 2026-06-12
 
 - **DNS cutover confirmed complete** — `mentorship.sonsiel.org` resolves to Vercel and serves the production deployment.

@@ -30,7 +30,7 @@ import { sessionFeedbackInputSchema } from "@shared/session-feedback";
 import ical, { ICalEventStatus } from "ical-generator";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { users as usersTable, cohortMemberships as cohortMembershipsTable } from "@shared/schema";
+import { users as usersTable, cohortMemberships as cohortMembershipsTable, messages as messagesTable } from "@shared/schema";
 import { eq, inArray, and } from "drizzle-orm";
 
 const generalApiLimiter = rateLimit({
@@ -5700,9 +5700,61 @@ export async function registerRoutes(
     }
   });
 
+  // Delete survey (admin only) — removes the survey and its responses.
+  app.delete("/api/surveys/:id", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
+    try {
+      const survey = await storage.getSurvey(req.params.id);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+      await storage.deleteSurvey(req.params.id);
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // =====================
   // Onboarding Routes
   // =====================
+
+  // Onboarding checklist for the current user. Progress is DERIVED from real
+  // activity (profile, CoC, match, goal, message, meeting) rather than the
+  // onboarding_progress flag columns, so it's accurate without per-action
+  // instrumentation. Returned steps are ordered; the client renders labels.
+  app.get("/api/onboarding/progress", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+
+      const [profile, cocRows, matches, goals, sentMessage, meetings] = await Promise.all([
+        storage.getUser(user.id),
+        db.select({ id: cocAcceptancesTable.id }).from(cocAcceptancesTable)
+          .where(eq(cocAcceptancesTable.userId, user.id)).limit(1),
+        storage.getMatchesForUser(user.id),
+        storage.getGoals({ ownerId: user.id }),
+        db.select({ id: messagesTable.id }).from(messagesTable)
+          .where(eq(messagesTable.senderId, user.id)).limit(1),
+        storage.getMeetingsForUser(user.id),
+      ]);
+
+      const steps = [
+        { key: "profile", done: !!(profile?.bio || profile?.jobTitle || profile?.profileImage) },
+        { key: "coc", done: cocRows.length > 0 },
+        { key: "match", done: matches.length > 0 },
+        { key: "goal", done: goals.length > 0 },
+        { key: "message", done: sentMessage.length > 0 },
+        { key: "meeting", done: meetings.some((m) => !!m.actualDate) },
+      ];
+
+      res.json({
+        steps,
+        completed: steps.filter((s) => s.done).length,
+        total: steps.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   // =====================
   // Code of Conduct Routes
