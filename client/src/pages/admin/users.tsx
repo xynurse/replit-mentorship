@@ -40,6 +40,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import type { User, CocAcceptance } from "@shared/schema";
 import { toneBadgeClass } from "@/components/shared/status-badge";
+import { PageHeader } from "@/components/shared/page-header";
 
 type SafeUser = Omit<User, "password">;
 
@@ -562,10 +563,11 @@ export default function AdminUsers() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">User Management</h1>
-          <p className="text-muted-foreground">View and manage all users on the platform</p>
-        </div>
+        <PageHeader
+          title="User Management"
+          description="View and manage all users on the platform"
+          titleTestId="text-page-title"
+        />
 
         <Card>
           <CardHeader>

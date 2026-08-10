@@ -96,11 +96,11 @@ Extends the sage/Hanken Grotesk theme (commit `5f1ff5d`, login-only) across the 
 Ranked for a program of dozens of users. Tier 1 first.
 
 ### Tier 1 — high value, schema mostly exists
-- [ ] **Match health dashboard** — per-match last-message/last-meeting recency for admins; flag pairs inactive 14+ days.
-- [ ] **Automated match nudges** — email check-in when no message in 7 days / no meeting in 2 weeks (Resend + existing notifications).
-- [ ] **Post-meeting session feedback** — `mentorFeedback`/`menteeFeedback` jsonb columns exist with no UI; add a 2-question rating after logging a meeting + admin rollup.
-- [ ] **Survey builder** (was Phase 10) — schema + endpoints exist; needs question-builder UI and response analytics.
-- [ ] **Onboarding progress widget** — `onboardingProgress` table (6 flags) has no endpoints or UI; show "N of 6 steps" for new users.
+- [x] **Match health dashboard** — per-match last-message/last-meeting recency for admins; flag pairs inactive 14+ days. Shipped: `/admin/match-health`, worst-first, health + cohort filters. Logic in `shared/match-health.ts`.
+- [x] **Automated match nudges** — in-app + email check-in when no message in 7 days / no meeting in 2 weeks. Code complete and verified, but **DORMANT**: needs `MATCH_CHECK_IN` added to the production `notification_type` enum (`drizzle-kit push`) before the preview/send endpoints work. Preview-then-confirm UI on the Match Health page; 3-day grace + 7-day cooldown; defaults to dry-run.
+- [x] **Post-meeting session feedback** — 2-question star rating (`SessionFeedbackDialog`) wired into the member dashboard (`home.tsx` "Recent Sessions") and admin meetings page (Feedback column + view dialog + program-wide rollup card). Stored in the existing `mentorFeedback`/`menteeFeedback` jsonb columns; no migration.
+- [x] **Survey builder** (was Phase 10) — question-builder UI already existed; added response **analytics** (per-question aggregates: rating averages/distribution, option/checkbox breakdowns, free-text lists) as a Summary tab, plus the missing `DELETE /api/surveys/:id` endpoint the UI already called.
+- [x] **Onboarding progress widget** — `GET /api/onboarding/progress` derives a 6-step checklist from real activity (profile, CoC, match, goal, message, meeting); `OnboardingChecklist` on `home.tsx` shows "N of 6 steps" and hides once complete.
 
 ### Tier 2
 - [ ] **Message reactions** — `messages.reactions` jsonb exists; add endpoint + picker UI.

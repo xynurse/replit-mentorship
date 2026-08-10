@@ -6,6 +6,7 @@ import { Users, UserCheck, Handshake, ClipboardList, Calendar, ArrowRight, Activ
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface DashboardStats {
   totalMentors: number;
@@ -104,10 +105,11 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Overview of your mentorship platform</p>
-        </div>
+        <PageHeader
+          title="Admin Dashboard"
+          description="Overview of your mentorship platform"
+          titleTestId="text-page-title"
+        />
 
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

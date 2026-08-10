@@ -3,9 +3,11 @@ import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   /** Right-aligned action buttons. */
   actions?: React.ReactNode;
+  /** `data-testid` for the title element. */
+  titleTestId?: string;
   className?: string;
 }
 
@@ -17,6 +19,7 @@ export function PageHeader({
   title,
   description,
   actions,
+  titleTestId,
   className,
 }: PageHeaderProps) {
   return (
@@ -27,12 +30,16 @@ export function PageHeader({
       )}
     >
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight" data-testid={titleTestId}>
+          {title}
+        </h1>
         {description && (
           <p className="text-sm text-muted-foreground">{description}</p>
         )}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+      )}
     </div>
   );
 }

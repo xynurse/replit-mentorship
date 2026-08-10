@@ -73,6 +73,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/shared/empty-state";
 
 const GOAL_CATEGORY_OPTIONS: { value: GoalCategory; label: string; description: string }[] = [
   { value: "SHORT_TERM", label: "Short Term", description: "Goals to achieve within 1-3 months" },
@@ -906,26 +907,27 @@ export default function GoalsPage() {
           </div>
         ) : totalGoals === 0 ? (
           // First-time empty state — user has no goals at all.
-          <Card className="p-8 text-center" data-testid="empty-no-goals-ever">
-            <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <CardTitle className="mb-2">
-              {isMentor ? "No mentee goals yet" : "Set your first goal"}
-            </CardTitle>
-            <CardDescription className="max-w-md mx-auto">
-              {isMentor
-                ? "Your mentees haven't created any goals yet. Goals will appear here as soon as they're set."
-                : "SMART goals make progress visible. Start with one — Specific, Measurable, Achievable, Relevant, Time-bound — and track your growth."}
-            </CardDescription>
-            {!isMentor && (
-              <Button
-                className="mt-4"
-                onClick={() => setShowWizard(true)}
-                data-testid="button-create-first-goal"
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                Create SMART Goal
-              </Button>
-            )}
+          <Card data-testid="empty-no-goals-ever">
+            <EmptyState
+              icon={Target}
+              title={isMentor ? "No mentee goals yet" : "Set your first goal"}
+              description={
+                isMentor
+                  ? "Your mentees haven't created any goals yet. Goals will appear here as soon as they're set."
+                  : "SMART goals make progress visible. Start with one — Specific, Measurable, Achievable, Relevant, Time-bound — and track your growth."
+              }
+              action={
+                !isMentor && (
+                  <Button
+                    onClick={() => setShowWizard(true)}
+                    data-testid="button-create-first-goal"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Create SMART Goal
+                  </Button>
+                )
+              }
+            />
           </Card>
         ) : (
           // Filtered-empty state — has goals but current filters yield none.

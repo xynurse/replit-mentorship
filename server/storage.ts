@@ -51,13 +51,56 @@ import {
   type Program, type InsertProgram, type ProgramMembership, type InsertProgramMembership
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, isNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
+import {
+  lastActivityAt,
+  daysSince,
+  matchHealthLevel,
+  type MatchHealthLevel,
+} from "@shared/match-health";
+import {
+  readFeedbackStore,
+  entryForMeeting,
+  type SessionFeedbackInput,
+  type SessionFeedbackEntry,
+  type MatchFeedbackStore,
+  type MeetingFeedbackPair,
+  type SessionFeedbackSummary,
+} from "@shared/session-feedback";
+import { eq, and, gt, isNull, isNotNull, desc, count, sql, like, or, asc, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 
 const PostgresSessionStore = connectPg(session);
+
+/** A public-safe user summary for match-health rows. */
+interface MatchHealthParty {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  profileImage: string | null;
+}
+
+/** One active mentorship pair with its engagement recency. */
+export interface MatchHealthRow {
+  matchId: string;
+  status: string | null;
+  startedAt: Date | null;
+  mentor: MatchHealthParty;
+  mentee: MatchHealthParty;
+  cohort?: { id: string; name: string };
+  lastMessageAt: Date | null;
+  lastMeetingAt: Date | null;
+  lastActivityAt: Date | null;
+  messageCount: number;
+  meetingCount: number;
+  daysSinceMessage: number | null;
+  daysSinceMeeting: number | null;
+  daysSinceActivity: number | null;
+  health: MatchHealthLevel;
+}
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -92,6 +135,9 @@ export interface IStorage {
   getMeetingsForUser(userId: string): Promise<MeetingLog[]>;
   getMeeting(id: string): Promise<MeetingLog | undefined>;
   createMeeting(meeting: InsertMeetingLog): Promise<MeetingLog>;
+  submitSessionFeedback(meetingId: string, userId: string, input: SessionFeedbackInput): Promise<{ role: "MENTOR" | "MENTEE"; entry: SessionFeedbackEntry } | null>;
+  getSessionFeedback(meetingId: string): Promise<MeetingFeedbackPair | null>;
+  getSessionFeedbackSummary(): Promise<SessionFeedbackSummary>;
   updateMeeting(id: string, data: Partial<MeetingLog>): Promise<MeetingLog | undefined>;
   deleteMeeting(id: string): Promise<void>;
   getAllMeetingsWithDetails(): Promise<{
@@ -142,6 +188,8 @@ export interface IStorage {
   getMatch(id: string): Promise<MentorshipMatch | undefined>;
   getMatchWithUsers(id: string): Promise<(MentorshipMatch & { mentor: User; mentee: User; mentorId: string; menteeId: string }) | undefined>;
   getAllMatches(): Promise<(MentorshipMatch & { mentor: User; mentee: User; cohort?: { id: string; name: string } })[]>;
+  getMatchHealth(): Promise<MatchHealthRow[]>;
+  getLastNudgedAtByMatch(matchIds: string[]): Promise<Map<string, Date>>;
   deleteMatch(id: string): Promise<boolean>;
   
   // Simple matching (without cohort requirement)
@@ -331,6 +379,7 @@ export interface IStorage {
   getSurvey(id: string): Promise<Survey | undefined>;
   createSurvey(survey: InsertSurvey): Promise<Survey>;
   updateSurvey(id: string, data: Partial<Survey>): Promise<Survey | undefined>;
+  deleteSurvey(id: string): Promise<void>;
   createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse>;
   getSurveyResponses(surveyId: string): Promise<SurveyResponse[]>;
   
@@ -832,6 +881,92 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  /**
+   * Record one participant's feedback for a meeting.
+   *
+   * Returns the role the submitter played, or null if they aren't part of the
+   * match (the route uses this to 403). Mentor and mentee write to different
+   * jsonb columns, so their concurrent submissions never conflict.
+   */
+  async submitSessionFeedback(
+    meetingId: string,
+    userId: string,
+    input: SessionFeedbackInput,
+  ): Promise<{ role: "MENTOR" | "MENTEE"; entry: SessionFeedbackEntry } | null> {
+    const meeting = await this.getMeeting(meetingId);
+    if (!meeting) return null;
+
+    const match = await this.getMatchWithUsers(meeting.matchId);
+    if (!match) return null;
+
+    const isMentor = match.mentorId === userId;
+    const isMentee = match.menteeId === userId;
+    if (!isMentor && !isMentee) return null;
+
+    const column = isMentor ? "mentorFeedback" : "menteeFeedback";
+    const store = readFeedbackStore(match[column]);
+    const entry: SessionFeedbackEntry = {
+      rating: input.rating,
+      wentWell: input.wentWell ?? "",
+      submittedAt: new Date().toISOString(),
+    };
+    const next: MatchFeedbackStore = {
+      ...store,
+      sessions: { ...(store.sessions ?? {}), [meetingId]: entry },
+    };
+
+    await db.update(mentorshipMatches)
+      .set({ [column]: next, updatedAt: new Date() })
+      .where(eq(mentorshipMatches.id, match.id));
+
+    return { role: isMentor ? "MENTOR" : "MENTEE", entry };
+  }
+
+  /** Both sides' feedback for a single meeting. */
+  async getSessionFeedback(meetingId: string): Promise<MeetingFeedbackPair | null> {
+    const meeting = await this.getMeeting(meetingId);
+    if (!meeting) return null;
+    const match = await this.getMatch(meeting.matchId);
+    if (!match) return null;
+    return {
+      mentor: entryForMeeting(readFeedbackStore(match.mentorFeedback), meetingId),
+      mentee: entryForMeeting(readFeedbackStore(match.menteeFeedback), meetingId),
+    };
+  }
+
+  /** Program-wide rollup of session ratings for the admin dashboard. */
+  async getSessionFeedbackSummary(): Promise<SessionFeedbackSummary> {
+    const rows = await db.select({
+      mentorFeedback: mentorshipMatches.mentorFeedback,
+      menteeFeedback: mentorshipMatches.menteeFeedback,
+    }).from(mentorshipMatches);
+
+    const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let total = 0;
+    let sum = 0;
+    const meetingIds = new Set<string>();
+
+    for (const row of rows) {
+      for (const raw of [row.mentorFeedback, row.menteeFeedback]) {
+        const sessions = readFeedbackStore(raw).sessions ?? {};
+        for (const [meetingId, entry] of Object.entries(sessions)) {
+          if (typeof entry.rating !== "number") continue;
+          total += 1;
+          sum += entry.rating;
+          distribution[entry.rating] = (distribution[entry.rating] ?? 0) + 1;
+          meetingIds.add(meetingId);
+        }
+      }
+    }
+
+    return {
+      totalResponses: total,
+      averageRating: total > 0 ? Math.round((sum / total) * 10) / 10 : null,
+      distribution,
+      meetingsWithFeedback: meetingIds.size,
+    };
+  }
+
   async updateMeeting(id: string, data: Partial<MeetingLog>): Promise<MeetingLog | undefined> {
     const [meeting] = await db.update(meetingLogs)
       .set({ ...data, updatedAt: new Date() })
@@ -1287,6 +1422,134 @@ export class DatabaseStorage implements IStorage {
       mentee: r.mentee,
       cohort: r.cohort || undefined,
     }));
+  }
+
+  async getMatchHealth(): Promise<MatchHealthRow[]> {
+    const mentorUsers = alias(users, 'mh_mentor_users');
+    const menteeUsers = alias(users, 'mh_mentee_users');
+    const mentorMemberships = alias(cohortMemberships, 'mh_mentor_memberships');
+    const menteeMemberships = alias(cohortMemberships, 'mh_mentee_memberships');
+
+    const matchRows = await db.select({
+      id: mentorshipMatches.id,
+      status: mentorshipMatches.status,
+      startDate: mentorshipMatches.startDate,
+      matchedAt: mentorshipMatches.matchedAt,
+      createdAt: mentorshipMatches.createdAt,
+      mentor: {
+        id: mentorUsers.id,
+        firstName: mentorUsers.firstName,
+        lastName: mentorUsers.lastName,
+        email: mentorUsers.email,
+        profileImage: mentorUsers.profileImage,
+      },
+      mentee: {
+        id: menteeUsers.id,
+        firstName: menteeUsers.firstName,
+        lastName: menteeUsers.lastName,
+        email: menteeUsers.email,
+        profileImage: menteeUsers.profileImage,
+      },
+      cohort: { id: cohorts.id, name: cohorts.name },
+    })
+      .from(mentorshipMatches)
+      .innerJoin(mentorMemberships, eq(mentorshipMatches.mentorMembershipId, mentorMemberships.id))
+      .innerJoin(menteeMemberships, eq(mentorshipMatches.menteeMembershipId, menteeMemberships.id))
+      .innerJoin(mentorUsers, eq(mentorMemberships.userId, mentorUsers.id))
+      .innerJoin(menteeUsers, eq(menteeMemberships.userId, menteeUsers.id))
+      .leftJoin(cohorts, eq(mentorshipMatches.cohortId, cohorts.id))
+      .where(eq(mentorshipMatches.status, 'ACTIVE'));
+
+    if (matchRows.length === 0) return [];
+    const matchIds = matchRows.map(r => r.id);
+
+    // Message recency is derived from `messages` rather than the denormalized
+    // `conversations.lastMessageAt`, so soft-deleted messages don't keep a
+    // silent pair looking active.
+    const messageRows = await db.select({
+      matchId: conversations.matchId,
+      lastMessageAt: sql<string | null>`max(${messages.createdAt})`,
+      messageCount: count(messages.id),
+    })
+      .from(messages)
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(and(
+        inArray(conversations.matchId, matchIds),
+        eq(messages.isDeleted, false),
+      ))
+      .groupBy(conversations.matchId);
+
+    // `actualDate` — a meeting that was scheduled but never happened must not
+    // count as activity.
+    const meetingRows = await db.select({
+      matchId: meetingLogs.matchId,
+      lastMeetingAt: sql<string | null>`max(${meetingLogs.actualDate})`,
+      meetingCount: count(meetingLogs.id),
+    })
+      .from(meetingLogs)
+      .where(and(
+        inArray(meetingLogs.matchId, matchIds),
+        isNotNull(meetingLogs.actualDate),
+      ))
+      .groupBy(meetingLogs.matchId);
+
+    const messagesByMatch = new Map(messageRows.map(r => [r.matchId, r]));
+    const meetingsByMatch = new Map(meetingRows.map(r => [r.matchId, r]));
+    const now = new Date();
+
+    return matchRows.map(row => {
+      const msg = messagesByMatch.get(row.id);
+      const meet = meetingsByMatch.get(row.id);
+      const lastMessageAt = msg?.lastMessageAt ? new Date(msg.lastMessageAt) : null;
+      const lastMeetingAt = meet?.lastMeetingAt ? new Date(meet.lastMeetingAt) : null;
+      const activity = { lastMessageAt, lastMeetingAt };
+      const lastActivity = lastActivityAt(activity);
+
+      return {
+        matchId: row.id,
+        status: row.status,
+        startedAt: row.startDate ?? row.matchedAt ?? row.createdAt ?? null,
+        mentor: row.mentor,
+        mentee: row.mentee,
+        cohort: row.cohort?.id ? row.cohort : undefined,
+        lastMessageAt,
+        lastMeetingAt,
+        lastActivityAt: lastActivity,
+        messageCount: msg?.messageCount ?? 0,
+        meetingCount: meet?.meetingCount ?? 0,
+        daysSinceMessage: daysSince(lastMessageAt, now),
+        daysSinceMeeting: daysSince(lastMeetingAt, now),
+        daysSinceActivity: daysSince(lastActivity, now),
+        health: matchHealthLevel(activity, now),
+      };
+    });
+  }
+
+  /**
+   * When each match was last sent a check-in nudge. Derived from the
+   * notifications table rather than a dedicated column, so the cooldown can
+   * never drift out of sync with what was actually delivered.
+   */
+  async getLastNudgedAtByMatch(matchIds: string[]): Promise<Map<string, Date>> {
+    if (matchIds.length === 0) return new Map();
+
+    const rows = await db.select({
+      matchId: notifications.resourceId,
+      lastNudgedAt: sql<string | null>`max(${notifications.createdAt})`,
+    })
+      .from(notifications)
+      .where(and(
+        eq(notifications.type, 'MATCH_CHECK_IN'),
+        eq(notifications.resourceType, 'MATCH'),
+        inArray(notifications.resourceId, matchIds),
+      ))
+      .groupBy(notifications.resourceId);
+
+    const map = new Map<string, Date>();
+    for (const row of rows) {
+      if (row.matchId && row.lastNudgedAt) map.set(row.matchId, new Date(row.lastNudgedAt));
+    }
+    return map;
   }
 
   async deleteMatch(id: string): Promise<boolean> {
@@ -2738,6 +3001,12 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(surveyResponses)
       .where(eq(surveyResponses.surveyId, surveyId))
       .orderBy(desc(surveyResponses.submittedAt));
+  }
+
+  async deleteSurvey(id: string): Promise<void> {
+    // Remove responses first — they reference the survey.
+    await db.delete(surveyResponses).where(eq(surveyResponses.surveyId, id));
+    await db.delete(surveys).where(eq(surveys.id, id));
   }
 
   // Onboarding

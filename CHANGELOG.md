@@ -24,6 +24,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dat
 
 ---
 
+## [1.6.0] — 2026-08-08 — Phase 12 Tier 1: match health, nudges, session feedback, survey analytics, onboarding
+
+Completes the Tier 1 slate of the Phase 12 feature roadmap and folds in the Phase 11 design follow-ups. Merged via [#2](https://github.com/xynurse/replit-mentorship/pull/2).
+
+### Added
+
+- **Match health dashboard** — `/admin/match-health`, worst-first, flags pairs inactive 14+ days (health + cohort filters; logic in `shared/match-health.ts`).
+- **Automated match check-in nudges** — in-app + email when a match goes quiet (no message 7d / no meeting 2wk). Preview-then-confirm on the Match Health page, 3-day grace + 7-day cooldown, dry-run by default. **Dormant until** `MATCH_CHECK_IN` is added to the production `notification_type` enum (see [TODO.md](./TODO.md) — pending migration).
+- **Post-meeting session feedback** — 2-question star rating after a logged meeting. Members rate from the dashboard's "Recent Sessions" card; admins see a Feedback column, a per-session view dialog, and a program-wide rollup (average, distribution, sessions rated) on the meetings page. Stored in the existing `mentorFeedback`/`menteeFeedback` jsonb columns — no migration.
+- **Survey response analytics** — the admin survey responses dialog gains a Summary tab with per-question aggregates (rating averages + distribution, single/multi-select and checkbox breakdowns, free-text answer lists) alongside the existing per-respondent view. Added the `DELETE /api/surveys/:id` endpoint the delete button already relied on (removes the survey and its responses).
+- **Onboarding progress widget** — `GET /api/onboarding/progress` derives a six-step getting-started checklist from real activity (profile, Code of Conduct, first match, first goal, first message, first logged session). The dashboard shows "N of 6 steps" for new members and hides the card once every step is done.
+
+### Changed
+
+- **Phase 11 design follow-ups** — adopted the shared `PageHeader`/`EmptyState` primitives across the remaining pages that still carried bespoke headers, and unified page-level loading on skeletons instead of bare spinners.
+
+### Pending
+
+- **`MATCH_CHECK_IN` enum migration** — run `ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'MATCH_CHECK_IN'` against production before the nudges endpoints will work. Not yet run.
+
+---
+
 ## [1.5.0] — 2026-07-03 — Calm Clinical design system (app-wide de-AI redesign)
 
 Replaces the AI-app-builder look with a cohesive "Calm Clinical" design system: sage primary, warm-stone neutrals, Hanken Grotesk typography, and a strict tokens-only color policy. A design audit found 200+ raw Tailwind palette colors across 30+ files (rainbow status badges, per-card stat colors, leftover gradient blobs); all are now gone — **client/src contains zero raw palette color classes**. Commits `5f1ff5d`, `8619f99`, `b2ff96c`.

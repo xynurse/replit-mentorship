@@ -35,10 +35,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Award, Plus, MoreHorizontal, Search, Filter, CheckCircle, XCircle, Clock, Download } from "lucide-react";
+import { Plus, MoreHorizontal, Search, Filter, CheckCircle, XCircle, Clock, Download } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface Certificate {
   id: string;
@@ -173,31 +174,27 @@ export default function AdminCertificatesPage() {
   return (
     <AdminLayout>
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-md bg-primary/10">
-            <Award className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">Certificate Management</h1>
-            <p className="text-muted-foreground">Issue and manage program certificates</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => window.open("/api/export/certificates", "_blank")}
-            data-testid="button-export-certificates"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
-          <Button onClick={() => setShowIssueDialog(true)} data-testid="button-issue-certificate">
-            <Plus className="h-4 w-4 mr-2" />
-            Issue Certificate
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Certificate Management"
+        description="Issue and manage program certificates"
+        titleTestId="text-page-title"
+        actions={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => window.open("/api/export/certificates", "_blank")}
+              data-testid="button-export-certificates"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button onClick={() => setShowIssueDialog(true)} data-testid="button-issue-certificate">
+              <Plus className="h-4 w-4 mr-2" />
+              Issue Certificate
+            </Button>
+          </>
+        }
+      />
 
       <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 min-w-64">

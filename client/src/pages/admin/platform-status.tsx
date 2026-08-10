@@ -44,6 +44,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { PlatformIssue } from "@shared/schema";
+import { PageHeader } from "@/components/shared/page-header";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof AlertCircle; badgeVariant: "default" | "secondary" | "destructive" | "outline" }> = {
   INVESTIGATING: { label: "Investigating", color: "text-destructive", icon: Search, badgeVariant: "destructive" },
@@ -168,23 +169,22 @@ export default function AdminPlatformStatus() {
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">Platform Status</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage platform status issues visible on the login page
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Badge variant={activeCount > 0 ? "destructive" : "default"} data-testid="badge-active-count">
-              {activeCount > 0 ? `${activeCount} Active` : "All Clear"}
-            </Badge>
-            <Button onClick={openCreateDialog} data-testid="button-create-issue">
-              <Plus className="h-4 w-4 mr-2" />
-              Report Issue
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Platform Status"
+          description="Manage platform status issues visible on the login page"
+          titleTestId="text-page-title"
+          actions={
+            <>
+              <Badge variant={activeCount > 0 ? "destructive" : "default"} data-testid="badge-active-count">
+                {activeCount > 0 ? `${activeCount} Active` : "All Clear"}
+              </Badge>
+              <Button onClick={openCreateDialog} data-testid="button-create-issue">
+                <Plus className="h-4 w-4 mr-2" />
+                Report Issue
+              </Button>
+            </>
+          }
+        />
 
         {isLoading ? (
           <Card>

@@ -54,10 +54,10 @@ import {
   Users,
   AlertTriangle,
   ShieldAlert,
-  RefreshCw,
   GraduationCap,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { ListSkeleton } from "@/components/skeletons";
 
 interface ThreadCategory {
   id: string;
@@ -489,8 +489,12 @@ export default function MenteeCommunityPage() {
   if (accessLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="p-6 space-y-6">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-56" />
+            <Skeleton className="h-4 w-80" />
+          </div>
+          <ListSkeleton items={5} />
         </div>
       </DashboardLayout>
     );

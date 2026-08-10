@@ -25,6 +25,7 @@ import {
   Eye,
   Radio,
   Inbox,
+  HeartPulse,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -66,6 +67,7 @@ const adminMenuItems = [
   { title: "Reminders", url: "/admin/reminders", icon: Bell },
   { title: "User Management", url: "/admin/users", icon: Users },
   { title: "Connections", url: "/admin/connections", icon: Link2 },
+  { title: "Match Health", url: "/admin/match-health", icon: HeartPulse },
   { title: "Mentor Profiles", url: "/admin/mentor-profiles", icon: UserCog },
   { title: "Mentee Profiles", url: "/admin/mentee-profiles", icon: UserCheck },
   { title: "Community", url: "/admin/community", icon: UsersRound },

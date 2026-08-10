@@ -38,6 +38,8 @@ import {
   BarChart3,
   CalendarCheck,
   CalendarClock,
+  Star,
+  MessageSquareText,
 } from "lucide-react";
 import {
   LineChart,
@@ -52,8 +54,12 @@ import {
 } from "recharts";
 import { format, isAfter, isBefore, isToday, startOfDay, endOfDay, subDays, parseISO } from "date-fns";
 import type { MeetingLog } from "@shared/schema";
+import type { SessionFeedbackSummary } from "@shared/session-feedback";
+import { SESSION_RATING_MAX } from "@shared/session-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
+import { SessionFeedbackDialog } from "@/components/session-feedback-dialog";
 
 interface MeetingWithDetails {
   meeting: MeetingLog;
@@ -148,9 +154,15 @@ export default function AdminMeetingsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("upcoming");
   const [formatFilter, setFormatFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("list");
+  // Meeting-log id whose feedback is being viewed (null = dialog closed).
+  const [feedbackMeetingId, setFeedbackMeetingId] = useState<string | null>(null);
 
   const { data: meetings, isLoading } = useQuery<MeetingWithDetails[]>({
     queryKey: ['/api/admin/meetings'],
+  });
+
+  const { data: feedbackSummary } = useQuery<SessionFeedbackSummary>({
+    queryKey: ['/api/admin/session-feedback/summary'],
   });
 
   const now = new Date();
@@ -234,10 +246,11 @@ export default function AdminMeetingsPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground" data-testid="heading-meetings">Meeting Management</h1>
-          <p className="text-muted-foreground mt-1">Track and analyze mentor-mentee meetings across all cohorts</p>
-        </div>
+        <PageHeader
+          title="Meeting Management"
+          description="Track and analyze mentor-mentee meetings across all cohorts"
+          titleTestId="heading-meetings"
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <KPICard
@@ -357,6 +370,7 @@ export default function AdminMeetingsPage() {
                           <TableHead>Cohort</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Duration</TableHead>
+                          <TableHead>Feedback</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -429,6 +443,22 @@ export default function AdminMeetingsPage() {
                             </TableCell>
                             <TableCell>
                               {item.meeting.duration ? `${item.meeting.duration} min` : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {item.meeting.actualDate ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8"
+                                  onClick={() => setFeedbackMeetingId(item.meeting.id)}
+                                  data-testid={`button-view-feedback-${item.meeting.id}`}
+                                >
+                                  <MessageSquareText className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -543,9 +573,78 @@ export default function AdminMeetingsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Star className="h-5 w-5" />
+                  Session Feedback
+                </CardTitle>
+                <CardDescription>
+                  Post-meeting ratings submitted by mentors and mentees
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!feedbackSummary || feedbackSummary.totalResponses === 0 ? (
+                  <EmptyState
+                    icon={MessageSquareText}
+                    title="No feedback yet"
+                    description="Ratings appear here once participants review their sessions."
+                  />
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                      <div className="text-center p-4 rounded-lg bg-warning/10">
+                        <div className="flex items-center justify-center gap-1 text-3xl font-bold text-warning">
+                          {feedbackSummary.averageRating?.toFixed(1) ?? "—"}
+                          <Star className="h-5 w-5 fill-warning" />
+                        </div>
+                        <div className="text-sm text-muted-foreground">Average Rating</div>
+                      </div>
+                      <div className="text-center p-4 rounded-lg bg-muted/50">
+                        <div className="text-3xl font-bold text-primary">{feedbackSummary.totalResponses}</div>
+                        <div className="text-sm text-muted-foreground">Total Responses</div>
+                      </div>
+                      <div className="text-center p-4 rounded-lg bg-muted/50">
+                        <div className="text-3xl font-bold">{feedbackSummary.meetingsWithFeedback}</div>
+                        <div className="text-sm text-muted-foreground">Sessions Rated</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {Array.from({ length: SESSION_RATING_MAX }, (_, i) => SESSION_RATING_MAX - i).map((star) => {
+                        const count = feedbackSummary.distribution[star] || 0;
+                        const pct = feedbackSummary.totalResponses > 0
+                          ? Math.round((count / feedbackSummary.totalResponses) * 100)
+                          : 0;
+                        return (
+                          <div key={star} className="flex items-center gap-3 text-sm">
+                            <span className="flex items-center gap-1 w-12 shrink-0 text-muted-foreground">
+                              {star} <Star className="h-3.5 w-3.5" />
+                            </span>
+                            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                              <div className="h-full bg-warning rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="w-10 shrink-0 text-right text-muted-foreground">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
+
+      {feedbackMeetingId && (
+        <SessionFeedbackDialog
+          meetingId={feedbackMeetingId}
+          open={!!feedbackMeetingId}
+          onOpenChange={(open) => !open && setFeedbackMeetingId(null)}
+          mode="view"
+        />
+      )}
     </AdminLayout>
   );
 }

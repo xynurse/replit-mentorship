@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { toneBadgeClass } from "@/components/shared/status-badge";
 import type { Program, ProgramMembership } from "@shared/schema";
+import { PageHeader } from "@/components/shared/page-header";
 
 type User = {
   id: string;
@@ -456,12 +457,11 @@ export default function AdminProgramsPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
-            Programs
-          </h1>
-          <p className="text-muted-foreground">Manage mentorship programs and their memberships</p>
-        </div>
+        <PageHeader
+          title="Programs"
+          description="Manage mentorship programs and their memberships"
+          titleTestId="text-page-title"
+        />
 
         {programsLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

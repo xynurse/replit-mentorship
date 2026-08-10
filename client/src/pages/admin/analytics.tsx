@@ -52,6 +52,7 @@ import {
   PieChart as RechartsPie,
   Pie,
 } from "recharts";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface DashboardMetrics {
   userMetrics: {
@@ -271,20 +272,21 @@ export default function AnalyticsDashboard() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Analytics Dashboard</h1>
-            <p className="text-muted-foreground">Platform metrics, KPIs, and performance insights</p>
-          </div>
-          <Button 
-            variant="outline" 
-            onClick={() => refetchDashboard()}
-            data-testid="button-refresh-analytics"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
+        <PageHeader
+          title="Analytics Dashboard"
+          description="Platform metrics, KPIs, and performance insights"
+          titleTestId="text-page-title"
+          actions={
+            <Button
+              variant="outline"
+              onClick={() => refetchDashboard()}
+              data-testid="button-refresh-analytics"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          }
+        />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList>

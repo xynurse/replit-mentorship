@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { 
-  Users, 
-  Calendar, 
+import {
+  Users,
+  Calendar,
   MessageSquare,
   Clock,
   ArrowRight,
@@ -9,7 +10,8 @@ import {
   UserPlus,
   FileText,
   Target,
-  Trash2
+  Trash2,
+  Star
 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,6 +25,9 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { SessionFeedbackDialog } from "@/components/session-feedback-dialog";
+import { OnboardingChecklist } from "@/components/onboarding-checklist";
+import { format } from "date-fns";
 import type { MentorshipMatch, Goal, User, Notification, MeetingLog } from "@shared/schema";
 
 type PublicUserInfo = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'profileImage' | 'bio' | 'jobTitle' | 'organizationName' | 'linkedInUrl'>;
@@ -35,6 +40,8 @@ interface ConnectionWithUser extends MentorshipMatch {
 export default function HomePage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  // Meeting-log id being rated (null = dialog closed).
+  const [ratingMeetingId, setRatingMeetingId] = useState<string | null>(null);
 
   const clearActivityMutation = useMutation({
     mutationFn: async () => {
@@ -78,6 +85,11 @@ export default function HomePage() {
   const inProgressGoals = goals.filter(g => g.status === "IN_PROGRESS");
   const unreadNotifications = notifications.filter(n => !n.isRead);
   const upcomingMeetings = meetings.filter(m => m.scheduledDate && new Date(m.scheduledDate) > new Date());
+  // Logged meetings the member can rate, most recent first.
+  const recentSessions = [...meetings]
+    .filter(m => m.actualDate)
+    .sort((a, b) => new Date(b.actualDate!).getTime() - new Date(a.actualDate!).getTime())
+    .slice(0, 3);
 
   const isLoading = loadingMatches || loadingGoals || loadingNotifications || loadingMeetings;
 
@@ -211,6 +223,8 @@ export default function HomePage() {
           </div>
 
           <div className="space-y-6">
+            {!isAdmin && <OnboardingChecklist isMentor={isMentor} />}
+
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Your Progress</CardTitle>
@@ -308,6 +322,43 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
+            {!isAdmin && !loadingMeetings && recentSessions.length > 0 && (
+              <Card data-testid="card-recent-sessions">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Recent Sessions</CardTitle>
+                  <CardDescription>Rate a session to help the program</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {recentSessions.map((meeting) => (
+                    <div
+                      key={meeting.id}
+                      className="flex items-center justify-between gap-3 p-2 -mx-2 rounded-md hover-elevate"
+                      data-testid={`recent-session-${meeting.id}`}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {meeting.agenda || `Session ${meeting.meetingNumber ?? ""}`.trim() || "Session"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {meeting.actualDate ? format(new Date(meeting.actualDate), "MMM d, yyyy") : ""}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => setRatingMeetingId(meeting.id)}
+                        data-testid={`button-rate-session-${meeting.id}`}
+                      >
+                        <Star className="h-4 w-4 mr-1" />
+                        Rate
+                      </Button>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="border-primary/30 bg-primary/[0.02]" data-testid="card-mentor-assignment">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -373,6 +424,15 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {ratingMeetingId && (
+        <SessionFeedbackDialog
+          meetingId={ratingMeetingId}
+          open={!!ratingMeetingId}
+          onOpenChange={(open) => !open && setRatingMeetingId(null)}
+          mode="submit"
+        />
+      )}
     </DashboardLayout>
   );
 }

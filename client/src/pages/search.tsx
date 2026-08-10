@@ -43,6 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { toneBadgeClass } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
 
 interface SearchResult {
   users: Array<{
@@ -276,12 +277,12 @@ export default function SearchPage() {
           <div className="lg:col-span-3">
             {query.length < 2 ? (
               <Card>
-                <CardContent className="py-12 text-center">
-                  <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="font-medium text-lg">Start searching</h3>
-                  <p className="text-muted-foreground mt-1">
-                    Enter at least 2 characters to search
-                  </p>
+                <CardContent>
+                  <EmptyState
+                    icon={Search}
+                    title="Start searching"
+                    description="Enter at least 2 characters to search"
+                  />
                 </CardContent>
               </Card>
             ) : isSearching ? (
@@ -300,12 +301,12 @@ export default function SearchPage() {
               </Card>
             ) : totalResults === 0 ? (
               <Card>
-                <CardContent className="py-12 text-center">
-                  <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="font-medium text-lg">No results found</h3>
-                  <p className="text-muted-foreground mt-1">
-                    Try adjusting your search terms or filters
-                  </p>
+                <CardContent>
+                  <EmptyState
+                    icon={Search}
+                    title="No results found"
+                    description="Try adjusting your search terms or filters"
+                  />
                 </CardContent>
               </Card>
             ) : (

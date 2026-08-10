@@ -26,13 +26,13 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Shield,
   FileDown,
   RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface DataExportRequest {
   id: string;
@@ -145,17 +145,11 @@ export default function PrivacyPage() {
   return (
     <DashboardLayout>
       <div className="container max-w-4xl py-8 space-y-8">
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
-            <Shield className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Privacy & Data</h1>
-            <p className="text-muted-foreground">
-              Manage your personal data and privacy settings
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title="Privacy & Data"
+          description="Manage your personal data and privacy settings"
+          titleTestId="text-page-title"
+        />
 
         <Card>
           <CardHeader>

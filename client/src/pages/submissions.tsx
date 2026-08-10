@@ -16,11 +16,11 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { UserSubmission } from "@shared/schema";
+import { PageHeader } from "@/components/shared/page-header";
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -189,49 +189,47 @@ export default function SubmissionsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6 p-4 md:p-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Feedback & Support</h1>
-            <p className="text-muted-foreground">Report issues or suggest improvements to the platform</p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Dialog open={issueDialogOpen} onOpenChange={setIssueDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="destructive" data-testid="button-report-issue">
-                  <Bug className="mr-2 h-4 w-4" />
-                  Report Issue
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Report an Issue</DialogTitle>
-                  <DialogDescription>
-                    Let us know about any problems you're experiencing on the platform.
-                  </DialogDescription>
-                </DialogHeader>
-                <SubmitDialog type="ISSUE" onClose={() => setIssueDialogOpen(false)} />
-              </DialogContent>
-            </Dialog>
+        <PageHeader
+          title="Feedback & Support"
+          description="Report issues or suggest improvements to the platform"
+          titleTestId="text-page-title"
+          actions={
+            <>
+              <Button variant="destructive" onClick={() => setIssueDialogOpen(true)} data-testid="button-report-issue">
+                <Bug className="mr-2 h-4 w-4" />
+                Report Issue
+              </Button>
+              <Button variant="outline" onClick={() => setSuggestionDialogOpen(true)} data-testid="button-submit-suggestion">
+                <Lightbulb className="mr-2 h-4 w-4" />
+                Submit Suggestion
+              </Button>
+            </>
+          }
+        />
 
-            <Dialog open={suggestionDialogOpen} onOpenChange={setSuggestionDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" data-testid="button-submit-suggestion">
-                  <Lightbulb className="mr-2 h-4 w-4" />
-                  Submit Suggestion
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Submit a Suggestion</DialogTitle>
-                  <DialogDescription>
-                    Share your ideas for improving or adding features to the platform.
-                  </DialogDescription>
-                </DialogHeader>
-                <SubmitDialog type="SUGGESTION" onClose={() => setSuggestionDialogOpen(false)} />
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
+        <Dialog open={issueDialogOpen} onOpenChange={setIssueDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Report an Issue</DialogTitle>
+              <DialogDescription>
+                Let us know about any problems you're experiencing on the platform.
+              </DialogDescription>
+            </DialogHeader>
+            <SubmitDialog type="ISSUE" onClose={() => setIssueDialogOpen(false)} />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={suggestionDialogOpen} onOpenChange={setSuggestionDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Submit a Suggestion</DialogTitle>
+              <DialogDescription>
+                Share your ideas for improving or adding features to the platform.
+              </DialogDescription>
+            </DialogHeader>
+            <SubmitDialog type="SUGGESTION" onClose={() => setSuggestionDialogOpen(false)} />
+          </DialogContent>
+        </Dialog>
 
         <Tabs defaultValue="all">
           <TabsList data-testid="tabs-submissions">
