@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dat
 
 ## [Unreleased]
 
+### Added — 2026-08-18
+
+- **Match nudges are now actually scheduled.** The Tier 1 "automated match nudges" shipped in 1.6.0 had no scheduler — `runMatchNudges` was only reachable from the two admin-triggered endpoints, so a human had to remember to visit `/admin/match-health` and click send. Added `GET /api/cron/match-nudges`, authenticated with a `Bearer $CRON_SECRET` header (Vercel Cron supplies this automatically), plus a `crons` entry in `vercel.json` running it Mondays at 14:00 UTC. The endpoint **fails closed**: if `CRON_SECRET` is unset it returns 503 rather than running unauthenticated. Runs are recorded as `SCHEDULED_JOB_EXECUTED` audit entries. `CRON_SECRET` has been set on Vercel Production.
+
+### Pending (see [TODO.md](./TODO.md))
+
+- **`MATCH_CHECK_IN` enum migration — still not run, and now gating the cron.** The scheduled job writes a `MATCH_CHECK_IN` notification; production's `notification_type` enum does not contain that value. Run `ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'MATCH_CHECK_IN'` against production **before** deploying, or the first scheduled run fails on every pair. Note the local `.env` `DATABASE_URL` is a stale pre-cutover database, not production.
+
 ### Deploy wrap-up — 2026-06-12
 
 - **DNS cutover confirmed complete** — `mentorship.sonsiel.org` resolves to Vercel and serves the production deployment.

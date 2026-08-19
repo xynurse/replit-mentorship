@@ -97,7 +97,20 @@ Ranked for a program of dozens of users. Tier 1 first.
 
 ### Tier 1 — high value, schema mostly exists
 - [x] **Match health dashboard** — per-match last-message/last-meeting recency for admins; flag pairs inactive 14+ days. Shipped: `/admin/match-health`, worst-first, health + cohort filters. Logic in `shared/match-health.ts`.
-- [x] **Automated match nudges** — in-app + email check-in when no message in 7 days / no meeting in 2 weeks. Code complete and verified, but **DORMANT**: needs `MATCH_CHECK_IN` added to the production `notification_type` enum (`drizzle-kit push`) before the preview/send endpoints work. Preview-then-confirm UI on the Match Health page; 3-day grace + 7-day cooldown; defaults to dry-run.
+- [x] **Automated match nudges** — in-app + email check-in when no message in 7 days / no meeting in 2 weeks. Preview-then-confirm UI on the Match Health page; 3-day grace + 7-day cooldown; defaults to dry-run. Now genuinely scheduled: `GET /api/cron/match-nudges` (Bearer `CRON_SECRET`, fails closed with 503 if unset) runs weekly via the `crons` entry in `vercel.json` — Mondays 14:00 UTC. `CRON_SECRET` is set on Vercel Production.
+  - [ ] **Still DORMANT until the enum migration below is run.** The job writes a `MATCH_CHECK_IN` notification, which the production `notification_type` enum does not yet contain.
+  - [ ] **Do not deploy the cron before the enum exists** — otherwise the first Monday run throws on every pair.
+
+### Blocker: `MATCH_CHECK_IN` enum migration
+
+`MATCH_CHECK_IN` is in `shared/schema.ts` but not in the production `notification_type` enum. Run against **production**:
+
+```sql
+ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'MATCH_CHECK_IN';
+```
+
+**Do not use the `DATABASE_URL` in the local `.env` for this** — it points at a stale pre-cutover database (0 messages, 0 CoC acceptances, 0 applications, no activity after 2026-05-26), not production. Production's `DATABASE_URL` is stored Sensitive on Vercel and cannot be read back via `vercel env pull`; get the connection string from the Neon dashboard.
+
 - [x] **Post-meeting session feedback** — 2-question star rating (`SessionFeedbackDialog`) wired into the member dashboard (`home.tsx` "Recent Sessions") and admin meetings page (Feedback column + view dialog + program-wide rollup card). Stored in the existing `mentorFeedback`/`menteeFeedback` jsonb columns; no migration.
 - [x] **Survey builder** (was Phase 10) — question-builder UI already existed; added response **analytics** (per-question aggregates: rating averages/distribution, option/checkbox breakdowns, free-text lists) as a Summary tab, plus the missing `DELETE /api/surveys/:id` endpoint the UI already called.
 - [x] **Onboarding progress widget** — `GET /api/onboarding/progress` derives a 6-step checklist from real activity (profile, CoC, match, goal, message, meeting); `OnboardingChecklist` on `home.tsx` shows "N of 6 steps" and hides once complete.

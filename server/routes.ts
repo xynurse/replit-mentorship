@@ -2839,6 +2839,48 @@ export async function registerRoutes(
     }
   });
 
+  // Scheduled counterpart to the /send endpoint above.
+  //
+  // Vercel Cron invokes this with `Authorization: Bearer $CRON_SECRET`, which
+  // it derives from the env var of the same name. There is no session here, so
+  // the shared secret is the only thing standing between a GET and real email
+  // going out — if it isn't configured we refuse to run rather than falling
+  // back to an open endpoint.
+  app.get("/api/cron/match-nudges", async (req, res, next) => {
+    try {
+      const secret = process.env.CRON_SECRET;
+      if (!secret) {
+        return res.status(503).json({ message: "CRON_SECRET is not configured" });
+      }
+      if (req.get("authorization") !== `Bearer ${secret}`) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const result = await runMatchNudges({ dryRun: false });
+      await AuditService.scheduledJob().log({
+        action: "SCHEDULED_JOB_EXECUTED",
+        resourceType: "MATCH",
+        resourceName: `match-nudges: ${result.candidates.length} pair(s) nudged`,
+        metadata: {
+          matchIds: result.candidates.map((c) => c.matchId),
+          recipients: result.delivered.length,
+          emailsSent: result.delivered.filter((d) => d.emailed).length,
+          failures: result.delivered.filter((d) => d.error).length,
+        },
+      });
+
+      // Keep the response small — cron logs don't need the full candidate list.
+      res.json({
+        nudged: result.candidates.length,
+        recipients: result.delivered.length,
+        emailsSent: result.delivered.filter((d) => d.emailed).length,
+        failures: result.delivered.filter((d) => d.error).length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Get available mentors for matching
   app.get("/api/admin/matches/available-mentors", requireRole("SUPER_ADMIN", "ADMIN"), async (req, res, next) => {
     try {
