@@ -101,15 +101,24 @@ Ranked for a program of dozens of users. Tier 1 first.
   - [ ] **Still DORMANT until the enum migration below is run.** The job writes a `MATCH_CHECK_IN` notification, which the production `notification_type` enum does not yet contain.
   - [ ] **Do not deploy the cron before the enum exists** — otherwise the first Monday run throws on every pair.
 
-### Blocker: `MATCH_CHECK_IN` enum migration
+### Blocker: `MATCH_CHECK_IN` enum migration — ready to run, not yet run
 
-`MATCH_CHECK_IN` is in `shared/schema.ts` but not in the production `notification_type` enum. Run against **production**:
+`MATCH_CHECK_IN` is in `shared/schema.ts` but not in the production `notification_type` enum. The DDL and the tooling to apply it now exist; what's left is running it against production.
 
-```sql
-ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'MATCH_CHECK_IN';
+- [x] **DDL recorded** — `migrations/manual/2026-08-24_match_check_in_enum.sql`. This project uses `drizzle-kit push` and has no migration runner, so `migrations/manual/` is the trace of hand-applied production DDL (see its README).
+- [x] **Apply tooling** — `scripts/sync-enums.ts` diffs every `pgEnum` in `shared/schema.ts` against a target database and adds what's missing. Additive only: never drops a value or a type, never touches tables. Dry-run by default, `--apply` to write, re-reads `pg_enum` afterward to verify. Exit 2 on drift, so it also works as a pre-deploy check.
+- [ ] **Run it against production.**
+
+```bash
+TARGET_DATABASE_URL='postgres://...' npx tsx scripts/sync-enums.ts          # report first
+TARGET_DATABASE_URL='postgres://...' npx tsx scripts/sync-enums.ts --apply
 ```
 
-**Do not use the `DATABASE_URL` in the local `.env` for this** — it points at a stale pre-cutover database (0 messages, 0 CoC acceptances, 0 applications, no activity after 2026-05-26), not production. Production's `DATABASE_URL` is stored Sensitive on Vercel and cannot be read back via `vercel env pull`; get the connection string from the Neon dashboard.
+The script reads `TARGET_DATABASE_URL`, **not** `DATABASE_URL` — the one in the local `.env` points at a stale pre-cutover database, not production. Production's is stored Sensitive on Vercel and cannot be read back via `vercel env pull`; get the connection string from the Neon dashboard.
+
+Before `--apply`, check the fingerprint the script prints. The stale database shows **0 messages, 0 CoC acceptances, 0 applications** (confirmed 2026-08-24); production will show non-zero. If those three are zero, you are pointed at the wrong database — stop.
+
+A dry run against the stale database on 2026-08-24 confirmed `notification_type: MATCH_CHECK_IN` is the **only** drift across all 65 enum types. Production may differ; the report step will say.
 
 - [x] **Post-meeting session feedback** — 2-question star rating (`SessionFeedbackDialog`) wired into the member dashboard (`home.tsx` "Recent Sessions") and admin meetings page (Feedback column + view dialog + program-wide rollup card). Stored in the existing `mentorFeedback`/`menteeFeedback` jsonb columns; no migration.
 - [x] **Survey builder** (was Phase 10) — question-builder UI already existed; added response **analytics** (per-question aggregates: rating averages/distribution, option/checkbox breakdowns, free-text lists) as a Summary tab, plus the missing `DELETE /api/surveys/:id` endpoint the UI already called.

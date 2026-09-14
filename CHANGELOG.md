@@ -8,13 +8,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dat
 
 ## [Unreleased]
 
+### Added — 2026-08-24
+
+- **A path for hand-applied production DDL.** The project manages schema with `drizzle-kit push` and has no migration runner — `migrations/` held a drizzle snapshot and journal but no `.sql` files — so DDL applied by hand to production left no trace. Added `migrations/manual/`, outside the migrations root where it cannot collide with `drizzle-kit generate` numbering, holding dated idempotent `.sql` files plus a README explaining the convention. First entry: `2026-08-24_match_check_in_enum.sql`.
+- **`scripts/sync-enums.ts`** — diffs every `pgEnum` declared in `shared/schema.ts` against a target database and adds missing values. Additive only: it never drops an enum value or type and never touches tables or columns. Dry-run by default; `--apply` writes each `ALTER TYPE ... ADD VALUE IF NOT EXISTS` as a standalone statement outside a transaction (Postgres forbids using a new enum value in the transaction that added it), then re-reads `pg_enum` to verify rather than trusting the writes. Exits 2 on drift, so it doubles as a pre-deploy check.
+  - Reads `TARGET_DATABASE_URL`, deliberately **not** `DATABASE_URL`, so the stale pre-cutover database in the local `.env` cannot be hit by accident. It prints a row-count fingerprint (`users`, `messages`, `coc_acceptances`, `program_applications`) before doing anything — the stale database shows 0 for the last three.
+  - A dry run on 2026-08-24 confirmed `notification_type: MATCH_CHECK_IN` is the only drift across all 65 enum types.
+
 ### Added — 2026-08-18
 
 - **Match nudges are now actually scheduled.** The Tier 1 "automated match nudges" shipped in 1.6.0 had no scheduler — `runMatchNudges` was only reachable from the two admin-triggered endpoints, so a human had to remember to visit `/admin/match-health` and click send. Added `GET /api/cron/match-nudges`, authenticated with a `Bearer $CRON_SECRET` header (Vercel Cron supplies this automatically), plus a `crons` entry in `vercel.json` running it Mondays at 14:00 UTC. The endpoint **fails closed**: if `CRON_SECRET` is unset it returns 503 rather than running unauthenticated. Runs are recorded as `SCHEDULED_JOB_EXECUTED` audit entries. `CRON_SECRET` has been set on Vercel Production.
 
 ### Pending (see [TODO.md](./TODO.md))
 
-- **`MATCH_CHECK_IN` enum migration — still not run, and now gating the cron.** The scheduled job writes a `MATCH_CHECK_IN` notification; production's `notification_type` enum does not contain that value. Run `ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'MATCH_CHECK_IN'` against production **before** deploying, or the first scheduled run fails on every pair. Note the local `.env` `DATABASE_URL` is a stale pre-cutover database, not production.
+- **`MATCH_CHECK_IN` enum migration — tooling ready, still not run, still gating the cron.** The scheduled job writes a `MATCH_CHECK_IN` notification; production's `notification_type` enum does not contain that value. Run `npx tsx scripts/sync-enums.ts --apply` against production **before** deploying the cron, or the first scheduled run fails on every pair.
 
 ### Deploy wrap-up — 2026-06-12
 
